@@ -33,8 +33,8 @@ FirebaseConfig config;
 // ===========================
 // WiFi Configuration
 // ===========================
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "HUAWEI-E5330-6AB9";
+const char* password = "16yaa0a";
 
 // ==== DFPlayer Mini ====
 HardwareSerial mySerial(1);
