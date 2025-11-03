@@ -3,6 +3,11 @@ import DeviceService from '../services/DeviceService';
 import CameraSnapshot from '../components/CameraSnapshot';
 import { DEVICE_CONFIG } from '../config/hardware.config';
 import { translations } from '../i18n/translations';
+import {
+  SoilSensorCard,
+  BirdDetectionCard,
+  StatusIndicator
+} from '../components/ui';
 
 export default function Dashboard({ language }) {
   const [cameraData, setCameraData] = useState({});
@@ -47,54 +52,170 @@ export default function Dashboard({ language }) {
   const mainOnline = DeviceService.isDeviceOnline(mainDevice?.last_seen);
 
   return (
-    <div className="p-4 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-green-600">🤖 BantayBot</h1>
+    <div className="min-h-screen bg-secondary p-4 space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
+          🤖 BantayBot
+        </h1>
+        <p className="text-secondary">
+          {language === 'tl' ? 'Smart Agriculture Monitoring' : 'Smart Agriculture Monitoring'}
+        </p>
+      </div>
 
-      {/* Device Status */}
+      {/* System Status Grid */}
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className={`p-4 rounded-lg ${cameraOnline ? 'bg-green-100' : 'bg-red-100'}`}>
-          <div className="text-sm text-gray-600">📷 Camera</div>
-          <div className="font-bold">{cameraOnline ? t.online : t.offline}</div>
-        </div>
-        <div className={`p-4 rounded-lg ${mainOnline ? 'bg-green-100' : 'bg-red-100'}`}>
-          <div className="text-sm text-gray-600">🤖 Main Board</div>
-          <div className="font-bold">{mainOnline ? t.online : t.offline}</div>
-        </div>
-      </div>
-
-      {/* Camera Snapshot */}
-      <div className="mb-6 bg-white rounded-lg shadow-lg p-4">
-        <h2 className="text-xl font-bold mb-4">📸 {t.cameraStream}</h2>
-        <CameraSnapshot
-          deviceId={DEVICE_CONFIG.CAMERA_DEVICE_ID}
-          className="min-h-64"
-          translations={t}
+        <StatusIndicator
+          status={cameraOnline ? 'online' : 'offline'}
+          label={language === 'tl' ? 'Camera System' : 'Camera System'}
+          lastUpdate={cameraDevice?.last_seen}
+          connectionStrength={cameraOnline ? 85 : 0}
+          language={language}
+          size="medium"
         />
-        <div className="mt-3 text-sm text-gray-600">
-          🐦 Birds detected today: {cameraData.birds_detected_today || 0}
+        <StatusIndicator
+          status={mainOnline ? 'online' : 'offline'}
+          label={language === 'tl' ? 'Main Board' : 'Main Board'}
+          lastUpdate={mainDevice?.last_seen}
+          connectionStrength={mainOnline ? 92 : 0}
+          batteryLevel={mainOnline ? 78 : null}
+          language={language}
+          size="medium"
+        />
+      </div>
+
+      {/* Quick Stats Overview */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary animate-slide-up">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-success/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">🌱</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-primary">
+                {language === 'tl' ? 'Kalusugan ng Halaman' : 'Plant Health'}
+              </h3>
+              <p className="text-sm text-success font-medium">
+                {language === 'tl' ? 'Mabuti' : 'Good'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary animate-slide-up">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-info/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">🐦</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-primary">
+                {language === 'tl' ? 'Mga Ibon Ngayon' : 'Birds Today'}
+              </h3>
+              <p className="text-sm text-info font-medium">
+                {cameraData.birds_detected_today || 0} {language === 'tl' ? 'nakita' : 'detected'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Soil Sensors */}
-      <div className="bg-white rounded-lg shadow-lg p-4">
-        <h2 className="text-xl font-bold mb-4">{t.soilSensors}</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <div className="text-sm text-gray-600">💧 {t.humidity}</div>
-            <div className="text-2xl font-bold">{mainData.soil_humidity || 0}%</div>
+      {/* Main Content Grid */}
+      <div className="space-y-6">
+        {/* Soil Monitoring Card */}
+        <SoilSensorCard
+          humidity={mainData.soil_humidity || 0}
+          temperature={mainData.soil_temperature || 0}
+          conductivity={mainData.soil_conductivity || 0}
+          ph={mainData.ph || 7.0}
+          language={language}
+          className="w-full"
+        />
+
+        {/* Bird Detection Card */}
+        <BirdDetectionCard
+          isDetecting={cameraData.bird_detected || false}
+          lastDetectionTime={cameraData.last_bird_detection}
+          detectionCount={cameraData.birds_detected_today || 0}
+          detectionSensitivity={75}
+          language={language}
+          className="w-full"
+        />
+
+        {/* Camera Stream Section */}
+        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary hover-lift transition-all animate-slide-up">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-info rounded-xl flex items-center justify-center">
+              <span className="text-2xl">📹</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-primary">
+                {language === 'tl' ? 'LIVE CAMERA' : 'LIVE CAMERA'}
+              </h3>
+              <p className="text-sm text-secondary">
+                {language === 'tl' ? 'Real-time na pagsusuri' : 'Real-time monitoring'}
+              </p>
+            </div>
+            <div className="ml-auto">
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                cameraOnline ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
+              }`}>
+                {cameraOnline ? 'LIVE' : 'OFFLINE'}
+              </div>
+            </div>
           </div>
-          <div className="p-4 bg-orange-50 rounded-lg">
-            <div className="text-sm text-gray-600">🌡️ {t.temperature}</div>
-            <div className="text-2xl font-bold">{mainData.soil_temperature || 0}°C</div>
+
+          <div className="bg-tertiary rounded-xl overflow-hidden">
+            <CameraSnapshot
+              deviceId={DEVICE_CONFIG.CAMERA_DEVICE_ID}
+              className="min-h-64 w-full"
+              translations={t}
+            />
           </div>
-          <div className="p-4 bg-yellow-50 rounded-lg">
-            <div className="text-sm text-gray-600">⚡ {t.conductivity}</div>
-            <div className="text-2xl font-bold">{mainData.soil_conductivity || 0}</div>
-            <div className="text-xs text-gray-500">µS/cm</div>
+
+          <div className="mt-4 pt-4 border-t border-secondary flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${cameraOnline ? 'bg-success animate-pulse' : 'bg-error'}`}></div>
+              <span className="text-xs text-secondary">
+                {language === 'tl' ? 'AI Detection' : 'AI Detection'}
+              </span>
+            </div>
+            <span className="text-xs text-tertiary">
+              {language === 'tl' ? 'ESP32-CAM' : 'ESP32-CAM'}
+            </span>
           </div>
-          <div className="p-4 bg-green-50 rounded-lg">
-            <div className="text-sm text-gray-600">🧪 {t.ph}</div>
-            <div className="text-2xl font-bold">{mainData.ph || 7.0}</div>
+        </div>
+
+        {/* Environmental Overview */}
+        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary animate-slide-up">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-warning/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">🌤️</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-primary">
+                {language === 'tl' ? 'KAPALIGIRAN' : 'ENVIRONMENT'}
+              </h3>
+              <p className="text-sm text-secondary">
+                {language === 'tl' ? 'Kondisyon ng paligid' : 'Environmental conditions'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-tertiary rounded-xl p-4 text-center">
+              <div className="text-2xl mb-2">🌡️</div>
+              <div className="text-lg font-bold text-primary">25°C</div>
+              <div className="text-xs text-secondary">
+                {language === 'tl' ? 'Temperatura' : 'Temperature'}
+              </div>
+            </div>
+            <div className="bg-tertiary rounded-xl p-4 text-center">
+              <div className="text-2xl mb-2">💨</div>
+              <div className="text-lg font-bold text-primary">65%</div>
+              <div className="text-xs text-secondary">
+                {language === 'tl' ? 'Humidity' : 'Humidity'}
+              </div>
+            </div>
           </div>
         </div>
       </div>
