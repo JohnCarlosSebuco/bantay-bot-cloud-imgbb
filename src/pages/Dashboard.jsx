@@ -1,220 +1,389 @@
-import React, { useState, useEffect } from 'react';
-import DeviceService from '../services/DeviceService';
-import CameraSnapshot from '../components/CameraSnapshot';
-import { DEVICE_CONFIG } from '../config/hardware.config';
-import { translations } from '../i18n/translations';
+import React, { useState, useEffect, useRef } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   SoilSensorCard,
-  BirdDetectionCard,
-  StatusIndicator
+  AudioPlayerControl,
+  ServoArmControl,
+  StatusIndicator,
+  DetectionControls,
+  CameraSettings
 } from '../components/ui';
+import ConnectionManager from '../services/ConnectionManager';
+import CommandService from '../services/CommandService';
+import { CONFIG } from '../config/config';
 
 export default function Dashboard({ language }) {
-  const [cameraData, setCameraData] = useState({});
-  const [mainData, setMainData] = useState({});
-  const [cameraDevice, setCameraDevice] = useState(null);
-  const [mainDevice, setMainDevice] = useState(null);
-  const t = translations[language];
+  const { currentTheme } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
+  const fadeOpacity = useRef(1); // Start visible, then animate if needed
+
+  // Connection state
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  // Sensor data state matching React Native
+  const [sensorData, setSensorData] = useState({
+    motion: 0,
+    headPosition: 90,
+    dhtTemperature: 25.5,
+    dhtHumidity: 60,
+    soilHumidity: 45,
+    soilTemperature: 24.2,
+    soilConductivity: 850,
+    ph: 6.8,
+    currentTrack: 1,
+    volume: 20,
+    audioPlaying: false,
+    leftArmAngle: 90,
+    rightArmAngle: 90,
+    oscillating: false,
+    birdDetectionEnabled: true,
+    birdsDetectedToday: 3,
+    detectionSensitivity: 2,
+    hasDFPlayer: true,
+    hasRS485Sensor: true,
+    hasServos: true,
+  });
+
+  // Camera settings
+  const [cameraBrightness, setCameraBrightness] = useState(0);
+  const [cameraContrast, setCameraContrast] = useState(0);
+  const [grayscaleMode, setGrayscaleMode] = useState(false);
+  const [streamUrl, setStreamUrl] = useState('');
+
+  const texts = {
+    en: {
+      title: 'BantayBot',
+      subtitle: 'Smart Crop Protection',
+      connected: 'Connected',
+      offline: 'Offline',
+      birds: 'Birds',
+      soil: 'Soil',
+      liveCamera: 'Live Camera',
+      cameraDisabled: 'Camera Temporarily Disabled',
+      detectionActive: 'Detection still active',
+      birdDetection: 'Bird Detection',
+      birdsToday: 'birds today',
+      headDirection: 'Head Direction',
+      quickActions: 'Quick Actions',
+      systemStatus: 'System Status',
+      live: 'LIVE',
+      disabled: 'DISABLED'
+    },
+    tl: {
+      title: 'BantayBot',
+      subtitle: 'Pangbantay ng Pananim',
+      connected: 'Konektado',
+      offline: 'Offline',
+      birds: 'Ibon',
+      soil: 'Lupa',
+      liveCamera: 'Kamera',
+      cameraDisabled: 'Kamera Pansamantala ay Hindi Aktibo',
+      detectionActive: 'Pagdetekta ay gumagana pa rin',
+      birdDetection: 'Pagbabantay ng Ibon',
+      birdsToday: 'ibon ngayong araw',
+      headDirection: 'Direksyon ng Ulo',
+      quickActions: 'Mabilis na Aksyon',
+      systemStatus: 'Katayuan ng Sistema',
+      live: 'BUHAY',
+      disabled: 'HINDI AKTIBO'
+    }
+  };
+
+  const t = texts[language] || texts.en;
 
   useEffect(() => {
-    // Subscribe to camera sensor data
-    const unsubCamera = DeviceService.subscribeToSensorData(
-      DEVICE_CONFIG.CAMERA_DEVICE_ID,
-      setCameraData
-    );
+    // Fade in animation
+    const startTime = Date.now();
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / 500, 1);
+      fadeOpacity.current = progress;
 
-    // Subscribe to main board sensor data
-    const unsubMain = DeviceService.subscribeToSensorData(
-      DEVICE_CONFIG.MAIN_DEVICE_ID,
-      setMainData
-    );
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    animate();
 
-    // Subscribe to device status
-    const unsubCameraDev = DeviceService.subscribeToDevice(
-      DEVICE_CONFIG.CAMERA_DEVICE_ID,
-      setCameraDevice
-    );
+    // Real ConnectionManager integration (matching React Native)
+    const handleConnection = (status) => {
+      setIsConnected(status.connected);
+    };
 
-    const unsubMainDev = DeviceService.subscribeToDevice(
-      DEVICE_CONFIG.MAIN_DEVICE_ID,
-      setMainDevice
-    );
+    const handleData = (data) => {
+      const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
+      setSensorData({
+        motion: data?.motion ? 1 : 0,
+        headPosition: safeNumber(data?.headPosition, 0),
+        dhtTemperature: safeNumber(data?.dhtTemperature, 0),
+        dhtHumidity: safeNumber(data?.dhtHumidity, 0),
+        soilHumidity: safeNumber(data?.soilHumidity, 0),
+        soilTemperature: safeNumber(data?.soilTemperature, 0),
+        soilConductivity: safeNumber(data?.soilConductivity, 0),
+        ph: safeNumber(data?.ph, 7.0),
+        currentTrack: safeNumber(data?.currentTrack, 1),
+        volume: safeNumber(data?.volume, 20),
+        audioPlaying: data?.audioPlaying || false,
+        leftArmAngle: safeNumber(data?.leftArmAngle, 90),
+        rightArmAngle: safeNumber(data?.rightArmAngle, 90),
+        oscillating: data?.oscillating || false,
+        birdDetectionEnabled: data?.birdDetectionEnabled !== undefined ? data.birdDetectionEnabled : true,
+        birdsDetectedToday: safeNumber(data?.birdsDetectedToday, 0),
+        detectionSensitivity: safeNumber(data?.detectionSensitivity, 2),
+        hasDFPlayer: data?.hasDFPlayer || false,
+        hasRS485Sensor: data?.hasRS485Sensor || false,
+        hasServos: data?.hasServos || false,
+      });
+      setLastUpdate(new Date());
+    };
+
+    // Initialize ConnectionManager (auto-detects local or remote mode)
+    ConnectionManager.initialize();
+
+    // Listen for connection changes
+    ConnectionManager.onConnectionChange(handleConnection);
+
+    // Listen for status updates (sensor data, alerts)
+    ConnectionManager.onStatusUpdate(handleData);
+
+    // Set stream URL
+    const esp32Ip = CONFIG.ESP32_IP;
+    setStreamUrl(`http://${esp32Ip}:81/stream`);
 
     return () => {
-      unsubCamera();
-      unsubMain();
-      unsubCameraDev();
-      unsubMainDev();
+      ConnectionManager.disconnect();
     };
-  }, []);
+  }, [language]);
 
-  const cameraOnline = DeviceService.isDeviceOnline(cameraDevice?.last_seen);
-  const mainOnline = DeviceService.isDeviceOnline(mainDevice?.last_seen);
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+      setLastUpdate(new Date());
+    }, 1000);
+  };
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour12: true,
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
+  // Command handlers (matching React Native)
+  const sendCommand = async (command, value = 0) => {
+    try {
+      await ConnectionManager.sendCommand(command, value);
+    } catch (e) {
+      console.error('Command failed:', e);
+      alert(language === 'tl' ? 'Hindi naipadala ang utos' : 'Could not send command');
+    }
+  };
+
+  // Audio controls
+  const playTrack = (track) => sendCommand('PLAY_TRACK', track);
+  const stopAudio = () => sendCommand('STOP_AUDIO');
+  const nextTrack = () => sendCommand('NEXT_TRACK');
+  const setAudioVolume = (vol) => sendCommand('SET_VOLUME', vol);
+
+  // Servo controls
+  const setLeftServo = (angle) => ConnectionManager.sendCommand('SET_SERVO_ANGLE', { servo: 0, value: angle });
+  const setRightServo = (angle) => ConnectionManager.sendCommand('SET_SERVO_ANGLE', { servo: 1, value: angle });
+  const toggleOscillation = () => sendCommand('TOGGLE_SERVO_OSCILLATION');
+
+  // Camera controls
+  const refreshStream = () => {
+    setStreamUrl(prev => prev + '?t=' + Date.now());
+  };
+
+  // Now using CSS classes instead of inline styles for better theme reliability
 
   return (
-    <div className="min-h-screen bg-secondary p-4 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
-          🤖 BantayBot
-        </h1>
-        <p className="text-secondary">
-          {language === 'tl' ? 'Smart Agriculture Monitoring' : 'Smart Agriculture Monitoring'}
-        </p>
-      </div>
-
-      {/* System Status Grid */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <StatusIndicator
-          status={cameraOnline ? 'online' : 'offline'}
-          label={language === 'tl' ? 'Camera System' : 'Camera System'}
-          lastUpdate={cameraDevice?.last_seen}
-          connectionStrength={cameraOnline ? 85 : 0}
-          language={language}
-          size="medium"
-        />
-        <StatusIndicator
-          status={mainOnline ? 'online' : 'offline'}
-          label={language === 'tl' ? 'Main Board' : 'Main Board'}
-          lastUpdate={mainDevice?.last_seen}
-          connectionStrength={mainOnline ? 92 : 0}
-          batteryLevel={mainOnline ? 78 : null}
-          language={language}
-          size="medium"
-        />
-      </div>
-
-      {/* Quick Stats Overview */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary animate-slide-up">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-success/20 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">🌱</span>
+    <div className="min-h-screen bg-secondary">
+      <div className="opacity-100">
+        {/* Modern Header */}
+        <div className="pt-16 pb-6 px-4 bg-secondary">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex-1">
+              <div className="flex items-center mb-1">
+                <span className="text-3xl text-brand mr-2">🛡️</span>
+                <h1 className="text-4xl font-bold text-primary">{t.title}</h1>
+              </div>
+              <p className="text-sm text-secondary font-medium">{t.subtitle}</p>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-primary">
-                {language === 'tl' ? 'Kalusugan ng Halaman' : 'Plant Health'}
-              </h3>
-              <p className="text-sm text-success font-medium">
-                {language === 'tl' ? 'Mabuti' : 'Good'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary animate-slide-up">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-info/20 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">🐦</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-primary">
-                {language === 'tl' ? 'Mga Ibon Ngayon' : 'Birds Today'}
-              </h3>
-              <p className="text-sm text-info font-medium">
-                {cameraData.birds_detected_today || 0} {language === 'tl' ? 'nakita' : 'detected'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="space-y-6">
-        {/* Soil Monitoring Card */}
-        <SoilSensorCard
-          humidity={mainData.soil_humidity || 0}
-          temperature={mainData.soil_temperature || 0}
-          conductivity={mainData.soil_conductivity || 0}
-          ph={mainData.ph || 7.0}
-          language={language}
-          className="w-full"
-        />
-
-        {/* Bird Detection Card */}
-        <BirdDetectionCard
-          isDetecting={cameraData.bird_detected || false}
-          lastDetectionTime={cameraData.last_bird_detection}
-          detectionCount={cameraData.birds_detected_today || 0}
-          detectionSensitivity={75}
-          language={language}
-          className="w-full"
-        />
-
-        {/* Camera Stream Section */}
-        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary hover-lift transition-all animate-slide-up">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-info rounded-xl flex items-center justify-center">
-              <span className="text-2xl">📹</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-primary">
-                {language === 'tl' ? 'LIVE CAMERA' : 'LIVE CAMERA'}
-              </h3>
-              <p className="text-sm text-secondary">
-                {language === 'tl' ? 'Real-time na pagsusuri' : 'Real-time monitoring'}
-              </p>
-            </div>
-            <div className="ml-auto">
-              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                cameraOnline ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
+            <div className={`flex items-center px-3 py-2 rounded-full shadow-sm ${
+              isConnected ? 'bg-success/20' : 'bg-error/20'
+            }`}>
+              <div className={`w-2 h-2 rounded-full mr-2 ${
+                isConnected ? 'bg-success' : 'bg-error'
+              }`}></div>
+              <span className={`text-xs font-semibold uppercase tracking-wider ${
+                isConnected ? 'text-success' : 'text-error'
               }`}>
-                {cameraOnline ? 'LIVE' : 'OFFLINE'}
+                {isConnected ? t.connected : t.offline}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
+              <div className="w-10 h-10 rounded-full bg-brand/20 text-brand flex items-center justify-center text-xl mx-auto mb-2">
+                🐦
+              </div>
+              <div className="text-2xl font-bold text-primary mb-1">{sensorData.birdsDetectedToday}</div>
+              <div className="text-xs text-secondary font-medium uppercase tracking-wide">{t.birds}</div>
+            </div>
+            <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
+              <div className="w-10 h-10 rounded-full bg-success/20 text-success flex items-center justify-center text-xl mx-auto mb-2">
+                🌱
+              </div>
+              <div className="text-2xl font-bold text-primary mb-1">{sensorData.ph.toFixed(1)}</div>
+              <div className="text-xs text-secondary font-medium uppercase tracking-wide">pH</div>
+            </div>
+            <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
+              <div className="w-10 h-10 rounded-full bg-info/20 text-info flex items-center justify-center text-xl mx-auto mb-2">
+                💧
+              </div>
+              <div className="text-2xl font-bold text-primary mb-1">{Math.round(sensorData.soilHumidity)}%</div>
+              <div className="text-xs text-secondary font-medium uppercase tracking-wide">{t.soil}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 pb-24">
+          {/* Live Camera Feed */}
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-bold text-primary">{t.liveCamera}</h2>
+              <button
+                onClick={refreshStream}
+                className="p-2 rounded-md bg-border border-0 text-lg text-secondary cursor-pointer"
+              >
+                🔄
+              </button>
+            </div>
+
+            <div className="surface-primary rounded-xl p-4 shadow-md border border-primary">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center px-2 py-1 rounded-md bg-secondary/20">
+                  <span className="text-xs font-bold text-secondary uppercase tracking-wide">{t.disabled}</span>
+                </div>
+                <span className="text-xs text-secondary">
+                  {formatTime(lastUpdate)}
+                </span>
+              </div>
+
+              <div className="rounded-lg overflow-hidden bg-border aspect-video mb-3 flex flex-col items-center justify-center">
+                <span className="text-6xl text-secondary">📷</span>
+                <span className="text-base font-semibold mt-3 text-secondary text-center">{t.cameraDisabled}</span>
+                <span className="text-xs mt-2 text-secondary text-center">
+                  {t.detectionActive}
+                </span>
+              </div>
+
+              <div className="flex items-center text-xs text-secondary">
+                <span className="mr-1">📶</span>
+                <span>{CONFIG.ESP32_IP}:81/stream</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-tertiary rounded-xl overflow-hidden">
-            <CameraSnapshot
-              deviceId={DEVICE_CONFIG.CAMERA_DEVICE_ID}
-              className="min-h-64 w-full"
-              translations={t}
+          {/* Bird Detection Status */}
+          <div className="mb-4">
+            <StatusIndicator
+              status={sensorData.birdDetectionEnabled ? 'online' : 'warning'}
+              label={t.birdDetection}
+              value={`${sensorData.birdsDetectedToday} ${t.birdsToday}`}
+              lastUpdate={lastUpdate.toISOString()}
+              language={language}
+              size="medium"
+              className="w-full"
             />
           </div>
 
-          <div className="mt-4 pt-4 border-t border-secondary flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${cameraOnline ? 'bg-success animate-pulse' : 'bg-error'}`}></div>
-              <span className="text-xs text-secondary">
-                {language === 'tl' ? 'AI Detection' : 'AI Detection'}
+          {/* Detection Controls */}
+          <DetectionControls
+            detectionEnabled={sensorData.birdDetectionEnabled}
+            onDetectionToggle={() => sendCommand('TOGGLE_DETECTION')}
+            sensitivity={sensorData.detectionSensitivity}
+            onSensitivityChange={(value) => sendCommand('SET_SENSITIVITY', value)}
+            birdsDetectedToday={sensorData.birdsDetectedToday}
+            onResetCount={() => sendCommand('RESET_BIRD_COUNT')}
+            className="mb-6"
+          />
+
+          {/* Camera Settings */}
+          <CameraSettings
+            brightness={cameraBrightness}
+            contrast={cameraContrast}
+            onBrightnessChange={(value) => {
+              setCameraBrightness(value);
+              sendCommand('SET_BRIGHTNESS', value);
+            }}
+            onContrastChange={(value) => {
+              setCameraContrast(value);
+              sendCommand('SET_CONTRAST', value);
+            }}
+            grayscaleMode={grayscaleMode}
+            onGrayscaleToggle={() => {
+              setGrayscaleMode(!grayscaleMode);
+              sendCommand('TOGGLE_GRAYSCALE');
+            }}
+            language={language}
+            className="mb-6"
+          />
+
+          {/* Soil Sensor */}
+          {sensorData.hasRS485Sensor && (
+            <SoilSensorCard
+              humidity={sensorData.soilHumidity}
+              temperature={sensorData.soilTemperature}
+              conductivity={sensorData.soilConductivity}
+              ph={sensorData.ph}
+              language={language}
+              className="mb-6"
+            />
+          )}
+
+          {/* Audio Player */}
+          {sensorData.hasDFPlayer && (
+            <AudioPlayerControl
+              currentTrack={sensorData.currentTrack}
+              isPlaying={sensorData.audioPlaying}
+              onPlay={() => playTrack(sensorData.currentTrack)}
+              onStop={stopAudio}
+              onNext={nextTrack}
+              currentVolume={sensorData.volume}
+              onVolumeChange={setAudioVolume}
+              language={language}
+              className="mb-6"
+            />
+          )}
+
+          {/* Servo Arms */}
+          {sensorData.hasServos && (
+            <ServoArmControl
+              leftArmAngle={sensorData.leftArmAngle}
+              rightArmAngle={sensorData.rightArmAngle}
+              oscillating={sensorData.oscillating}
+              onLeftChange={setLeftServo}
+              onRightChange={setRightServo}
+              onToggleOscillation={toggleOscillation}
+              lang={language}
+              className="mb-6"
+            />
+          )}
+
+          {/* Head Direction */}
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-bold text-primary">{t.headDirection}</h2>
+              <span className="text-sm text-secondary">
+                {Math.round(sensorData.headPosition)}°
               </span>
-            </div>
-            <span className="text-xs text-tertiary">
-              {language === 'tl' ? 'ESP32-CAM' : 'ESP32-CAM'}
-            </span>
-          </div>
-        </div>
-
-        {/* Environmental Overview */}
-        <div className="bg-primary rounded-2xl p-6 shadow-lg border border-primary animate-slide-up">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-warning/20 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">🌤️</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-primary">
-                {language === 'tl' ? 'KAPALIGIRAN' : 'ENVIRONMENT'}
-              </h3>
-              <p className="text-sm text-secondary">
-                {language === 'tl' ? 'Kondisyon ng paligid' : 'Environmental conditions'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-tertiary rounded-xl p-4 text-center">
-              <div className="text-2xl mb-2">🌡️</div>
-              <div className="text-lg font-bold text-primary">25°C</div>
-              <div className="text-xs text-secondary">
-                {language === 'tl' ? 'Temperatura' : 'Temperature'}
-              </div>
-            </div>
-            <div className="bg-tertiary rounded-xl p-4 text-center">
-              <div className="text-2xl mb-2">💨</div>
-              <div className="text-lg font-bold text-primary">65%</div>
-              <div className="text-xs text-secondary">
-                {language === 'tl' ? 'Humidity' : 'Humidity'}
-              </div>
             </div>
           </div>
         </div>

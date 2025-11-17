@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const StatusIndicator = ({
   status = 'offline', // online, offline, warning, error
@@ -12,42 +13,43 @@ const StatusIndicator = ({
   size = 'medium', // small, medium, large
   className = ''
 }) => {
+  const { currentTheme } = useTheme();
   const getStatusConfig = () => {
     switch (status) {
       case 'online':
         return {
-          color: 'success',
+          color: currentTheme.colors.success,
           icon: '🟢',
-          bgColor: 'bg-success/10',
-          textColor: 'text-success',
-          borderColor: 'border-success/30',
+          backgroundColor: currentTheme.colors.success + '20',
+          textColor: currentTheme.colors.success,
+          borderColor: currentTheme.colors.success + '30',
           label: language === 'tl' ? 'Online' : 'Online'
         };
       case 'warning':
         return {
-          color: 'warning',
+          color: currentTheme.colors.warning,
           icon: '🟡',
-          bgColor: 'bg-warning/10',
-          textColor: 'text-warning',
-          borderColor: 'border-warning/30',
+          backgroundColor: currentTheme.colors.warning + '20',
+          textColor: currentTheme.colors.warning,
+          borderColor: currentTheme.colors.warning + '30',
           label: language === 'tl' ? 'May babala' : 'Warning'
         };
       case 'error':
         return {
-          color: 'error',
+          color: currentTheme.colors.error,
           icon: '🔴',
-          bgColor: 'bg-error/10',
-          textColor: 'text-error',
-          borderColor: 'border-error/30',
+          backgroundColor: currentTheme.colors.error + '20',
+          textColor: currentTheme.colors.error,
+          borderColor: currentTheme.colors.error + '30',
           label: language === 'tl' ? 'May problema' : 'Error'
         };
       default:
         return {
-          color: 'tertiary',
+          color: currentTheme.colors.text,
           icon: '⚫',
-          bgColor: 'bg-tertiary',
-          textColor: 'text-tertiary',
-          borderColor: 'border-tertiary',
+          backgroundColor: currentTheme.colors.surface,
+          textColor: currentTheme.colors.text,
+          borderColor: currentTheme.colors.border,
           label: language === 'tl' ? 'Offline' : 'Offline'
         };
     }
@@ -127,21 +129,21 @@ const StatusIndicator = ({
   const sizeClass = sizeClasses[size];
 
   return (
-    <div className={`bg-primary rounded-xl border-2 ${statusConfig.borderColor} ${statusConfig.bgColor} transition-all duration-300 hover-lift ${sizeClass.container} ${className}`}>
+    <div className={`bg-primary rounded-xl border-2 border-primary transition-all duration-300 hover-lift p-4 ${className}`}>
       {/* Main Status */}
       <div className="flex items-center gap-3 mb-3">
-        <div className={`${sizeClass.indicator} ${statusConfig.bgColor.replace('/10', '')} rounded-full ${status === 'online' ? 'animate-pulse' : ''}`}></div>
+        <div className={`w-3 h-3 ${status === 'online' ? 'bg-success' : 'bg-tertiary'} rounded-full ${status === 'online' ? 'animate-pulse' : ''}`}></div>
         <div className="flex-1">
-          <div className={`font-semibold ${statusConfig.textColor} ${sizeClass.title}`}>
+          <div className={`font-semibold ${status === 'online' ? 'text-success' : 'text-tertiary'} text-base`}>
             {label || statusConfig.label}
           </div>
           {showDetails && (
-            <div className={`${sizeClass.subtitle} text-secondary`}>
+            <div className="text-sm text-secondary">
               {formatLastUpdate()}
             </div>
           )}
         </div>
-        <span className={sizeClass.icon}>{statusConfig.icon}</span>
+        <span className="text-xl">{statusConfig.icon}</span>
       </div>
 
       {/* Additional Details */}

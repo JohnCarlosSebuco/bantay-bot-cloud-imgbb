@@ -492,8 +492,14 @@ class FirebaseService {
   }
 }
 
-// Export singleton instance
+// Create and initialize Firebase service
 const firebaseService = new FirebaseService();
+
+// Initialize the Firestore database directly here for immediate export
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+
+// Also create the service instance for other methods
 export default firebaseService;
 
 // Export for direct use

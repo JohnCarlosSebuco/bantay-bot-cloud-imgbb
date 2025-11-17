@@ -5,6 +5,12 @@ import Controls from './pages/Controls';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import History from './pages/History';
+import HarvestPlanner from './pages/HarvestPlanner';
+import AddHarvest from './pages/AddHarvest';
+import RainfallTracker from './pages/RainfallTracker';
+import CropHealthMonitor from './pages/CropHealthMonitor';
+import BirdAnalytics from './pages/BirdAnalytics';
+import Reports from './pages/Reports';
 import { translations } from './i18n/translations';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
@@ -24,7 +30,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="fixed top-4 right-4 p-3 bg-primary surface-primary border border-primary rounded-full shadow-md hover-lift transition-all z-50 focus-ring"
+      className="fixed top-4 right-4 p-3 bg-brand text-white border border-brand rounded-full shadow-md hover-lift transition-all z-50"
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
       <span className="text-xl">
@@ -48,7 +54,7 @@ function Navigation({ language }) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 surface-primary border-t border-primary shadow-xl z-50 backdrop-blur-lg">
+    <nav className="fixed bottom-0 left-0 right-0 bg-primary border-t border-primary shadow-xl z-50 backdrop-blur-lg">
       <div className="flex justify-around items-center h-16 max-w-md mx-auto">
         {navItems.map(item => {
           const isActive = location.pathname === item.path;
@@ -107,6 +113,14 @@ function AppContent() {
             <Route path="/analytics" element={<Analytics language={language} />} />
             <Route path="/history" element={<History language={language} />} />
             <Route path="/settings" element={<Settings language={language} onLanguageChange={handleLanguageChange} />} />
+
+            {/* Analytics Sub-pages */}
+            <Route path="/harvest-planner" element={<HarvestPlanner language={language} />} />
+            <Route path="/add-harvest" element={<AddHarvest language={language} />} />
+            <Route path="/rainfall-tracker" element={<RainfallTracker language={language} />} />
+            <Route path="/crop-health-monitor" element={<CropHealthMonitor language={language} />} />
+            <Route path="/bird-analytics" element={<BirdAnalytics language={language} />} />
+            <Route path="/reports" element={<Reports language={language} />} />
           </Routes>
         </main>
         <Navigation language={language} />

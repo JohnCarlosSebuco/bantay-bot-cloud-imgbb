@@ -1,34 +1,34 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getTheme, lightTheme, darkTheme } from '../theme';
 
 // Theme Context
 const ThemeContext = createContext({
   isDark: false,
   theme: 'light',
+  currentTheme: lightTheme,
   toggleTheme: () => {},
   setTheme: () => {},
 });
 
 // Theme Provider Component
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState('light');
-  const [isDark, setIsDark] = useState(false);
-
-  // Load theme from localStorage on mount
-  useEffect(() => {
+  // Initialize with proper defaults immediately
+  const [theme, setTheme] = useState(() => {
     const savedTheme = localStorage.getItem('bantaybot-theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const systemPrefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
+    return savedTheme || (systemPrefersDark ? 'dark' : 'light');
+  });
 
-    let initialTheme = 'light';
+  const [isDark, setIsDark] = useState(() => {
+    const savedTheme = localStorage.getItem('bantaybot-theme');
+    const systemPrefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
+    const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+    return initialTheme === 'dark';
+  });
 
-    if (savedTheme) {
-      initialTheme = savedTheme;
-    } else if (systemPrefersDark) {
-      initialTheme = 'dark';
-    }
-
-    setTheme(initialTheme);
-    setIsDark(initialTheme === 'dark');
-    applyTheme(initialTheme);
+  // Apply theme immediately on mount
+  useEffect(() => {
+    applyTheme(theme);
   }, []);
 
   // Listen for system theme changes
@@ -75,6 +75,7 @@ export const ThemeProvider = ({ children }) => {
   const value = {
     theme,
     isDark,
+    currentTheme: getTheme(isDark) || lightTheme, // Fallback to lightTheme if getTheme fails
     setTheme: handleSetTheme,
     toggleTheme,
   };
