@@ -135,6 +135,48 @@ class CommandService {
   async triggerAlarm(deviceId) {
     return this.sendCommand(deviceId, COMMAND_TYPES.TRIGGER_ALARM);
   }
+
+  // Bot Control Commands from React Native
+  async moveArms(deviceId) {
+    return this.sendCommand(deviceId, 'MOVE_ARMS');
+  }
+
+  async rotateHeadCommand(deviceId) {
+    return this.sendCommand(deviceId, 'ROTATE_HEAD');
+  }
+
+  async stopMovement(deviceId) {
+    return this.sendCommand(deviceId, 'STOP_MOVEMENT');
+  }
+
+  async soundAlarm(deviceId) {
+    return this.sendCommand(deviceId, 'SOUND_ALARM');
+  }
+
+  async testBuzzer(deviceId) {
+    return this.sendCommand(deviceId, 'TEST_BUZZER');
+  }
+
+  async resetSystem(deviceId) {
+    return this.sendCommand(deviceId, 'RESET_SYSTEM');
+  }
+
+  async calibrateSensors(deviceId) {
+    return this.sendCommand(deviceId, 'CALIBRATE_SENSORS');
+  }
+
+  // Motor control
+  async startMotor(deviceId, motorType) {
+    return this.sendCommand(deviceId, 'START_MOTOR', { motor: motorType });
+  }
+
+  async stopMotor(deviceId, motorType) {
+    return this.sendCommand(deviceId, 'STOP_MOTOR', { motor: motorType });
+  }
+
+  async stopAllMotors(deviceId) {
+    return this.sendCommand(deviceId, 'STOP_ALL_MOTORS');
+  }
 }
 
 export default new CommandService();
