@@ -51,7 +51,7 @@ const char *IMGBB_UPLOAD_URL = "http://api.imgbb.com/1/upload";  // Using HTTP t
 // ===========================
 // Main Board Configuration
 // ===========================
-const char *MAIN_BOARD_IP = "192.168.8.101";  // Update with your main board IP
+const char *MAIN_BOARD_IP = "192.168.8.100";  // Update with your main board IP
 const int MAIN_BOARD_PORT = 81;
 
 // Device IDs

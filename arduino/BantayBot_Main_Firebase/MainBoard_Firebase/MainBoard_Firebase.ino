@@ -883,6 +883,20 @@ void checkFirebaseCommands() {
             docJson.get(actionData, "fields/action/stringValue");
             String action = actionData.stringValue;
 
+            // Determine document path (used for status updates and cleanup)
+            FirebaseJsonData nameData;
+            docJson.get(nameData, "name");
+            String docName = nameData.stringValue;
+            int lastSlash = docName.lastIndexOf('/');
+            String docId = docName.substring(lastSlash + 1);
+            String completePath = path + "/" + docId;
+
+            if (!actionData.success || action.length() == 0) {
+              Serial.println("⚠️ Command missing action, deleting document");
+              Firebase.Firestore.deleteDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str());
+              continue;
+            }
+
             Serial.println("📥 Received command: " + action);
 
             // Execute command
@@ -910,6 +924,30 @@ void checkFirebaseCommands() {
             else if (action == "trigger_alarm") {
               triggerAlarmSequence();
             }
+            else if (action == "stop_movement") {
+              // Stop all motors
+              stopArmStepperSequence();
+              stopHeadScanning();
+              Serial.println("⏹️ All movement stopped");
+            }
+            else if (action == "test_buzzer") {
+              // Test buzzer with a short beep
+              digitalWrite(SPEAKER_PIN, HIGH);
+              delay(500);
+              digitalWrite(SPEAKER_PIN, LOW);
+              Serial.println("🔊 Buzzer tested");
+            }
+            else if (action == "calibrate_sensors") {
+              // Recalibrate sensors by reading fresh data
+              readRS485Sensor();
+              Serial.println("🔧 Sensors recalibrated");
+            }
+            else if (action == "reset_system") {
+              // Restart the ESP32
+              Serial.println("🔄 System reset requested");
+              delay(100);
+              ESP.restart();
+            }
 
             // Mark as completed - get document name/id
             FirebaseJsonData nameData;
@@ -927,6 +965,12 @@ void checkFirebaseCommands() {
 
             Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str(),
                                            updateDoc.raw(), "status,completed_at");
+
+            if (Firebase.Firestore.deleteDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str())) {
+              Serial.println("🧹 Command document deleted");
+            } else {
+              Serial.println("⚠️ Failed to delete command document: " + fbdo.errorReason());
+            }
           }
         }
       }

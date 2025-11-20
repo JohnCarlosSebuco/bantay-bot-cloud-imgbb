@@ -1,5 +1,11 @@
 import { db } from './FirebaseService';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  onSnapshot,
+  deleteDoc
+} from 'firebase/firestore';
 import { FIREBASE_COLLECTIONS, COMMAND_TYPES } from '../config/hardware.config';
 
 class CommandService {
@@ -29,11 +35,39 @@ class CommandService {
       const docRef = await addDoc(commandsRef, command);
       console.log(`✅ [CommandService] Command written successfully! Doc ID: ${docRef.id}`);
 
+      this.monitorCommandLifecycle(docRef);
+
       return { success: true };
     } catch (error) {
       console.error('❌ [CommandService] Error sending command:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  monitorCommandLifecycle(docRef) {
+    const unsubscribe = onSnapshot(docRef, async (snapshot) => {
+      if (!snapshot.exists()) {
+        unsubscribe();
+        return;
+      }
+
+      const data = snapshot.data();
+      if (data?.status === 'completed') {
+        try {
+          await deleteDoc(docRef);
+          console.log(`🧹 [CommandService] Deleted completed command ${docRef.id}`);
+        } catch (error) {
+          console.warn(`⚠️ [CommandService] Failed to delete command ${docRef.id}:`, error);
+        } finally {
+          unsubscribe();
+        }
+      }
+    });
+
+    // Safety timeout to avoid lingering listeners
+    setTimeout(() => {
+      unsubscribe();
+    }, 60000);
   }
 
   // Audio commands
@@ -147,7 +181,10 @@ class CommandService {
     return this.sendCommand(deviceId, 'oscillate_arms');
   }
 
-  async rotateHeadCommand(deviceId) {
+  async rotateHeadCommand(deviceId, angle) {
+    if (typeof angle === 'number' && !Number.isNaN(angle)) {
+      return this.sendCommand(deviceId, 'rotate_head', { angle });
+    }
     return this.sendCommand(deviceId, 'rotate_head');
   }
 

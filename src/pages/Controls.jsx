@@ -5,7 +5,8 @@ import {
   AudioPlayerControl,
   ServoArmControl,
   DetectionControls,
-  CameraSettings
+  CameraSettings,
+  HeadControlPanel
 } from '../components/ui';
 import CommandService from '../services/CommandService';
 import { CONFIG } from '../config/config';
@@ -29,6 +30,8 @@ export default function Controls({ language }) {
   const [cameraBrightness, setCameraBrightness] = useState(0);
   const [cameraContrast, setCameraContrast] = useState(0);
   const [grayscaleMode, setGrayscaleMode] = useState(false);
+  const [headTargetAngle, setHeadTargetAngle] = useState(0);
+  const [headLoadingAngle, setHeadLoadingAngle] = useState(null);
 
   const t = {
     en: {
@@ -152,9 +155,6 @@ export default function Controls({ language }) {
       switch (command) {
         case 'MOVE_ARMS':
           result = await CommandService.moveArms(CONFIG.DEVICE_ID);
-          break;
-        case 'ROTATE_HEAD':
-          result = await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID);
           break;
         case 'STOP_MOVEMENT':
           result = await CommandService.stopMovement(CONFIG.DEVICE_ID);
@@ -326,6 +326,20 @@ export default function Controls({ language }) {
       setGrayscaleMode(!grayscaleMode);
     } catch (error) {
       console.error('Grayscale toggle failed:', error);
+    }
+  };
+
+  const handleHeadAngleSelect = async (angle) => {
+    setHeadLoadingAngle(angle);
+    try {
+      await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID, angle);
+      setHeadTargetAngle(angle);
+      showAlert(texts.success, `${texts.rotateHead} ${texts.successMessage}`);
+    } catch (error) {
+      console.error('Head rotation failed:', error);
+      showAlert(texts.failed, `${texts.failed} ${texts.rotateHead}. ${texts.failedMessage}`);
+    } finally {
+      setHeadLoadingAngle(null);
     }
   };
 
@@ -565,14 +579,12 @@ export default function Controls({ language }) {
             isLoading={loadingStates.MOVE_ARMS}
           />
 
-          <ControlButton
-            command="ROTATE_HEAD"
-            title={texts.rotateHead}
-            description={texts.rotateHeadDesc}
-            icon="🔄"
-            iconColor={currentTheme.colors.info}
-            onPress={sendCommand}
-            isLoading={loadingStates.ROTATE_HEAD}
+          <HeadControlPanel
+            language={language}
+            currentAngle={headTargetAngle}
+            loadingAngle={headLoadingAngle}
+            onAngleSelect={handleHeadAngleSelect}
+            className="mb-6"
           />
 
           <ControlButton
