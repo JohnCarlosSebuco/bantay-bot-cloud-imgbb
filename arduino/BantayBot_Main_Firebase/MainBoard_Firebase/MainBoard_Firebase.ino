@@ -95,6 +95,12 @@ float soilPH = 0.0;
 
 // Stepper Motor State
 int currentHeadPosition = 0;  // degrees
+bool headMovementPaused = false;  // Pause head during arm movement
+long pausedStepperTarget = 0;  // Store stepper target when paused
+bool headScanningActive = false;  // Continuous head scanning mode
+int headScanDirection = 1;  // 1 = right, -1 = left
+const int HEAD_SCAN_MIN = -90;  // Minimum scan angle (degrees)
+const int HEAD_SCAN_MAX = 90;   // Maximum scan angle (degrees)
 
 // Detection State
 int birdsDetectedToday = 0;
@@ -328,10 +334,26 @@ void stopArmStepperSequence() {
   armSteppersActive = false;
   enableArmSteppers(false);
   Serial.println("✅ Arm stepper sequence complete");
+
+  // Resume head movement after arms finish
+  if (headMovementPaused) {
+    headMovementPaused = false;
+    digitalWrite(STEPPER_ENABLE_PIN, LOW);  // Enable stepper (active LOW)
+    stepper.moveTo(pausedStepperTarget);  // Resume to previous target
+    // Resume continuous scanning after reaching paused position
+    startHeadScanning();
+    Serial.println("▶️  Head movement resumed - scanning restarted");
+  }
 }
 
 void updateArmSteppers() {
-  if (!armSteppersActive) return;
+  // Safety check: Only update arms if they are explicitly active
+  // Arms should only be active during detection sequences
+  if (!armSteppersActive) {
+    // Ensure arms are disabled if somehow they're not
+    enableArmSteppers(false);
+    return;
+  }
 
   unsigned long now = millis();
   if (now - lastArmStepUpdate < ARM_STEP_INTERVAL_MS) return;
@@ -377,12 +399,60 @@ void rotateHead(int targetDegrees) {
   Serial.printf("🔄 Rotating head to %d degrees (%ld steps)\n", targetDegrees, targetSteps);
 }
 
+void startHeadScanning() {
+  headScanningActive = true;
+  digitalWrite(STEPPER_ENABLE_PIN, LOW);  // Enable stepper
+  // Start scanning from current position or center
+  if (stepper.distanceToGo() == 0) {
+    // If head is stationary, start from center
+    rotateHead(0);
+    headScanDirection = 1;  // Start scanning right
+  }
+  Serial.println("👁️  Head scanning started");
+}
+
+void stopHeadScanning() {
+  headScanningActive = false;
+  Serial.println("⏸️  Head scanning stopped");
+}
+
+void updateHeadScanning() {
+  if (!headScanningActive || headMovementPaused || armSteppersActive) return;
+  
+  // Check if head has reached target
+  if (stepper.distanceToGo() == 0) {
+    // Calculate next scan position
+    int nextPosition = currentHeadPosition + (headScanDirection * 30);  // Move 30 degrees at a time
+    
+    // Reverse direction if we hit limits
+    if (nextPosition >= HEAD_SCAN_MAX) {
+      nextPosition = HEAD_SCAN_MAX;
+      headScanDirection = -1;  // Reverse to left
+    } else if (nextPosition <= HEAD_SCAN_MIN) {
+      nextPosition = HEAD_SCAN_MIN;
+      headScanDirection = 1;   // Reverse to right
+    }
+    
+    // Move to next position
+    rotateHead(nextPosition);
+  }
+}
+
 // ===========================
 // Alarm Functions
 // ===========================
 
 void triggerAlarmSequence() {
   Serial.println("🚨 TRIGGERING ALARM SEQUENCE!");
+
+  // Pause head movement - store current target and stop stepper
+  if (!headMovementPaused) {
+    pausedStepperTarget = stepper.targetPosition();
+    headMovementPaused = true;
+    stopHeadScanning();  // Stop continuous scanning
+    digitalWrite(STEPPER_ENABLE_PIN, HIGH);  // Disable stepper (active LOW)
+    Serial.println("⏸️  Head movement paused");
+  }
 
   // Play audio (random track, skip track 3)
   int track = random(1, TOTAL_TRACKS + 1);
@@ -392,9 +462,7 @@ void triggerAlarmSequence() {
   // Start arm sweeps
   startArmStepperSequence();
 
-  // Rotate head (random direction)
-  int headAngle = random(0, 2) == 0 ? -90 : 90;
-  rotateHead(headAngle);
+  // Note: Head rotation removed - head stays paused during arm movement
 
   Serial.println("✅ Alarm sequence initiated");
 }
@@ -762,6 +830,9 @@ void setup() {
   Serial.println("🌐 HTTP server started on port 81");
   Serial.println("📦 Max body size configured for image uploads");
 
+  // Start continuous head scanning for detection
+  startHeadScanning();
+
   Serial.println("🚀 BantayBot Main Board ready!");
   Serial.println("🔥 Firebase: " + String(firebaseConnected ? "ENABLED" : "DISABLED"));
   Serial.printf("💾 Final free heap: %d bytes\n", ESP.getFreeHeap());
@@ -876,11 +947,23 @@ void loop() {
                   soilHumidity, soilTemperature, soilConductivity, soilPH);
   }
 
-  // Update arm stepper motion
+  // Update arm stepper motion (only if arms are active)
+  // Arms should only be active during detection sequences
   updateArmSteppers();
 
-  // Run stepper motor
-  stepper.run();
+  // Safety check: Ensure arms are disabled if they completed their sequence
+  // This prevents arms from staying active when they shouldn't be
+  if (armSteppersActive && armSweepCount >= ARM_TARGET_SWEEPS) {
+    stopArmStepperSequence();
+  }
+
+  // Update continuous head scanning (when no detection/arms active)
+  updateHeadScanning();
+
+  // Run stepper motor only if not paused
+  if (!headMovementPaused) {
+    stepper.run();
+  }
 
   // Firebase operations
   if (firebaseConnected) {
