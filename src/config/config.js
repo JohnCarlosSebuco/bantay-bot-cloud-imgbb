@@ -21,9 +21,9 @@ export const CONFIG = {
   CONNECTION_TIMEOUT: 5000,
   RECONNECT_INTERVAL: 3000,
 
-  // Device ID for Firebase pairing (6-character code)
-  // This should match the DEVICE_ID in your ESP32 Arduino code
-  DEVICE_ID: "BANTAY",  // Change this to your unique device code
+  // Device ID for Firebase pairing (must match Arduino config.h)
+  // This should match the MAIN_DEVICE_ID in your ESP32 Arduino code
+  DEVICE_ID: "main_001",  // Matches MAIN_DEVICE_ID in config.h
 
   // Audio Configuration
   TOTAL_AUDIO_TRACKS: 7,

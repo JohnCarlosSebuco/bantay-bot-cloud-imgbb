@@ -910,6 +910,30 @@ void checkFirebaseCommands() {
             else if (action == "trigger_alarm") {
               triggerAlarmSequence();
             }
+            else if (action == "stop_movement") {
+              // Stop all motors
+              stopArmStepperSequence();
+              stopHeadScanning();
+              Serial.println("⏹️ All movement stopped");
+            }
+            else if (action == "test_buzzer") {
+              // Test buzzer with a short beep
+              digitalWrite(SPEAKER_PIN, HIGH);
+              delay(500);
+              digitalWrite(SPEAKER_PIN, LOW);
+              Serial.println("🔊 Buzzer tested");
+            }
+            else if (action == "calibrate_sensors") {
+              // Recalibrate sensors by reading fresh data
+              readRS485Sensor();
+              Serial.println("🔧 Sensors recalibrated");
+            }
+            else if (action == "reset_system") {
+              // Restart the ESP32
+              Serial.println("🔄 System reset requested");
+              delay(100);
+              ESP.restart();
+            }
 
             // Mark as completed - get document name/id
             FirebaseJsonData nameData;

@@ -10,6 +10,7 @@ import {
 } from '../components/ui';
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
+import FirebaseService from '../services/FirebaseService';
 import { CONFIG } from '../config/config';
 
 export default function Dashboard({ language }) {
@@ -138,8 +139,21 @@ export default function Dashboard({ language }) {
       setLastUpdate(new Date());
     };
 
-    // Initialize ConnectionManager (auto-detects local or remote mode)
-    ConnectionManager.initialize();
+    // Initialize services
+    const initServices = async () => {
+      // Ensure Firebase is initialized for remote command support
+      try {
+        await FirebaseService.initialize();
+        console.log('✅ Firebase ready for remote commands');
+      } catch (error) {
+        console.warn('⚠️ Firebase initialization warning:', error);
+      }
+
+      // Initialize ConnectionManager (auto-detects local or remote mode)
+      ConnectionManager.initialize();
+    };
+
+    initServices();
 
     // Listen for connection changes
     ConnectionManager.onConnectionChange(handleConnection);

@@ -138,31 +138,31 @@ class CommandService {
 
   // Bot Control Commands from React Native
   async moveArms(deviceId) {
-    return this.sendCommand(deviceId, 'MOVE_ARMS');
+    return this.sendCommand(deviceId, 'oscillate_arms');
   }
 
   async rotateHeadCommand(deviceId) {
-    return this.sendCommand(deviceId, 'ROTATE_HEAD');
+    return this.sendCommand(deviceId, 'rotate_head');
   }
 
   async stopMovement(deviceId) {
-    return this.sendCommand(deviceId, 'STOP_MOVEMENT');
+    return this.sendCommand(deviceId, 'stop_movement');
   }
 
   async soundAlarm(deviceId) {
-    return this.sendCommand(deviceId, 'SOUND_ALARM');
+    return this.sendCommand(deviceId, 'trigger_alarm');
   }
 
   async testBuzzer(deviceId) {
-    return this.sendCommand(deviceId, 'TEST_BUZZER');
+    return this.sendCommand(deviceId, 'test_buzzer');
   }
 
   async resetSystem(deviceId) {
-    return this.sendCommand(deviceId, 'RESET_SYSTEM');
+    return this.sendCommand(deviceId, 'reset_system');
   }
 
   async calibrateSensors(deviceId) {
-    return this.sendCommand(deviceId, 'CALIBRATE_SENSORS');
+    return this.sendCommand(deviceId, 'calibrate_sensors');
   }
 
   // Motor control
