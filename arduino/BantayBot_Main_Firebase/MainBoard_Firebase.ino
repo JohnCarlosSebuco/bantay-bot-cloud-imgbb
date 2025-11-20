@@ -347,7 +347,13 @@ void stopArmStepperSequence() {
 }
 
 void updateArmSteppers() {
-  if (!armSteppersActive) return;
+  // Safety check: Only update arms if they are explicitly active
+  // Arms should only be active during detection sequences
+  if (!armSteppersActive) {
+    // Ensure arms are disabled if somehow they're not
+    enableArmSteppers(false);
+    return;
+  }
 
   unsigned long now = millis();
   if (now - lastArmStepUpdate < ARM_STEP_INTERVAL_MS) return;
@@ -941,8 +947,15 @@ void loop() {
                   soilHumidity, soilTemperature, soilConductivity, soilPH);
   }
 
-  // Update arm stepper motion
+  // Update arm stepper motion (only if arms are active)
+  // Arms should only be active during detection sequences
   updateArmSteppers();
+
+  // Safety check: Ensure arms are disabled if they completed their sequence
+  // This prevents arms from staying active when they shouldn't be
+  if (armSteppersActive && armSweepCount >= ARM_TARGET_SWEEPS) {
+    stopArmStepperSequence();
+  }
 
   // Update continuous head scanning (when no detection/arms active)
   updateHeadScanning();
