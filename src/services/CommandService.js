@@ -8,6 +8,9 @@ class CommandService {
    */
   async sendCommand(deviceId, action, params = {}) {
     try {
+      console.log(`📤 [CommandService] Sending command: ${action} to device: ${deviceId}`);
+      console.log(`📍 [CommandService] Firebase path: commands/${deviceId}/pending`);
+
       const commandsRef = collection(
         db,
         FIREBASE_COLLECTIONS.COMMANDS,
@@ -22,10 +25,13 @@ class CommandService {
         created_at: serverTimestamp()
       };
 
-      await addDoc(commandsRef, command);
+      console.log(`📝 [CommandService] Command payload:`, command);
+      const docRef = await addDoc(commandsRef, command);
+      console.log(`✅ [CommandService] Command written successfully! Doc ID: ${docRef.id}`);
+
       return { success: true };
     } catch (error) {
-      console.error('Error sending command:', error);
+      console.error('❌ [CommandService] Error sending command:', error);
       return { success: false, error: error.message };
     }
   }

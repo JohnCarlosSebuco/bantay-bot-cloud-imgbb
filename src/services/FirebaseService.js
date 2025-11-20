@@ -5,7 +5,7 @@
  * matching the React Native app implementation for full compatibility
  */
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
   enableIndexedDbPersistence,
@@ -495,8 +495,15 @@ class FirebaseService {
 // Create and initialize Firebase service
 const firebaseService = new FirebaseService();
 
-// Initialize the Firestore database directly here for immediate export
-const app = initializeApp(firebaseConfig);
+// Initialize only if no app exists (prevent duplicate initialization)
+let app;
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+  console.log('🔥 Firebase app initialized (first time)');
+} else {
+  app = getApps()[0];
+  console.log('🔥 Firebase app already exists, reusing instance');
+}
 export const db = getFirestore(app);
 
 // Also create the service instance for other methods
