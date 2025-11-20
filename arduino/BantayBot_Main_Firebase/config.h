@@ -51,7 +51,7 @@
 #define ARM2_ENABLE_PIN 23
 
 // Sensors
-#define DHT_PIN 2       // DHT22 (backup sensor)
+#define DHT_PIN 13      // DHT22 (backup sensor) - Changed from 2 to avoid conflict with ARM1_STEP_PIN
 #define DHT_TYPE DHT22
 #define SPEAKER_PIN 12  // Horn speaker relay
 
