@@ -12,14 +12,13 @@
  */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg",
-  authDomain: "cloudbantaybot.firebaseapp.com",
-  databaseURL: "https://cloudbantaybot-default-rtdb.firebaseio.com",  // Required for Realtime Database
-  projectId: "cloudbantaybot",
-  storageBucket: "cloudbantaybot.firebasestorage.app",
-  messagingSenderId: "346273940225",
-  appId: "1:346273940225:web:4c3f43d8ee593802e85100",
-  measurementId: "G-2PP7RNM8WV"
+  apiKey: "AIzaSyAthWHwp7HLlFCl_3Cx_nS1GZzYBDPwEd0",
+  authDomain: "bantaybot-dd590.firebaseapp.com",
+  projectId: "bantaybot-dd590",
+  storageBucket: "bantaybot-dd590.firebasestorage.app",
+  messagingSenderId: "262864773334",
+  appId: "1:262864773334:web:63e70b125a16ab4b6c6977",
+  measurementId: "G-6508GZ07X1"
 };
 
 /**
