@@ -948,9 +948,16 @@
              FirebaseJson updateDoc;
              updateDoc.set("fields/status/stringValue", "completed");
              updateDoc.set("fields/completed_at/integerValue", String(millis()));
- 
-             Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str(),
-                                            updateDoc.raw(), "status,completed_at");
+
+             Serial.printf("📝 Marking command as completed: %s\n", completePath.c_str());
+
+             if (Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str(),
+                                            updateDoc.raw(), "status,completed_at")) {
+               Serial.println("✅ Command marked as completed successfully!");
+             } else {
+               Serial.println("❌ Failed to mark command as completed!");
+               Serial.println("Error: " + fbdo.errorReason());
+             }
            }
          }
        }
