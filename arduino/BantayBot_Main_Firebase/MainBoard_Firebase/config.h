@@ -71,11 +71,12 @@
 // ===========================
 
 // Firebase update intervals
-#define FIREBASE_UPDATE_INTERVAL 2000   // 2 seconds
-#define COMMAND_CHECK_INTERVAL 500      // 500ms
+#define FIREBASE_UPDATE_INTERVAL 30000      // 30 seconds (check interval)
+#define FIREBASE_HEARTBEAT_INTERVAL 300000  // 5 minutes (force update even without changes)
+#define COMMAND_CHECK_INTERVAL 500          // 500ms (keep fast for responsive commands)
 
 // Sensor reading interval
-#define SENSOR_READ_INTERVAL 2000       // 2 seconds
+#define SENSOR_READ_INTERVAL 10000          // 10 seconds (read sensors more frequently than Firebase writes)
 
 // Available GPIO pins for general use:
 // GPIO 0, 5, 18, 19, 23, 25, 32, 33, 34, 35, 36, 39

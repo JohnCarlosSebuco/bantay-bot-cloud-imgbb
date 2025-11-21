@@ -48,6 +48,7 @@
  
  bool firebaseConnected = false;
  unsigned long lastFirebaseUpdate = 0;
+ unsigned long lastFirebaseHeartbeat = 0;  // For forced updates even without changes
  unsigned long lastCommandCheck = 0;
  
  // ===========================
@@ -92,7 +93,23 @@
  float soilTemperature = 0.0;
  float soilConductivity = 0.0;
  float soilPH = 0.0;
- 
+
+ // Previous sensor values for change detection
+ float prevSoilHumidity = -999.0;
+ float prevSoilTemperature = -999.0;
+ float prevSoilConductivity = -999.0;
+ float prevSoilPH = -999.0;
+ int prevCurrentTrack = -1;
+ int prevVolumeLevel = -1;
+ bool prevArmSteppersActive = false;
+ int prevHeadPosition = -999;
+
+ // Change detection thresholds
+ const float TEMP_CHANGE_THRESHOLD = 0.5;      // 0.5°C
+ const float HUMIDITY_CHANGE_THRESHOLD = 1.0;  // 1%
+ const float CONDUCTIVITY_CHANGE_THRESHOLD = 50.0;  // 50 units
+ const float PH_CHANGE_THRESHOLD = 0.1;        // 0.1 pH
+
  // Stepper Motor State
  int currentHeadPosition = 0;  // degrees
  bool headMovementPaused = false;  // Pause head during arm movement
@@ -159,6 +176,30 @@
    }
  }
  
+ // Check if sensor values have changed significantly
+ bool hasSignificantChange() {
+   return (abs(soilTemperature - prevSoilTemperature) >= TEMP_CHANGE_THRESHOLD ||
+           abs(soilHumidity - prevSoilHumidity) >= HUMIDITY_CHANGE_THRESHOLD ||
+           abs(soilConductivity - prevSoilConductivity) >= CONDUCTIVITY_CHANGE_THRESHOLD ||
+           abs(soilPH - prevSoilPH) >= PH_CHANGE_THRESHOLD ||
+           currentTrack != prevCurrentTrack ||
+           volumeLevel != prevVolumeLevel ||
+           armSteppersActive != prevArmSteppersActive ||
+           currentHeadPosition != prevHeadPosition);
+ }
+
+ // Update previous values after Firebase write
+ void updatePreviousValues() {
+   prevSoilTemperature = soilTemperature;
+   prevSoilHumidity = soilHumidity;
+   prevSoilConductivity = soilConductivity;
+   prevSoilPH = soilPH;
+   prevCurrentTrack = currentTrack;
+   prevVolumeLevel = volumeLevel;
+   prevArmSteppersActive = armSteppersActive;
+   prevHeadPosition = currentHeadPosition;
+ }
+
  void updateDeviceStatus() {
    if (!firebaseConnected) return;
  
@@ -200,7 +241,51 @@
      Serial.println("❌ Sensor update failed: " + fbdo.errorReason());
    }
  }
- 
+
+ // Combined smart update - only writes when values change OR for heartbeat
+ void updateDeviceAndSensorData(bool forceUpdate = false) {
+   if (!firebaseConnected) return;
+
+   // Check if we should update (significant change or forced)
+   if (!forceUpdate && !hasSignificantChange()) {
+     Serial.println("📊 No significant changes, skipping Firebase write");
+     return;
+   }
+
+   Serial.println("📤 Writing combined device + sensor data to Firebase...");
+
+   FirebaseJson json;
+
+   // Device status fields
+   json.set("fields/ip_address/stringValue", WiFi.localIP().toString());
+   json.set("fields/last_seen/integerValue", String(millis()));
+   json.set("fields/status/stringValue", "online");
+   json.set("fields/firmware_version/stringValue", "2.0.0-refactor");
+   json.set("fields/heap_free/integerValue", String(ESP.getFreeHeap()));
+
+   // Sensor data fields
+   json.set("fields/soilHumidity/doubleValue", soilHumidity);
+   json.set("fields/soilTemperature/doubleValue", soilTemperature);
+   json.set("fields/soilConductivity/doubleValue", soilConductivity);
+   json.set("fields/ph/doubleValue", soilPH);
+   json.set("fields/currentTrack/integerValue", String(currentTrack));
+   json.set("fields/volume/integerValue", String(volumeLevel));
+   json.set("fields/servoActive/booleanValue", armSteppersActive);
+   json.set("fields/headPosition/integerValue", String(currentHeadPosition));
+   json.set("fields/timestamp/integerValue", String(millis()));
+   json.set("fields/birdsDetectedToday/integerValue", String(birdsDetectedToday));
+
+   // Use single document path for combined data
+   String path = "devices/" + String(MAIN_DEVICE_ID);
+
+   if (Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw(), "")) {
+     Serial.println("✅ Combined data updated successfully (1 write)");
+     updatePreviousValues();  // Update previous values after successful write
+   } else {
+     Serial.println("❌ Combined update failed: " + fbdo.errorReason());
+   }
+ }
+
  void logBirdDetection(String imageUrl, int birdSize, int confidence, String detectionZone) {
    if (!firebaseConnected) return;
  
@@ -1001,10 +1086,17 @@
      // NEW: Check for Firebase commands
      checkFirebaseCommands();
  
-     // Update device status
+     // Smart Firebase updates - only write when values change
      if (currentTime - lastFirebaseUpdate >= FIREBASE_UPDATE_INTERVAL) {
-       updateDeviceStatus();
-       updateSensorData();
+       // Check if we need a heartbeat (force update even without changes)
+       bool forceHeartbeat = (currentTime - lastFirebaseHeartbeat >= FIREBASE_HEARTBEAT_INTERVAL);
+
+       updateDeviceAndSensorData(forceHeartbeat);
+
+       if (forceHeartbeat) {
+         lastFirebaseHeartbeat = currentTime;
+       }
+
        lastFirebaseUpdate = currentTime;
      }
    }
