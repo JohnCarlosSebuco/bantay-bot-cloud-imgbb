@@ -78,8 +78,8 @@ int armCurrentStep2 = 0;
 int armSweepCount = 0;
 const int ARM_HALF_SWEEP_STEPS = 400;   // ~180°
 const int ARM_TARGET_SWEEPS = 6;        // 3 full cycles
-const int ARM_STEP_INTERVAL_MS = 2;     // 2ms timing window
-const int ARM_PULSE_DELAY_US = 400;     // pulse width for step pin
+const int ARM_STEP_INTERVAL_MS = 0;     // No delay for 4x faster movement
+const int ARM_PULSE_DELAY_US = 100;     // Minimum stable pulse width for 4x speed
 unsigned long lastArmStepUpdate = 0;
 
 // RS485 Soil Sensor State
