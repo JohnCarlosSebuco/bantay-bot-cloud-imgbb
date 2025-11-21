@@ -355,32 +355,35 @@ void updateArmSteppers() {
     return;
   }
 
-  unsigned long now = millis();
-  if (now - lastArmStepUpdate < ARM_STEP_INTERVAL_MS) return;
-  lastArmStepUpdate = now;
-
+  // Set direction for both arms (opposite directions)
   digitalWrite(ARM1_DIR_PIN, (armStepDirection == 1) ? HIGH : LOW);
   digitalWrite(ARM2_DIR_PIN, (armStepDirection == 1) ? LOW : HIGH);
 
-  digitalWrite(ARM1_STEP_PIN, HIGH);
-  delayMicroseconds(ARM_PULSE_DELAY_US);
-  digitalWrite(ARM1_STEP_PIN, LOW);
-  delayMicroseconds(ARM_PULSE_DELAY_US);
+  // RAPID SWEEP: Execute all steps in tight loop for fast continuous motion
+  while ((armStepDirection == 1 && armCurrentStep1 < ARM_HALF_SWEEP_STEPS) ||
+         (armStepDirection == -1 && armCurrentStep1 > 0)) {
 
-  digitalWrite(ARM2_STEP_PIN, HIGH);
-  delayMicroseconds(ARM_PULSE_DELAY_US);
-  digitalWrite(ARM2_STEP_PIN, LOW);
-  delayMicroseconds(ARM_PULSE_DELAY_US);
+    // Pulse both arms simultaneously
+    digitalWrite(ARM1_STEP_PIN, HIGH);
+    digitalWrite(ARM2_STEP_PIN, HIGH);
+    delayMicroseconds(ARM_PULSE_DELAY_US);
 
-  armCurrentStep1 += armStepDirection;
-  armCurrentStep2 -= armStepDirection;
+    digitalWrite(ARM1_STEP_PIN, LOW);
+    digitalWrite(ARM2_STEP_PIN, LOW);
+    delayMicroseconds(ARM_PULSE_DELAY_US);
 
-  if (armCurrentStep1 >= ARM_HALF_SWEEP_STEPS || armCurrentStep1 <= 0) {
-    armStepDirection = -armStepDirection;
-    armSweepCount++;
-    if (armSweepCount >= ARM_TARGET_SWEEPS) {
-      stopArmStepperSequence();
-    }
+    // Increment step counters
+    armCurrentStep1 += armStepDirection;
+    armCurrentStep2 -= armStepDirection;
+  }
+
+  // Reverse direction after completing half-sweep
+  armStepDirection = -armStepDirection;
+  armSweepCount++;
+
+  // Stop after completing target number of sweeps
+  if (armSweepCount >= ARM_TARGET_SWEEPS) {
+    stopArmStepperSequence();
   }
 }
 
