@@ -4,9 +4,9 @@ import {
   SoilSensorCard,
   AudioPlayerControl,
   ServoArmControl,
-  StatusIndicator,
-  DetectionControls,
-  CameraSettings
+  // StatusIndicator,
+  // DetectionControls,
+  // CameraSettings
 } from '../components/ui';
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
@@ -45,12 +45,6 @@ export default function Dashboard({ language }) {
     hasRS485Sensor: true,
     hasServos: true,
   });
-
-  // Camera settings
-  const [cameraBrightness, setCameraBrightness] = useState(0);
-  const [cameraContrast, setCameraContrast] = useState(0);
-  const [grayscaleMode, setGrayscaleMode] = useState(false);
-  const [streamUrl, setStreamUrl] = useState('');
 
   const texts = {
     en: {
@@ -161,10 +155,6 @@ export default function Dashboard({ language }) {
     // Listen for status updates (sensor data, alerts)
     ConnectionManager.onStatusUpdate(handleData);
 
-    // Set stream URL
-    const esp32Ip = CONFIG.ESP32_IP;
-    setStreamUrl(`http://${esp32Ip}:81/stream`);
-
     return () => {
       ConnectionManager.disconnect();
     };
@@ -207,11 +197,6 @@ export default function Dashboard({ language }) {
   const setRightServo = (angle) => ConnectionManager.sendCommand('SET_SERVO_ANGLE', { servo: 1, value: angle });
   const toggleOscillation = () => sendCommand('TOGGLE_SERVO_OSCILLATION');
 
-  // Camera controls
-  const refreshStream = () => {
-    setStreamUrl(prev => prev + '?t=' + Date.now());
-  };
-
   // Now using CSS classes instead of inline styles for better theme reliability
 
   return (
@@ -243,6 +228,7 @@ export default function Dashboard({ language }) {
 
           {/* Quick Stats */}
           <div className="grid grid-cols-3 gap-2 mb-4">
+            {/*
             <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
               <div className="w-10 h-10 rounded-full bg-brand/20 text-brand flex items-center justify-center text-xl mx-auto mb-2">
                 🐦
@@ -250,6 +236,7 @@ export default function Dashboard({ language }) {
               <div className="text-2xl font-bold text-primary mb-1">{sensorData.birdsDetectedToday}</div>
               <div className="text-xs text-secondary font-medium uppercase tracking-wide">{t.birds}</div>
             </div>
+            */}
             <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
               <div className="w-10 h-10 rounded-full bg-success/20 text-success flex items-center justify-center text-xl mx-auto mb-2">
                 🌱
@@ -268,7 +255,7 @@ export default function Dashboard({ language }) {
         </div>
 
         <div className="p-4 pb-24">
-          {/* Live Camera Feed */}
+          {/*
           <div className="mb-4">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-lg font-bold text-primary">{t.liveCamera}</h2>
@@ -305,7 +292,6 @@ export default function Dashboard({ language }) {
             </div>
           </div>
 
-          {/* Bird Detection Status */}
           <div className="mb-4">
             <StatusIndicator
               status={sensorData.birdDetectionEnabled ? 'online' : 'warning'}
@@ -318,7 +304,6 @@ export default function Dashboard({ language }) {
             />
           </div>
 
-          {/* Detection Controls */}
           <DetectionControls
             detectionEnabled={sensorData.birdDetectionEnabled}
             onDetectionToggle={() => sendCommand('TOGGLE_DETECTION')}
@@ -329,7 +314,6 @@ export default function Dashboard({ language }) {
             className="mb-6"
           />
 
-          {/* Camera Settings */}
           <CameraSettings
             brightness={cameraBrightness}
             contrast={cameraContrast}
@@ -349,6 +333,7 @@ export default function Dashboard({ language }) {
             language={language}
             className="mb-6"
           />
+          */}
 
           {/* Soil Sensor */}
           {sensorData.hasRS485Sensor && (

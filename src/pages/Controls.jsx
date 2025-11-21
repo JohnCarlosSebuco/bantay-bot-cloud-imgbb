@@ -3,9 +3,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import {
   ControlButton,
   AudioPlayerControl,
-  ServoArmControl,
-  DetectionControls,
-  CameraSettings,
+  // ServoArmControl,
+  // DetectionControls,
+  // CameraSettings,
   HeadControlPanel
 } from '../components/ui';
 import CommandService from '../services/CommandService';
@@ -528,7 +528,7 @@ export default function Controls({ language }) {
             className="mb-6"
           />
 
-          {/* Manual Servo Arm Control */}
+          {/*
           <ServoArmControl
             leftArmAngle={leftArmAngle}
             rightArmAngle={rightArmAngle}
@@ -539,8 +539,10 @@ export default function Controls({ language }) {
             lang={language}
             className="mb-6"
           />
+          */}
 
           {/* Detection Controls */}
+          {/*
           <DetectionControls
             detectionEnabled={detectionEnabled}
             onDetectionToggle={handleDetectionToggle}
@@ -551,7 +553,6 @@ export default function Controls({ language }) {
             className="mb-6"
           />
 
-          {/* Camera Settings */}
           <CameraSettings
             brightness={cameraBrightness}
             onBrightnessChange={handleBrightnessChange}
@@ -562,6 +563,7 @@ export default function Controls({ language }) {
             language={language}
             className="mb-6"
           />
+          */}
 
           {/* Movement Controls Section */}
           <div style={sectionHeaderStyle}>
