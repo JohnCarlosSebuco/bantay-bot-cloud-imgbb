@@ -1,5 +1,11 @@
 import { db } from './FirebaseService';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  onSnapshot,
+  deleteDoc
+} from 'firebase/firestore';
 import { FIREBASE_COLLECTIONS, COMMAND_TYPES } from '../config/hardware.config';
 
 class CommandService {
@@ -8,6 +14,9 @@ class CommandService {
    */
   async sendCommand(deviceId, action, params = {}) {
     try {
+      console.log(`📤 [CommandService] Sending command: ${action} to device: ${deviceId}`);
+      console.log(`📍 [CommandService] Firebase path: commands/${deviceId}/pending`);
+
       const commandsRef = collection(
         db,
         FIREBASE_COLLECTIONS.COMMANDS,
@@ -22,12 +31,43 @@ class CommandService {
         created_at: serverTimestamp()
       };
 
-      await addDoc(commandsRef, command);
+      console.log(`📝 [CommandService] Command payload:`, command);
+      const docRef = await addDoc(commandsRef, command);
+      console.log(`✅ [CommandService] Command written successfully! Doc ID: ${docRef.id}`);
+
+      this.monitorCommandLifecycle(docRef);
+
       return { success: true };
     } catch (error) {
-      console.error('Error sending command:', error);
+      console.error('❌ [CommandService] Error sending command:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  monitorCommandLifecycle(docRef) {
+    const unsubscribe = onSnapshot(docRef, async (snapshot) => {
+      if (!snapshot.exists()) {
+        unsubscribe();
+        return;
+      }
+
+      const data = snapshot.data();
+      if (data?.status === 'completed') {
+        try {
+          await deleteDoc(docRef);
+          console.log(`🧹 [CommandService] Deleted completed command ${docRef.id}`);
+        } catch (error) {
+          console.warn(`⚠️ [CommandService] Failed to delete command ${docRef.id}:`, error);
+        } finally {
+          unsubscribe();
+        }
+      }
+    });
+
+    // Safety timeout to avoid lingering listeners
+    setTimeout(() => {
+      unsubscribe();
+    }, 60000);
   }
 
   // Audio commands
@@ -134,6 +174,51 @@ class CommandService {
 
   async triggerAlarm(deviceId) {
     return this.sendCommand(deviceId, COMMAND_TYPES.TRIGGER_ALARM);
+  }
+
+  // Bot Control Commands from React Native
+  async moveArms(deviceId) {
+    return this.sendCommand(deviceId, 'oscillate_arms');
+  }
+
+  async rotateHeadCommand(deviceId, angle) {
+    if (typeof angle === 'number' && !Number.isNaN(angle)) {
+      return this.sendCommand(deviceId, 'rotate_head', { angle });
+    }
+    return this.sendCommand(deviceId, 'rotate_head');
+  }
+
+  async stopMovement(deviceId) {
+    return this.sendCommand(deviceId, 'stop_movement');
+  }
+
+  async soundAlarm(deviceId) {
+    return this.sendCommand(deviceId, 'trigger_alarm');
+  }
+
+  async testBuzzer(deviceId) {
+    return this.sendCommand(deviceId, 'test_buzzer');
+  }
+
+  async resetSystem(deviceId) {
+    return this.sendCommand(deviceId, 'reset_system');
+  }
+
+  async calibrateSensors(deviceId) {
+    return this.sendCommand(deviceId, 'calibrate_sensors');
+  }
+
+  // Motor control
+  async startMotor(deviceId, motorType) {
+    return this.sendCommand(deviceId, 'START_MOTOR', { motor: motorType });
+  }
+
+  async stopMotor(deviceId, motorType) {
+    return this.sendCommand(deviceId, 'STOP_MOTOR', { motor: motorType });
+  }
+
+  async stopAllMotors(deviceId) {
+    return this.sendCommand(deviceId, 'STOP_ALL_MOTORS');
   }
 }
 

@@ -14,6 +14,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg",
   authDomain: "cloudbantaybot.firebaseapp.com",
+  databaseURL: "https://cloudbantaybot-default-rtdb.firebaseio.com",  // Required for Realtime Database
   projectId: "cloudbantaybot",
   storageBucket: "cloudbantaybot.firebasestorage.app",
   messagingSenderId: "346273940225",

@@ -32,6 +32,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff2}'],
+        maximumFileSizeToCacheInBytes: 3000000,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
@@ -45,6 +46,29 @@ export default defineConfig({
               cacheableResponse: {
                 statuses: [0, 200]
               }
+            }
+          },
+          {
+            urlPattern: /^https:\/\/.*\.firebaseapp\.com\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'firebase-app-cache',
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 300
+              }
+            }
+          },
+          {
+            urlPattern: /\/api\/.*/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60
+              },
+              networkTimeoutSeconds: 10
             }
           }
         ]
