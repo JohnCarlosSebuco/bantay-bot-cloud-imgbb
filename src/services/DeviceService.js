@@ -122,6 +122,87 @@ class DeviceService {
       return () => {};
     }
   }
+
+  /**
+   * Get detection history from Firebase
+   * Returns array of bird detections, most recent first
+   */
+  async getDetectionHistory(maxResults = 50) {
+    try {
+      const historyRef = collection(db, 'detection_history');
+      const snapshot = await getDocs(historyRef);
+
+      const history = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        history.push({
+          id: doc.id,
+          deviceId: data.deviceId || 'camera_001',
+          timestamp: data.timestamp || 0,
+          imageUrl: data.imageUrl || '',
+          birdSize: data.birdSize || 0,
+          confidence: data.confidence || 0,
+          detectionZone: data.detectionZone || '',
+          triggered: data.triggered || false,
+        });
+      });
+
+      // Sort by timestamp descending, then limit
+      history.sort((a, b) => b.timestamp - a.timestamp);
+      return history.slice(0, maxResults);
+    } catch (error) {
+      console.error('Error fetching detection history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Subscribe to detection history updates (real-time)
+   */
+  subscribeToDetectionHistory(callback, maxResults = 20) {
+    try {
+      const historyRef = collection(db, 'detection_history');
+
+      return onSnapshot(historyRef, (snapshot) => {
+        const history = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          history.push({
+            id: doc.id,
+            deviceId: data.deviceId || 'camera_001',
+            timestamp: data.timestamp || 0,
+            imageUrl: data.imageUrl || '',
+            birdSize: data.birdSize || 0,
+            confidence: data.confidence || 0,
+            detectionZone: data.detectionZone || '',
+            triggered: data.triggered || false,
+          });
+        });
+        // Sort by timestamp descending and limit
+        history.sort((a, b) => b.timestamp - a.timestamp);
+        callback(history.slice(0, maxResults));
+      }, (error) => {
+        console.error('Error subscribing to detection history:', error);
+        callback([]);
+      });
+    } catch (error) {
+      console.error('Error setting up detection history subscription:', error);
+      return () => {};
+    }
+  }
+
+  /**
+   * Get today's detection count
+   */
+  getTodayDetectionCount(detections) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStart = today.getTime();
+
+    // Since timestamp is millis from device boot, we need to use document creation time
+    // For now, count all detections (can be improved with server timestamp)
+    return detections.length;
+  }
 }
 
 export default new DeviceService();

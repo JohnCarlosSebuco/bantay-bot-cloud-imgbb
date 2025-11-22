@@ -31,6 +31,7 @@ export default function History({ language }) {
   const [motion, setMotion] = useState([]);
   const [env, setEnv] = useState([]);
   const [sensorHistory, setSensorHistory] = useState([]);
+  const [detectionHistory, setDetectionHistory] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('sensor');
   const fadeOpacity = useRef(1);
@@ -40,6 +41,7 @@ export default function History({ language }) {
       title: 'History',
       subtitle: 'Sensor logs',
       sensorHistory: 'Sensor',
+      detectionHistory: 'Detection',
       motionHistory: 'Motion',
       environmentHistory: 'Environment',
       clearAll: 'Clear',
@@ -57,6 +59,7 @@ export default function History({ language }) {
       title: 'Kasaysayan',
       subtitle: 'Logs ng sensor',
       sensorHistory: 'Sensor',
+      detectionHistory: 'Deteksyon',
       motionHistory: 'Galaw',
       environmentHistory: 'Environment',
       clearAll: 'Burahin',
@@ -75,14 +78,16 @@ export default function History({ language }) {
   const t = texts[language] || texts.en;
 
   const refresh = async () => {
-    const [m, e, s] = await Promise.all([
+    const [m, e, s, d] = await Promise.all([
       HistoryService.getMotionHistory(),
       HistoryService.getEnvHistory(),
       DeviceService.getSensorHistory(50),
+      DeviceService.getDetectionHistory(50),
     ]);
     setMotion(m);
     setEnv(e);
     setSensorHistory(s);
+    setDetectionHistory(d);
   };
 
   useEffect(() => {
@@ -107,10 +112,16 @@ export default function History({ language }) {
       setSensorHistory(history);
     }, 50);
 
+    // Subscribe to Firebase detection history
+    const unsubscribeDetection = DeviceService.subscribeToDetectionHistory((history) => {
+      setDetectionHistory(history);
+    }, 50);
+
     return () => {
       HistoryService.off('update', onUpdate);
       HistoryService.stop();
       if (unsubscribeSensor) unsubscribeSensor();
+      if (unsubscribeDetection) unsubscribeDetection();
     };
   }, []);
 
@@ -215,6 +226,59 @@ export default function History({ language }) {
     </div>
   );
 
+  // Detection History Item Component
+  const DetectionHistoryItem = ({ item, isLast }) => (
+    <div className={`p-3 sm:p-4 ${!isLast ? 'border-b border-primary' : ''}`}>
+      <div className="flex gap-3">
+        {/* Thumbnail */}
+        {item.imageUrl && (
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-tertiary flex-shrink-0">
+            <img
+              src={item.imageUrl}
+              alt="Detection"
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start mb-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🐦</span>
+              <span className="text-xs sm:text-sm font-semibold text-primary">
+                {language === 'tl' ? 'Ibon Nakita' : 'Bird Detected'}
+              </span>
+            </div>
+            {item.triggered && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-warning/20 text-warning">
+                {language === 'tl' ? 'Na-trigger' : 'Triggered'}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div>
+              <div className="text-[10px] text-secondary">{language === 'tl' ? 'Laki' : 'Size'}</div>
+              <div className="text-xs font-medium text-primary">{item.birdSize?.toFixed(0) || 0} px</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-secondary">{language === 'tl' ? 'Kumpiyansa' : 'Confidence'}</div>
+              <div className="text-xs font-medium text-primary">{(item.confidence * 100)?.toFixed(0) || 0}%</div>
+            </div>
+            {item.detectionZone && (
+              <div className="col-span-2">
+                <div className="text-[10px] text-secondary">{language === 'tl' ? 'Lokasyon' : 'Zone'}</div>
+                <div className="text-xs font-medium text-primary truncate">{item.detectionZone}</div>
+              </div>
+            )}
+          </div>
+          <div className="text-[10px] text-secondary mt-1">
+            {formatTime(item.timestamp)} - {formatDate(item.timestamp)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Empty State Component
   const EmptyState = ({ icon }) => (
     <div className="surface-primary rounded-xl p-8 sm:p-12 text-center border border-primary">
@@ -223,7 +287,7 @@ export default function History({ language }) {
     </div>
   );
 
-  const currentData = activeTab === 'sensor' ? sensorHistory : activeTab === 'motion' ? motion : env;
+  const currentData = activeTab === 'sensor' ? sensorHistory : activeTab === 'detection' ? detectionHistory : activeTab === 'motion' ? motion : env;
 
   return (
     <div className="min-h-screen bg-secondary">
@@ -264,7 +328,7 @@ export default function History({ language }) {
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex gap-2 surface-primary p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-primary">
+          <div className="flex gap-1 sm:gap-2 surface-primary p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-primary">
             <TabButton
               label={t.sensorHistory}
               icon="🌱"
@@ -273,8 +337,15 @@ export default function History({ language }) {
               onClick={() => setActiveTab('sensor')}
             />
             <TabButton
-              label={t.motionHistory}
+              label={t.detectionHistory}
               icon="🐦"
+              count={detectionHistory.length}
+              isActive={activeTab === 'detection'}
+              onClick={() => setActiveTab('detection')}
+            />
+            <TabButton
+              label={t.motionHistory}
+              icon="👁️"
               count={motion.length}
               isActive={activeTab === 'motion'}
               onClick={() => setActiveTab('motion')}
@@ -291,12 +362,20 @@ export default function History({ language }) {
 
         <div className="px-3 sm:px-4 pb-10">
           {currentData.length === 0 ? (
-            <EmptyState icon={activeTab === 'sensor' ? '🌱' : activeTab === 'motion' ? '🔍' : '📊'} />
+            <EmptyState icon={activeTab === 'sensor' ? '🌱' : activeTab === 'detection' ? '🐦' : activeTab === 'motion' ? '🔍' : '📊'} />
           ) : (
             <div className="surface-primary rounded-xl sm:rounded-2xl border border-primary overflow-hidden max-h-[60vh] overflow-y-auto">
               {activeTab === 'sensor' ? (
                 currentData.map((item, index) => (
                   <SensorHistoryItem
+                    key={item.id || index}
+                    item={item}
+                    isLast={index === currentData.length - 1}
+                  />
+                ))
+              ) : activeTab === 'detection' ? (
+                currentData.map((item, index) => (
+                  <DetectionHistoryItem
                     key={item.id || index}
                     item={item}
                     isLast={index === currentData.length - 1}

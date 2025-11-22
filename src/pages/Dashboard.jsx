@@ -161,9 +161,19 @@ export default function Dashboard({ language }) {
       }
     });
 
+    // Subscribe to Firebase detection history for bird count
+    const unsubscribeDetection = DeviceService.subscribeToDetectionHistory((detections) => {
+      console.log('🐦 Firebase detection history received:', detections.length, 'detections');
+      setSensorData(prev => ({
+        ...prev,
+        birdsDetectedToday: detections.length,
+      }));
+    }, 100);
+
     return () => {
       ConnectionManager.disconnect();
       if (unsubscribeSensor) unsubscribeSensor();
+      if (unsubscribeDetection) unsubscribeDetection();
     };
   }, [language]);
 
