@@ -343,13 +343,13 @@ export default function History({ language }) {
               isActive={activeTab === 'detection'}
               onClick={() => setActiveTab('detection')}
             />
-            <TabButton
+            {/* <TabButton
               label={t.motionHistory}
               icon="👁️"
               count={motion.length}
               isActive={activeTab === 'motion'}
               onClick={() => setActiveTab('motion')}
-            />
+            /> */}
             <TabButton
               label={t.environmentHistory}
               icon="🌡️"
