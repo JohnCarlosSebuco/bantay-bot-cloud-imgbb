@@ -22,6 +22,7 @@
 #include <DHT.h>
 #include "DFRobotDFPlayerMini.h"
 #include <base64.h>
+#include <time.h>  // NTP time sync
 
 // Firebase includes
 #include <Firebase_ESP_Client.h>
@@ -110,6 +111,11 @@ const unsigned long LATEST_UPDATE_INTERVAL = 60000;  // 60 seconds for "latest" 
 const unsigned long HISTORY_UPDATE_INTERVAL = 60000; // 1 minute for testing (change to 900000 for 15 min in production)
 unsigned long lastLatestUpdate = 0;
 unsigned long lastHistoryUpdate = 0;
+
+// NTP Time Configuration (Philippines timezone: UTC+8)
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 8 * 3600;  // UTC+8 for Philippines
+const int daylightOffset_sec = 0;     // No daylight saving in PH
 
 // Stepper Motor State
 int currentHeadPosition = 0;  // degrees
@@ -240,11 +246,41 @@ void updateSensorDataSmart() {
   }
 }
 
+// Get formatted timestamp for document ID: main_001_MM-DD-YYYY_HH-MM-SS-AM/PM
+String getFormattedTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    // Fallback to millis if NTP failed
+    return String(MAIN_DEVICE_ID) + "_" + String(millis());
+  }
+
+  char timestamp[40];
+  // Format: MM-DD-YYYY_HH-MM-SS-AM (Firestore doesn't allow : or /)
+  strftime(timestamp, sizeof(timestamp), "%m-%d-%Y_%I-%M-%S-%p", &timeinfo);
+
+  return String(MAIN_DEVICE_ID) + "_" + String(timestamp);
+}
+
+// Get readable timestamp for storing in document field
+String getReadableTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return "Time not synced";
+  }
+
+  char timestamp[50];
+  strftime(timestamp, sizeof(timestamp), "%B %d, %Y %I:%M:%S %p", &timeinfo);
+  return String(timestamp);
+}
+
 // Save sensor history snapshot - always writes (every 15 min)
 void saveSensorHistory() {
   if (!firebaseConnected) return;
 
-  Serial.println("📜 Saving sensor history snapshot...");
+  String docId = getFormattedTimestamp();
+  String readableTime = getReadableTimestamp();
+
+  Serial.printf("📜 Saving sensor history: %s\n", docId.c_str());
 
   FirebaseJson json;
   json.set("fields/soilHumidity/doubleValue", soilHumidity);
@@ -255,9 +291,9 @@ void saveSensorHistory() {
   json.set("fields/volume/integerValue", String(volumeLevel));
   json.set("fields/headPosition/integerValue", String(currentHeadPosition));
   json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
-  json.set("fields/timestamp/integerValue", String(millis()));
+  json.set("fields/timestamp/stringValue", readableTime);
 
-  String path = "sensor_history/" + String(MAIN_DEVICE_ID);
+  String path = "sensor_history/" + docId;
 
   if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
     Serial.println("✅ Sensor history saved!");
@@ -889,6 +925,27 @@ void setup() {
   }
   Serial.println("\n✅ WiFi connected!");
   Serial.println("📍 IP address: " + WiFi.localIP().toString());
+
+  // Initialize NTP time sync
+  Serial.println("🕐 Syncing time with NTP server...");
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Wait for time to sync
+  struct tm timeinfo;
+  int retries = 0;
+  while (!getLocalTime(&timeinfo) && retries < 10) {
+    Serial.print(".");
+    delay(500);
+    retries++;
+  }
+  if (retries < 10) {
+    Serial.println("\n✅ Time synced!");
+    char timeStr[50];
+    strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
+    Serial.printf("📅 Current time: %s\n", timeStr);
+  } else {
+    Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+  }
 
   // Initialize Firebase
   initializeFirebase();
