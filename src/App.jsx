@@ -23,19 +23,31 @@ const Icon = ({ name, className, active }) => (
   </span>
 );
 
-// Theme Toggle Button
+// Theme Toggle Button - Modern Pill Design
 function ThemeToggle() {
   const { isDark, toggleTheme } = useTheme();
 
   return (
     <button
       onClick={toggleTheme}
-      className="fixed top-4 right-4 p-3 bg-brand text-white border border-brand rounded-full shadow-md hover-lift transition-all z-50"
+      className="fixed top-4 right-4 z-50 flex items-center gap-1 p-1 rounded-full surface-primary border border-primary shadow-lg transition-all duration-300 hover:shadow-xl"
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
-      <span className="text-xl">
-        {isDark ? '☀️' : '🌙'}
-      </span>
+      {/* Light mode indicator */}
+      <div className={`
+        flex items-center justify-center w-9 h-9 rounded-full transition-all duration-300
+        ${!isDark ? 'bg-warning/20 scale-110' : 'opacity-50 scale-90'}
+      `}>
+        <span className="text-lg">☀️</span>
+      </div>
+
+      {/* Dark mode indicator */}
+      <div className={`
+        flex items-center justify-center w-9 h-9 rounded-full transition-all duration-300
+        ${isDark ? 'bg-brand/20 scale-110' : 'opacity-50 scale-90'}
+      `}>
+        <span className="text-lg">🌙</span>
+      </div>
     </button>
   );
 }

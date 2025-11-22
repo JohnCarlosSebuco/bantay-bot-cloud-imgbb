@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   SoilSensorCard,
-  AudioPlayerControl,
-  ServoArmControl,
+  // AudioPlayerControl,
+  // ServoArmControl,
   // StatusIndicator,
   // DetectionControls,
   // CameraSettings
@@ -16,11 +16,14 @@ import { CONFIG } from '../config/config';
 export default function Dashboard({ language }) {
   const { currentTheme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const fadeOpacity = useRef(1); // Start visible, then animate if needed
+  const fadeOpacity = useRef(1);
 
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  // Quick action loading states
+  const [loadingAction, setLoadingAction] = useState(null);
 
   // Sensor data state matching React Native
   const [sensorData, setSensorData] = useState({
@@ -54,16 +57,20 @@ export default function Dashboard({ language }) {
       offline: 'Offline',
       birds: 'Birds',
       soil: 'Soil',
-      liveCamera: 'Live Camera',
-      cameraDisabled: 'Camera Temporarily Disabled',
-      detectionActive: 'Detection still active',
-      birdDetection: 'Bird Detection',
-      birdsToday: 'birds today',
-      headDirection: 'Head Direction',
-      quickActions: 'Quick Actions',
+      quickControls: 'Quick Controls',
+      moveArms: 'Move Arms',
+      moveArmsDesc: 'Activate arm movement',
+      moveHead: 'Move Head',
+      moveHeadDesc: 'Rotate head position',
+      soundAlarm: 'Sound Alarm',
+      soundAlarmDesc: 'Trigger audio alert',
+      detection: 'Detection',
+      detectionOn: 'Active',
+      detectionOff: 'Inactive',
       systemStatus: 'System Status',
-      live: 'LIVE',
-      disabled: 'DISABLED'
+      lastUpdated: 'Last updated',
+      birdsToday: 'birds detected today',
+      soilConditions: 'Soil Conditions',
     },
     tl: {
       title: 'BantayBot',
@@ -72,36 +79,37 @@ export default function Dashboard({ language }) {
       offline: 'Offline',
       birds: 'Ibon',
       soil: 'Lupa',
-      liveCamera: 'Kamera',
-      cameraDisabled: 'Kamera Pansamantala ay Hindi Aktibo',
-      detectionActive: 'Pagdetekta ay gumagana pa rin',
-      birdDetection: 'Pagbabantay ng Ibon',
-      birdsToday: 'ibon ngayong araw',
-      headDirection: 'Direksyon ng Ulo',
-      quickActions: 'Mabilis na Aksyon',
+      quickControls: 'Mabilis na Kontrol',
+      moveArms: 'Galaw Braso',
+      moveArmsDesc: 'I-activate ang braso',
+      moveHead: 'Galaw Ulo',
+      moveHeadDesc: 'I-ikot ang ulo',
+      soundAlarm: 'Alarma',
+      soundAlarmDesc: 'I-trigger ang tunog',
+      detection: 'Deteksyon',
+      detectionOn: 'Aktibo',
+      detectionOff: 'Hindi Aktibo',
       systemStatus: 'Katayuan ng Sistema',
-      live: 'BUHAY',
-      disabled: 'HINDI AKTIBO'
+      lastUpdated: 'Huling update',
+      birdsToday: 'ibon na nakita ngayon',
+      soilConditions: 'Kondisyon ng Lupa',
     }
   };
 
   const t = texts[language] || texts.en;
 
   useEffect(() => {
-    // Fade in animation
     const startTime = Date.now();
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / 500, 1);
       fadeOpacity.current = progress;
-
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
     animate();
 
-    // Real ConnectionManager integration (matching React Native)
     const handleConnection = (status) => {
       setIsConnected(status.connected);
     };
@@ -133,40 +141,24 @@ export default function Dashboard({ language }) {
       setLastUpdate(new Date());
     };
 
-    // Initialize services
     const initServices = async () => {
-      // Ensure Firebase is initialized for remote command support
       try {
         await FirebaseService.initialize();
         console.log('✅ Firebase ready for remote commands');
       } catch (error) {
         console.warn('⚠️ Firebase initialization warning:', error);
       }
-
-      // Initialize ConnectionManager (auto-detects local or remote mode)
       ConnectionManager.initialize();
     };
 
     initServices();
-
-    // Listen for connection changes
     ConnectionManager.onConnectionChange(handleConnection);
-
-    // Listen for status updates (sensor data, alerts)
     ConnectionManager.onStatusUpdate(handleData);
 
     return () => {
       ConnectionManager.disconnect();
     };
   }, [language]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-      setLastUpdate(new Date());
-    }, 1000);
-  };
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
@@ -176,49 +168,128 @@ export default function Dashboard({ language }) {
     });
   };
 
-  // Command handlers (matching React Native)
-  const sendCommand = async (command, value = 0) => {
+  // Quick Action Handlers
+  const handleMoveArms = async () => {
+    setLoadingAction('arms');
     try {
-      await ConnectionManager.sendCommand(command, value);
+      await CommandService.moveArms(CONFIG.DEVICE_ID);
     } catch (e) {
-      console.error('Command failed:', e);
-      alert(language === 'tl' ? 'Hindi naipadala ang utos' : 'Could not send command');
+      console.error('Move arms failed:', e);
+    } finally {
+      setTimeout(() => setLoadingAction(null), 1000);
     }
   };
 
-  // Audio controls
-  const playTrack = (track) => sendCommand('PLAY_TRACK', track);
-  const stopAudio = () => sendCommand('STOP_AUDIO');
-  const nextTrack = () => sendCommand('NEXT_TRACK');
-  const setAudioVolume = (vol) => sendCommand('SET_VOLUME', vol);
+  const handleMoveHead = async () => {
+    setLoadingAction('head');
+    try {
+      await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID);
+    } catch (e) {
+      console.error('Move head failed:', e);
+    } finally {
+      setTimeout(() => setLoadingAction(null), 1000);
+    }
+  };
 
-  // Servo controls
-  const setLeftServo = (angle) => ConnectionManager.sendCommand('SET_SERVO_ANGLE', { servo: 0, value: angle });
-  const setRightServo = (angle) => ConnectionManager.sendCommand('SET_SERVO_ANGLE', { servo: 1, value: angle });
-  const toggleOscillation = () => sendCommand('TOGGLE_SERVO_OSCILLATION');
+  const handleSoundAlarm = async () => {
+    setLoadingAction('sound');
+    try {
+      await CommandService.soundAlarm(CONFIG.DEVICE_ID);
+    } catch (e) {
+      console.error('Sound alarm failed:', e);
+    } finally {
+      setTimeout(() => setLoadingAction(null), 1000);
+    }
+  };
 
-  // Now using CSS classes instead of inline styles for better theme reliability
+  const handleToggleDetection = async () => {
+    setLoadingAction('detection');
+    try {
+      await ConnectionManager.sendCommand('TOGGLE_DETECTION');
+    } catch (e) {
+      console.error('Toggle detection failed:', e);
+    } finally {
+      setTimeout(() => setLoadingAction(null), 1000);
+    }
+  };
+
+  // Quick Action Button Component
+  const QuickActionButton = ({ icon, title, subtitle, onClick, loading, color = 'brand', status = null }) => (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className={`
+        relative overflow-hidden w-full p-4 rounded-2xl border-2 transition-all duration-300
+        ${loading ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer'}
+        ${status === 'active'
+          ? 'bg-success/10 border-success shadow-md'
+          : status === 'inactive'
+          ? 'bg-error/10 border-error/50'
+          : `bg-${color}/5 border-${color}/20 hover:border-${color}/40 hover:bg-${color}/10`
+        }
+        surface-primary
+      `}
+    >
+      {loading && (
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+      )}
+      <div className="flex flex-col items-center text-center gap-2">
+        <div className={`
+          w-14 h-14 rounded-xl flex items-center justify-center text-2xl
+          ${status === 'active'
+            ? 'bg-success/20'
+            : status === 'inactive'
+            ? 'bg-error/20'
+            : `bg-${color}/20`
+          }
+          ${loading ? 'animate-pulse' : ''}
+        `}>
+          {loading ? '⏳' : icon}
+        </div>
+        <div>
+          <div className={`font-bold text-sm ${status === 'active' ? 'text-success' : status === 'inactive' ? 'text-error' : 'text-primary'}`}>
+            {title}
+          </div>
+          <div className="text-xs text-secondary mt-0.5">{subtitle}</div>
+        </div>
+        {status && (
+          <div className={`
+            px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide
+            ${status === 'active' ? 'bg-success/20 text-success' : 'bg-error/20 text-error'}
+          `}>
+            {status === 'active' ? t.detectionOn : t.detectionOff}
+          </div>
+        )}
+      </div>
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-secondary">
       <div className="opacity-100">
         {/* Modern Header */}
-        <div className="pt-16 pb-6 px-4 bg-secondary">
-          <div className="flex justify-between items-center mb-4">
+        <div className="pt-16 pb-4 px-4 bg-secondary">
+          <div className="flex justify-between items-start mb-6">
             <div className="flex-1">
-              <div className="flex items-center mb-1">
-                <span className="text-3xl text-brand mr-2">🛡️</span>
-                <h1 className="text-4xl font-bold text-primary">{t.title}</h1>
+              <div className="flex items-center mb-2">
+                <div className="w-12 h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-3">
+                  <span className="text-2xl">🛡️</span>
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-primary">{t.title}</h1>
+                  <p className="text-sm text-secondary">{t.subtitle}</p>
+                </div>
               </div>
-              <p className="text-sm text-secondary font-medium">{t.subtitle}</p>
             </div>
-            <div className={`flex items-center px-3 py-2 rounded-full shadow-sm ${
-              isConnected ? 'bg-success/20' : 'bg-error/20'
+            <div className={`flex items-center px-3 py-2 rounded-xl shadow-sm border ${
+              isConnected
+                ? 'bg-success/10 border-success/30'
+                : 'bg-error/10 border-error/30'
             }`}>
-              <div className={`w-2 h-2 rounded-full mr-2 ${
-                isConnected ? 'bg-success' : 'bg-error'
-              }`}></div>
-              <span className={`text-xs font-semibold uppercase tracking-wider ${
+              <div className={`w-2.5 h-2.5 rounded-full mr-2 ${
+                isConnected ? 'bg-success animate-pulse' : 'bg-error'
+              }`} />
+              <span className={`text-xs font-bold uppercase tracking-wider ${
                 isConnected ? 'text-success' : 'text-error'
               }`}>
                 {isConnected ? t.connected : t.offline}
@@ -226,128 +297,91 @@ export default function Dashboard({ language }) {
             </div>
           </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {/*
-            <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
-              <div className="w-10 h-10 rounded-full bg-brand/20 text-brand flex items-center justify-center text-xl mx-auto mb-2">
-                🐦
+          {/* Status Cards Row */}
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            {/* Birds Detected Today */}
+            <div className="surface-primary rounded-xl p-4 shadow-sm border border-primary">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-warning/20 flex items-center justify-center">
+                  <span className="text-xl">🐦</span>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-primary">{sensorData.birdsDetectedToday}</div>
+                  <div className="text-xs text-secondary">{t.birdsToday}</div>
+                </div>
               </div>
-              <div className="text-2xl font-bold text-primary mb-1">{sensorData.birdsDetectedToday}</div>
-              <div className="text-xs text-secondary font-medium uppercase tracking-wide">{t.birds}</div>
             </div>
-            */}
-            <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
-              <div className="w-10 h-10 rounded-full bg-success/20 text-success flex items-center justify-center text-xl mx-auto mb-2">
-                🌱
+
+            {/* Last Updated */}
+            <div className="surface-primary rounded-xl p-4 shadow-sm border border-primary">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-info/20 flex items-center justify-center">
+                  <span className="text-xl">🕐</span>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-primary">{formatTime(lastUpdate)}</div>
+                  <div className="text-xs text-secondary">{t.lastUpdated}</div>
+                </div>
               </div>
-              <div className="text-2xl font-bold text-primary mb-1">{sensorData.ph.toFixed(1)}</div>
-              <div className="text-xs text-secondary font-medium uppercase tracking-wide">pH</div>
-            </div>
-            <div className="surface-primary rounded-lg p-4 shadow-sm border border-primary text-center">
-              <div className="w-10 h-10 rounded-full bg-info/20 text-info flex items-center justify-center text-xl mx-auto mb-2">
-                💧
-              </div>
-              <div className="text-2xl font-bold text-primary mb-1">{Math.round(sensorData.soilHumidity)}%</div>
-              <div className="text-xs text-secondary font-medium uppercase tracking-wide">{t.soil}</div>
             </div>
           </div>
         </div>
 
-        <div className="p-4 pb-24">
-          {/*
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-lg font-bold text-primary">{t.liveCamera}</h2>
-              <button
-                onClick={refreshStream}
-                className="p-2 rounded-md bg-border border-0 text-lg text-secondary cursor-pointer"
-              >
-                🔄
-              </button>
-            </div>
-
-            <div className="surface-primary rounded-xl p-4 shadow-md border border-primary">
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center px-2 py-1 rounded-md bg-secondary/20">
-                  <span className="text-xs font-bold text-secondary uppercase tracking-wide">{t.disabled}</span>
-                </div>
-                <span className="text-xs text-secondary">
-                  {formatTime(lastUpdate)}
-                </span>
-              </div>
-
-              <div className="rounded-lg overflow-hidden bg-border aspect-video mb-3 flex flex-col items-center justify-center">
-                <span className="text-6xl text-secondary">📷</span>
-                <span className="text-base font-semibold mt-3 text-secondary text-center">{t.cameraDisabled}</span>
-                <span className="text-xs mt-2 text-secondary text-center">
-                  {t.detectionActive}
-                </span>
-              </div>
-
-              <div className="flex items-center text-xs text-secondary">
-                <span className="mr-1">📶</span>
-                <span>{CONFIG.ESP32_IP}:81/stream</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <StatusIndicator
-              status={sensorData.birdDetectionEnabled ? 'online' : 'warning'}
-              label={t.birdDetection}
-              value={`${sensorData.birdsDetectedToday} ${t.birdsToday}`}
-              lastUpdate={lastUpdate.toISOString()}
-              language={language}
-              size="medium"
-              className="w-full"
-            />
-          </div>
-
-          <DetectionControls
-            detectionEnabled={sensorData.birdDetectionEnabled}
-            onDetectionToggle={() => sendCommand('TOGGLE_DETECTION')}
-            sensitivity={sensorData.detectionSensitivity}
-            onSensitivityChange={(value) => sendCommand('SET_SENSITIVITY', value)}
-            birdsDetectedToday={sensorData.birdsDetectedToday}
-            onResetCount={() => sendCommand('RESET_BIRD_COUNT')}
-            className="mb-6"
-          />
-
-          <CameraSettings
-            brightness={cameraBrightness}
-            contrast={cameraContrast}
-            onBrightnessChange={(value) => {
-              setCameraBrightness(value);
-              sendCommand('SET_BRIGHTNESS', value);
-            }}
-            onContrastChange={(value) => {
-              setCameraContrast(value);
-              sendCommand('SET_CONTRAST', value);
-            }}
-            grayscaleMode={grayscaleMode}
-            onGrayscaleToggle={() => {
-              setGrayscaleMode(!grayscaleMode);
-              sendCommand('TOGGLE_GRAYSCALE');
-            }}
-            language={language}
-            className="mb-6"
-          />
-          */}
-
-          {/* Soil Sensor */}
+        <div className="px-4 pb-24">
+          {/* Soil Sensor Section */}
           {sensorData.hasRS485Sensor && (
-            <SoilSensorCard
-              humidity={sensorData.soilHumidity}
-              temperature={sensorData.soilTemperature}
-              conductivity={sensorData.soilConductivity}
-              ph={sensorData.ph}
-              language={language}
-              className="mb-6"
-            />
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-lg">🌱</span>
+                <h2 className="text-lg font-bold text-primary">{t.soilConditions}</h2>
+              </div>
+              <SoilSensorCard
+                humidity={sensorData.soilHumidity}
+                temperature={sensorData.soilTemperature}
+                conductivity={sensorData.soilConductivity}
+                ph={sensorData.ph}
+                language={language}
+              />
+            </div>
           )}
 
-          {/* Audio Player */}
+          {/* Quick Controls Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg">⚡</span>
+              <h2 className="text-lg font-bold text-primary">{t.quickControls}</h2>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <QuickActionButton
+                icon="🦾"
+                title={t.moveArms}
+                subtitle={t.moveArmsDesc}
+                onClick={handleMoveArms}
+                loading={loadingAction === 'arms'}
+                color="brand"
+              />
+              <QuickActionButton
+                icon="🔄"
+                title={t.moveHead}
+                subtitle={t.moveHeadDesc}
+                onClick={handleMoveHead}
+                loading={loadingAction === 'head'}
+                color="info"
+              />
+              <QuickActionButton
+                icon="🔊"
+                title={t.soundAlarm}
+                subtitle={t.soundAlarmDesc}
+                onClick={handleSoundAlarm}
+                loading={loadingAction === 'sound'}
+                color="warning"
+              />
+            </div>
+          </div>
+
+          {/* Commented out sections for future use
+
           {sensorData.hasDFPlayer && (
             <AudioPlayerControl
               currentTrack={sensorData.currentTrack}
@@ -362,7 +396,6 @@ export default function Dashboard({ language }) {
             />
           )}
 
-          {/* Servo Arms */}
           {sensorData.hasServos && (
             <ServoArmControl
               leftArmAngle={sensorData.leftArmAngle}
@@ -376,7 +409,6 @@ export default function Dashboard({ language }) {
             />
           )}
 
-          {/* Head Direction */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-lg font-bold text-primary">{t.headDirection}</h2>
@@ -385,6 +417,7 @@ export default function Dashboard({ language }) {
               </span>
             </div>
           </div>
+          */}
         </div>
       </div>
     </div>

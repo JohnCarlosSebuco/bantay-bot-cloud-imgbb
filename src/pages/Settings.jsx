@@ -39,6 +39,115 @@ export default function Settings({ language, onLanguageChange }) {
   const [foundDevices, setFoundDevices] = useState([]);
   const [errors, setErrors] = useState({});
 
+  const texts = {
+    en: {
+      title: 'Settings',
+      subtitle: 'Configure your BantayBot',
+      connectionSettings: 'Connection Settings',
+      cameraIP: 'Camera Board IP Address',
+      cameraIPDesc: 'The IP address of Camera ESP32-CAM',
+      cameraPort: 'Camera Board Port',
+      cameraPortDesc: 'Camera Board Port',
+      mainIP: 'Main Board IP Address',
+      mainIPDesc: 'The IP address of Main Control ESP32',
+      mainPort: 'Main Board Port',
+      mainPortDesc: 'Main Board Port',
+      updateInterval: 'Update Interval (ms)',
+      updateIntervalDesc: 'How often to request sensor updates',
+      autoDiscovery: 'Auto-Discovery',
+      autoDiscoveryDesc: 'Scan network to find BantayBot devices automatically',
+      scanNetwork: 'Scan Network',
+      connectionTest: 'Connection Test',
+      connectionTestDesc: 'Test connection to ESP32 boards',
+      testConnections: 'Test Connections',
+      speakerAudio: 'Speaker & Audio',
+      appPreferences: 'App Preferences',
+      language: 'Language',
+      switchToTagalog: 'Switch to Tagalog',
+      switchToEnglish: 'Switch to English',
+      notifications: 'Push Notifications',
+      notificationsDesc: 'Receive alerts when motion is detected',
+      darkMode: 'Dark Mode',
+      darkModeDesc: 'Switch to dark theme',
+      autoReconnect: 'Auto Reconnect',
+      autoReconnectDesc: 'Automatically try to reconnect when connection is lost',
+      systemInfo: 'System Information',
+      aboutBantayBot: 'About BantayBot',
+      aboutDesc: 'A solar-powered automated scarecrow with integrated sensors and mobile monitoring for crop protection.',
+      developedBy: 'Developed by PUP-Lopez BSIT Students',
+      saveSettings: 'Save Settings',
+      saving: 'Saving...',
+      resetDefaults: 'Reset to Defaults',
+      success: 'Settings Saved',
+      successMsg: 'Your settings have been saved successfully!',
+      failed: 'Save Failed',
+      failedMsg: 'Failed to save settings. Please try again.',
+      connectionSuccess: 'Connection Success',
+      connectionSuccessMsg: 'Successfully connected to Camera and Main Board!',
+      connectionFailed: 'Connection Failed',
+      devicesFound: 'Devices Found!',
+      noDevicesFound: 'No Devices Found',
+      noDevicesMsg: 'No BantayBot devices found. Make sure ESP32 boards are powered on.',
+      scanError: 'Scan Error',
+      languageUpdated: 'Language Updated',
+      resetConfirm: 'This will reset all settings to default values. Continue?'
+    },
+    tl: {
+      title: 'Mga Setting',
+      subtitle: 'I-configure ang inyong BantayBot',
+      connectionSettings: 'Mga Setting ng Koneksyon',
+      cameraIP: 'Camera Board IP Address',
+      cameraIPDesc: 'Ang IP address ng Camera ESP32-CAM',
+      cameraPort: 'Camera Board Port',
+      cameraPortDesc: 'Port ng Camera Board',
+      mainIP: 'Main Board IP Address',
+      mainIPDesc: 'Ang IP address ng Main Control ESP32',
+      mainPort: 'Main Board Port',
+      mainPortDesc: 'Port ng Main Board',
+      updateInterval: 'Update Interval (ms)',
+      updateIntervalDesc: 'Gaano kadalas hilingin ang sensor updates',
+      autoDiscovery: 'Auto-Discovery',
+      autoDiscoveryDesc: 'I-scan ang network para hanapin ang BantayBot devices',
+      scanNetwork: 'I-scan ang Network',
+      connectionTest: 'Test ng Koneksyon',
+      connectionTestDesc: 'Subukan ang koneksyon sa mga ESP32 boards',
+      testConnections: 'Subukan ang Koneksyon',
+      speakerAudio: 'Speaker & Audio',
+      appPreferences: 'Mga Preference ng App',
+      language: 'Wika',
+      switchToTagalog: 'Lumipat sa Tagalog',
+      switchToEnglish: 'Lumipat sa English',
+      notifications: 'Push Notifications',
+      notificationsDesc: 'Makatanggap ng alerts kapag may motion',
+      darkMode: 'Dark Mode',
+      darkModeDesc: 'Lumipat sa madilim na tema',
+      autoReconnect: 'Auto Reconnect',
+      autoReconnectDesc: 'Awtomatikong subukang muling kumonekta kapag nawala ang koneksyon',
+      systemInfo: 'Impormasyon ng Sistema',
+      aboutBantayBot: 'Tungkol sa BantayBot',
+      aboutDesc: 'Isang solar-powered automated scarecrow na may integrated sensors at mobile monitoring para sa proteksyon ng pananim.',
+      developedBy: 'Ginawa ng PUP-Lopez BSIT Students',
+      saveSettings: 'I-save ang Settings',
+      saving: 'Sine-save...',
+      resetDefaults: 'I-reset sa Defaults',
+      success: 'Tagumpay',
+      successMsg: 'Matagumpay na nai-save ang inyong mga setting!',
+      failed: 'Nabigo',
+      failedMsg: 'Nabigong i-save ang mga setting. Subukan muli.',
+      connectionSuccess: 'Tagumpay ang Koneksyon',
+      connectionSuccessMsg: 'Matagumpay na nakakonekta sa Camera at Main Board!',
+      connectionFailed: 'Nabigong Koneksyon',
+      devicesFound: 'Nakita!',
+      noDevicesFound: 'Walang Nakita',
+      noDevicesMsg: 'Walang BantayBot devices na nakita. Siguraduhing naka-on ang ESP32 boards.',
+      scanError: 'Error sa Scan',
+      languageUpdated: 'Na-update ang Wika',
+      resetConfirm: 'Ire-reset nito ang lahat ng settings sa default values. Magpatuloy?'
+    }
+  };
+
+  const txt = texts[language] || texts.en;
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -81,7 +190,6 @@ export default function Settings({ language, onLanguageChange }) {
         isMuted: config.isMuted
       };
 
-      // Validate configuration
       const validation = ConfigService.validate(updateConfig);
       if (!validation.isValid) {
         setErrors({ general: validation.errors.join(', ') });
@@ -90,17 +198,10 @@ export default function Settings({ language, onLanguageChange }) {
 
       await ConfigService.update(updateConfig);
       setErrors({});
-
-      showAlert(
-        language === 'tl' ? 'Tagumpay' : 'Settings Saved',
-        language === 'tl' ? 'Matagumpay na nai-save ang inyong mga setting!' : 'Your settings have been saved successfully!'
-      );
+      showAlert(txt.success, txt.successMsg);
     } catch (error) {
       console.error('Save settings error:', error);
-      showAlert(
-        language === 'tl' ? 'Nabigo' : 'Save Failed',
-        language === 'tl' ? 'Nabigong i-save ang mga setting. Subukan muli.' : 'Failed to save settings. Please try again.'
-      );
+      showAlert(txt.failed, txt.failedMsg);
     } finally {
       setIsLoading(false);
     }
@@ -118,7 +219,6 @@ export default function Settings({ language, onLanguageChange }) {
         mainBoardPort: parseInt(config.mainBoardPort)
       };
 
-      // Test both connections
       const [cameraResult, mainResult] = await Promise.allSettled([
         ConnectionManager.testConnection(testConfig.cameraIP, testConfig.cameraPort, '/stream'),
         ConnectionManager.testConnection(testConfig.mainBoardIP, testConfig.mainBoardPort, '/status')
@@ -133,30 +233,16 @@ export default function Settings({ language, onLanguageChange }) {
       });
 
       if (cameraSuccess && mainSuccess) {
-        showAlert(
-          language === 'tl' ? 'Tagumpay ang Koneksyon' : 'Connection Success',
-          language === 'tl'
-            ? 'Matagumpay na nakakonekta sa Camera at Main Board!'
-            : 'Successfully connected to Camera and Main Board!'
-        );
+        showAlert(txt.connectionSuccess, txt.connectionSuccessMsg);
       } else {
         const failedBoards = [];
         if (!cameraSuccess) failedBoards.push('Camera Board');
         if (!mainSuccess) failedBoards.push('Main Board');
-
-        showAlert(
-          language === 'tl' ? 'Nabigong Koneksyon' : 'Connection Failed',
-          language === 'tl'
-            ? `Hindi makakonekta sa ${failedBoards.join(' at ')}. Pakisuri:\n• Naka-on ang ESP32\n• Parehong WiFi network\n• Tama ang IP address`
-            : `Could not connect to ${failedBoards.join(' and ')}. Please check:\n• ESP32 is powered on\n• Both devices are on same WiFi\n• IP address is correct`
-        );
+        showAlert(txt.connectionFailed, `Could not connect to ${failedBoards.join(' and ')}.`);
       }
     } catch (error) {
       setConnectionStatus({ camera: 'Failed', mainBoard: 'Failed' });
-      showAlert(
-        language === 'tl' ? 'Nabigong Koneksyon' : 'Connection Failed',
-        language === 'tl' ? 'May error sa pagtest ng koneksyon' : 'Error testing connection'
-      );
+      showAlert(txt.connectionFailed, 'Error testing connection');
     } finally {
       setIsLoading(false);
     }
@@ -169,18 +255,13 @@ export default function Settings({ language, onLanguageChange }) {
 
     try {
       const baseIP = NetworkDiscoveryService.getBaseIP(config.cameraIP);
-
-      const devices = await NetworkDiscoveryService.smartDiscover(
-        baseIP,
-        (progress) => {
-          setScanProgress(progress);
-        }
-      );
+      const devices = await NetworkDiscoveryService.smartDiscover(baseIP, (progress) => {
+        setScanProgress(progress);
+      });
 
       setFoundDevices(devices);
 
       if (devices.length > 0) {
-        // Auto-fill IPs if found
         const cameraDevice = devices.find(d => d.type === 'camera');
         const mainDevice = devices.find(d => d.type === 'main');
 
@@ -191,25 +272,12 @@ export default function Settings({ language, onLanguageChange }) {
           setConfig(prev => ({ ...prev, mainBoardIP: mainDevice.ip }));
         }
 
-        showAlert(
-          language === 'tl' ? 'Nakita!' : 'Devices Found!',
-          language === 'tl'
-            ? `Nakita ang ${devices.length} BantayBot device(s)!`
-            : `Found ${devices.length} BantayBot device(s)!`
-        );
+        showAlert(txt.devicesFound, `Found ${devices.length} BantayBot device(s)!`);
       } else {
-        showAlert(
-          language === 'tl' ? 'Walang Nakita' : 'No Devices Found',
-          language === 'tl'
-            ? 'Walang BantayBot devices na nakita. Siguraduhing naka-on ang ESP32 boards.'
-            : 'No BantayBot devices found. Make sure ESP32 boards are powered on.'
-        );
+        showAlert(txt.noDevicesFound, txt.noDevicesMsg);
       }
     } catch (error) {
-      showAlert(
-        language === 'tl' ? 'Error sa Scan' : 'Scan Error',
-        language === 'tl' ? 'May error sa pag-scan ng network' : 'Error scanning network'
-      );
+      showAlert(txt.scanError, 'Error scanning network');
     } finally {
       setIsScanning(false);
       setScanProgress(0);
@@ -217,13 +285,7 @@ export default function Settings({ language, onLanguageChange }) {
   };
 
   const resetToDefaults = () => {
-    const confirmed = window.confirm(
-      language === 'tl'
-        ? 'Ire-reset nito ang lahat ng settings sa default values. Magpatuloy?'
-        : 'This will reset all settings to default values. Continue?'
-    );
-
-    if (confirmed) {
+    if (window.confirm(txt.resetConfirm)) {
       ConfigService.reset().then((defaults) => {
         setConfig({
           cameraIP: defaults.cameraIP,
@@ -245,371 +307,231 @@ export default function Settings({ language, onLanguageChange }) {
   const toggleLanguage = () => {
     const newLang = language === 'tl' ? 'en' : 'tl';
     onLanguageChange?.(newLang);
-    showAlert(
-      language === 'tl' ? 'Na-update ang Wika' : 'Language Updated',
-      `Language set to ${newLang === 'tl' ? 'Tagalog' : 'English'}`
-    );
+    showAlert(txt.languageUpdated, `Language set to ${newLang === 'tl' ? 'Tagalog' : 'English'}`);
   };
 
   const showAlert = (title, message) => {
-    // Simple alert for now - could be enhanced with custom modal
     alert(`${title}\n\n${message}`);
   };
 
   const updateConfig = (key, value) => {
     setConfig(prev => ({ ...prev, [key]: value }));
-    // Clear any existing errors for this field
     if (errors[key]) {
       setErrors(prev => ({ ...prev, [key]: undefined }));
     }
   };
 
-  const containerStyle = {
-    minHeight: '100vh',
-    backgroundColor: currentTheme.colors.background,
-    padding: currentTheme.spacing['4'] + 'px',
-    paddingBottom: '100px' // Account for bottom nav
-  };
-
-  const headerStyle = {
-    textAlign: 'center',
-    marginBottom: currentTheme.spacing['8'] + 'px'
-  };
-
-  const titleStyle = {
-    fontSize: currentTheme.typography.sizes['3xl'],
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    marginBottom: currentTheme.spacing['2'] + 'px'
-  };
-
-  const subtitleStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.textSecondary,
-    fontWeight: currentTheme.typography.weights.medium
-  };
-
-  const sectionStyle = {
-    marginBottom: currentTheme.spacing['6'] + 'px'
-  };
-
-  const sectionHeaderStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['4'] + 'px'
-  };
-
-  const sectionTitleStyle = {
-    fontSize: currentTheme.typography.sizes.lg,
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    marginLeft: currentTheme.spacing['2'] + 'px'
-  };
+  // Section Header Component
+  const SectionHeader = ({ icon, title, color = 'brand' }) => (
+    <div className="flex items-center gap-2 mb-4 mt-8">
+      <div className={`w-8 h-8 rounded-lg bg-${color}/20 flex items-center justify-center`}>
+        <span className="text-base">{icon}</span>
+      </div>
+      <h2 className="text-base font-bold text-primary">{title}</h2>
+    </div>
+  );
 
   return (
-    <div style={containerStyle}>
+    <div className="min-h-screen bg-secondary pb-24">
       {/* Header */}
-      <div style={headerStyle}>
-        <h1 style={titleStyle}>
-          ⚙️ {language === 'tl' ? 'Mga Setting' : 'Settings'}
-        </h1>
-        <p style={subtitleStyle}>
-          {language === 'tl' ? 'I-configure ang inyong BantayBot' : 'Configure your BantayBot'}
-        </p>
+      <div className="pt-16 pb-4 px-4">
+        <div className="flex items-center mb-2">
+          <div className="w-12 h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-3">
+            <span className="text-2xl">⚙️</span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-primary">{txt.title}</h1>
+            <p className="text-sm text-secondary">{txt.subtitle}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Connection Settings Section */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <span style={{ fontSize: '20px', color: currentTheme.colors.info }}>📡</span>
-          <span style={sectionTitleStyle}>
-            {language === 'tl' ? 'Mga Setting ng Koneksyon' : 'Connection Settings'}
-          </span>
+      <div className="px-4">
+        {/* Connection Settings Section */}
+        <SectionHeader icon="📡" title={txt.connectionSettings} color="info" />
+
+        <div className="space-y-3">
+          <InputCard
+            title={txt.cameraIP}
+            value={config.cameraIP}
+            onChangeText={(value) => updateConfig('cameraIP', value)}
+            placeholder="172.24.26.144"
+            keyboardType="text"
+            description={txt.cameraIPDesc}
+            icon="📷"
+            error={errors.cameraIP}
+          />
+
+          <InputCard
+            title={txt.cameraPort}
+            value={config.cameraPort}
+            onChangeText={(value) => updateConfig('cameraPort', value)}
+            placeholder="80"
+            keyboardType="numeric"
+            description={txt.cameraPortDesc}
+            icon="📻"
+            error={errors.cameraPort}
+          />
+
+          <InputCard
+            title={txt.mainIP}
+            value={config.mainBoardIP}
+            onChangeText={(value) => updateConfig('mainBoardIP', value)}
+            placeholder="172.24.26.193"
+            keyboardType="text"
+            description={txt.mainIPDesc}
+            icon="🔧"
+            error={errors.mainBoardIP}
+          />
+
+          <InputCard
+            title={txt.mainPort}
+            value={config.mainBoardPort}
+            onChangeText={(value) => updateConfig('mainBoardPort', value)}
+            placeholder="81"
+            keyboardType="numeric"
+            description={txt.mainPortDesc}
+            icon="📻"
+            error={errors.mainBoardPort}
+          />
+
+          <InputCard
+            title={txt.updateInterval}
+            value={config.updateInterval}
+            onChangeText={(value) => updateConfig('updateInterval', value)}
+            placeholder="1000"
+            keyboardType="numeric"
+            description={txt.updateIntervalDesc}
+            icon="⏱️"
+            error={errors.updateInterval}
+          />
+
+          {/* Network Discovery */}
+          <ConnectionTestCard
+            title={txt.autoDiscovery}
+            description={txt.autoDiscoveryDesc}
+            buttonText={txt.scanNetwork}
+            onTest={scanNetwork}
+            isLoading={isScanning}
+            style={{ borderLeft: '4px solid var(--color-warning)' }}
+          />
+
+          {/* Connection Test */}
+          <ConnectionTestCard
+            title={txt.connectionTest}
+            description={txt.connectionTestDesc}
+            buttonText={txt.testConnections}
+            onTest={testConnection}
+            testResults={connectionStatus}
+            isLoading={isLoading}
+          />
         </div>
 
-        <InputCard
-          title={language === 'tl' ? 'Camera Board IP Address' : 'Camera Board IP Address'}
-          value={config.cameraIP}
-          onChangeText={(value) => updateConfig('cameraIP', value)}
-          placeholder="172.24.26.144"
-          keyboardType="text"
-          description={language === 'tl' ? 'Ang IP address ng Camera ESP32-CAM' : 'The IP address of Camera ESP32-CAM'}
-          icon="📷"
-          error={errors.cameraIP}
-        />
-
-        <InputCard
-          title={language === 'tl' ? 'Camera Board Port' : 'Camera Board Port'}
-          value={config.cameraPort}
-          onChangeText={(value) => updateConfig('cameraPort', value)}
-          placeholder="80"
-          keyboardType="numeric"
-          description={language === 'tl' ? 'Port ng Camera Board' : 'Camera Board Port'}
-          icon="📻"
-          error={errors.cameraPort}
-        />
-
-        <InputCard
-          title={language === 'tl' ? 'Main Board IP Address' : 'Main Board IP Address'}
-          value={config.mainBoardIP}
-          onChangeText={(value) => updateConfig('mainBoardIP', value)}
-          placeholder="172.24.26.193"
-          keyboardType="text"
-          description={language === 'tl' ? 'Ang IP address ng Main Control ESP32' : 'The IP address of Main Control ESP32'}
-          icon="🔧"
-          error={errors.mainBoardIP}
-        />
-
-        <InputCard
-          title={language === 'tl' ? 'Main Board Port' : 'Main Board Port'}
-          value={config.mainBoardPort}
-          onChangeText={(value) => updateConfig('mainBoardPort', value)}
-          placeholder="81"
-          keyboardType="numeric"
-          description={language === 'tl' ? 'Port ng Main Board' : 'Main Board Port'}
-          icon="📻"
-          error={errors.mainBoardPort}
-        />
-
-        <InputCard
-          title={language === 'tl' ? 'Update Interval (ms)' : 'Update Interval (ms)'}
-          value={config.updateInterval}
-          onChangeText={(value) => updateConfig('updateInterval', value)}
-          placeholder="1000"
-          keyboardType="numeric"
-          description={language === 'tl' ? 'Gaano kadalas hilingin ang sensor updates' : 'How often to request sensor updates'}
-          icon="⏱️"
-          error={errors.updateInterval}
-        />
-
-        {/* Network Discovery */}
-        <ConnectionTestCard
-          title={language === 'tl' ? 'Auto-Discovery' : 'Auto-Discovery'}
-          description={language === 'tl'
-            ? 'I-scan ang network para hanapin ang BantayBot devices'
-            : 'Scan network to find BantayBot devices automatically'}
-          buttonText={language === 'tl' ? 'I-scan ang Network' : 'Scan Network'}
-          onTest={scanNetwork}
-          isLoading={isScanning}
-          style={{
-            borderLeft: `4px solid ${currentTheme.colors.warning}`,
-          }}
-        />
-
-        {/* Connection Test */}
-        <ConnectionTestCard
-          title={language === 'tl' ? 'Test ng Koneksyon' : 'Connection Test'}
-          description={language === 'tl'
-            ? 'Subukan ang koneksyon sa mga ESP32 boards'
-            : 'Test connection to ESP32 boards'}
-          buttonText={language === 'tl' ? 'Subukan ang Koneksyon' : 'Test Connections'}
-          onTest={testConnection}
-          testResults={connectionStatus}
-          isLoading={isLoading}
-        />
-      </div>
-
-      {/* Speaker & Audio Section */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <span style={{ fontSize: '20px', color: currentTheme.colors.warning }}>🔊</span>
-          <span style={sectionTitleStyle}>
-            {language === 'tl' ? 'Speaker & Audio' : 'Speaker & Audio'}
-          </span>
-        </div>
+        {/* Speaker & Audio Section */}
+        <SectionHeader icon="🔊" title={txt.speakerAudio} color="warning" />
         <SpeakerControl
           volume={config.volume}
           onVolumeChange={(value) => updateConfig('volume', value)}
           isMuted={config.isMuted}
           onMuteToggle={() => updateConfig('isMuted', !config.isMuted)}
         />
-      </div>
 
-      {/* App Preferences Section */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <span style={{ fontSize: '20px', color: currentTheme.colors.primary }}>📱</span>
-          <span style={sectionTitleStyle}>
-            {language === 'tl' ? 'Mga Preference ng App' : 'App Preferences'}
-          </span>
+        {/* App Preferences Section */}
+        <SectionHeader icon="📱" title={txt.appPreferences} color="brand" />
+
+        <div className="space-y-3">
+          {/* Language Toggle */}
+          <div className="surface-primary rounded-2xl p-4 border border-primary shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🌐</span>
+                <span className="text-sm text-secondary">{txt.language}</span>
+              </div>
+              <span className="text-sm font-semibold text-primary">
+                {language === 'tl' ? 'Tagalog' : 'English'}
+              </span>
+            </div>
+            <button
+              onClick={toggleLanguage}
+              className="w-full py-3 px-4 bg-tertiary border border-primary rounded-xl text-brand font-semibold transition-all hover:bg-brand/10 cursor-pointer"
+            >
+              {language === 'tl' ? txt.switchToEnglish : txt.switchToTagalog}
+            </button>
+          </div>
+
+          <ToggleCard
+            title={txt.notifications}
+            value={config.notifications}
+            onValueChange={(value) => updateConfig('notifications', value)}
+            description={txt.notificationsDesc}
+            icon="🔔"
+          />
+
+          <ToggleCard
+            title={txt.darkMode}
+            value={isDark}
+            onValueChange={toggleTheme}
+            description={txt.darkModeDesc}
+            icon="🌙"
+          />
+
+          <ToggleCard
+            title={txt.autoReconnect}
+            value={config.autoReconnect}
+            onValueChange={(value) => updateConfig('autoReconnect', value)}
+            description={txt.autoReconnectDesc}
+            icon="🔄"
+          />
         </div>
 
-        {/* Language Toggle */}
-        <div style={{
-          backgroundColor: currentTheme.colors.surface,
-          borderRadius: currentTheme.borderRadius.xl + 'px',
-          padding: currentTheme.spacing['4'] + 'px',
-          marginBottom: currentTheme.spacing['3'] + 'px',
-          boxShadow: currentTheme.shadows.sm,
-          border: `1px solid ${currentTheme.colors.border}`
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: currentTheme.spacing['2'] + 'px'
-          }}>
-            <span style={{
-              fontSize: currentTheme.typography.sizes.sm,
-              color: currentTheme.colors.textSecondary
-            }}>
-              🌐 {language === 'tl' ? 'Wika' : 'Language'}
-            </span>
-            <span style={{
-              fontSize: currentTheme.typography.sizes.sm,
-              fontWeight: currentTheme.typography.weights.medium,
-              color: currentTheme.colors.text
-            }}>
-              {language === 'tl' ? 'Tagalog' : 'English'}
-            </span>
+        {/* System Information Section */}
+        <SectionHeader icon="ℹ️" title={txt.systemInfo} color="success" />
+
+        <div className="surface-primary rounded-2xl p-5 border border-primary shadow-sm mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-brand/20 flex items-center justify-center">
+              <span className="text-2xl">🛡️</span>
+            </div>
+            <h3 className="text-xl font-bold text-primary">{txt.aboutBantayBot}</h3>
           </div>
+          <p className="text-sm text-secondary leading-relaxed mb-4">
+            {txt.aboutDesc}
+          </p>
+          <div className="pt-4 border-t border-primary text-center">
+            <div className="text-sm font-semibold text-brand">{txt.developedBy}</div>
+            <div className="text-xs text-secondary mt-1">Version 1.0.0</div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-3 pb-6">
           <button
-            onClick={toggleLanguage}
-            style={{
-              width: '100%',
-              padding: `${currentTheme.spacing['3']}px ${currentTheme.spacing['4']}px`,
-              backgroundColor: currentTheme.colors.background,
-              border: `1px solid ${currentTheme.colors.border}`,
-              borderRadius: currentTheme.borderRadius.lg + 'px',
-              color: currentTheme.colors.primary,
-              fontSize: currentTheme.typography.sizes.md,
-              fontWeight: currentTheme.typography.weights.semibold,
-              cursor: 'pointer',
-              transition: `all ${currentTheme.animations.duration.fast}`
-            }}
+            onClick={saveSettings}
+            disabled={isLoading}
+            className={`
+              w-full py-4 px-6 rounded-2xl font-bold text-lg text-white transition-all shadow-md
+              ${isLoading
+                ? 'bg-tertiary text-secondary cursor-not-allowed opacity-60'
+                : 'bg-success hover:bg-success/90 cursor-pointer hover:shadow-lg active:scale-[0.98]'
+              }
+            `}
           >
-            {language === 'tl' ? 'Lumipat sa English' : 'Switch to Tagalog'}
+            <span className="flex items-center justify-center gap-2">
+              <span>✅</span>
+              <span>{isLoading ? txt.saving : txt.saveSettings}</span>
+            </span>
+          </button>
+
+          <button
+            onClick={resetToDefaults}
+            className="w-full py-4 px-6 rounded-2xl font-semibold surface-primary border-2 border-primary text-secondary hover:bg-tertiary transition-all cursor-pointer"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <span>🔄</span>
+              <span>{txt.resetDefaults}</span>
+            </span>
           </button>
         </div>
-
-        <ToggleCard
-          title={language === 'tl' ? 'Push Notifications' : 'Push Notifications'}
-          value={config.notifications}
-          onValueChange={(value) => updateConfig('notifications', value)}
-          description={language === 'tl' ? 'Makatanggap ng alerts kapag may motion' : 'Receive alerts when motion is detected'}
-          icon="🔔"
-        />
-
-        <ToggleCard
-          title={language === 'tl' ? 'Dark Mode' : 'Dark Mode'}
-          value={isDark}
-          onValueChange={toggleTheme}
-          description={language === 'tl' ? 'Lumipat sa madilim na tema' : 'Switch to dark theme'}
-          icon="🌙"
-        />
-
-        <ToggleCard
-          title={language === 'tl' ? 'Auto Reconnect' : 'Auto Reconnect'}
-          value={config.autoReconnect}
-          onValueChange={(value) => updateConfig('autoReconnect', value)}
-          description={language === 'tl'
-            ? 'Awtomatikong subukang muling kumonekta kapag nawala ang koneksyon'
-            : 'Automatically try to reconnect when connection is lost'}
-          icon="🔄"
-        />
-      </div>
-
-      {/* System Information Section */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <span style={{ fontSize: '20px', color: currentTheme.colors.success }}>ℹ️</span>
-          <span style={sectionTitleStyle}>
-            {language === 'tl' ? 'Impormasyon ng Sistema' : 'System Information'}
-          </span>
-        </div>
-
-        <div style={{
-          backgroundColor: currentTheme.colors.surface,
-          borderRadius: currentTheme.borderRadius.xl + 'px',
-          padding: currentTheme.spacing['5'] + 'px',
-          boxShadow: currentTheme.shadows.sm,
-          border: `1px solid ${currentTheme.colors.border}`,
-          marginBottom: currentTheme.spacing['3'] + 'px'
-        }}>
-          <h3 style={{
-            fontSize: currentTheme.typography.sizes.xl,
-            fontWeight: currentTheme.typography.weights.bold,
-            color: currentTheme.colors.text,
-            marginBottom: currentTheme.spacing['3'] + 'px'
-          }}>
-            🛡️ {language === 'tl' ? 'Tungkol sa BantayBot' : 'About BantayBot'}
-          </h3>
-          <p style={{
-            fontSize: currentTheme.typography.sizes.md,
-            color: currentTheme.colors.textSecondary,
-            lineHeight: 1.6,
-            marginBottom: currentTheme.spacing['3'] + 'px'
-          }}>
-            {language === 'tl'
-              ? 'Isang solar-powered automated scarecrow na may integrated sensors at mobile monitoring para sa proteksyon ng pananim.'
-              : 'A solar-powered automated scarecrow with integrated sensors and mobile monitoring for crop protection.'}
-          </p>
-          <div style={{
-            textAlign: 'center',
-            paddingTop: currentTheme.spacing['3'] + 'px',
-            borderTop: `1px solid ${currentTheme.colors.border}`,
-            fontSize: currentTheme.typography.sizes.sm,
-            color: currentTheme.colors.primary,
-            fontWeight: currentTheme.typography.weights.semibold
-          }}>
-            {language === 'tl'
-              ? 'Ginawa ng PUP-Lopez BSIT Students'
-              : 'Developed by PUP-Lopez BSIT Students'}
-          </div>
-          <div style={{
-            textAlign: 'center',
-            marginTop: currentTheme.spacing['2'] + 'px',
-            fontSize: currentTheme.typography.sizes.sm,
-            color: currentTheme.colors.textSecondary
-          }}>
-            Version 1.0.0
-          </div>
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div style={{ paddingBottom: currentTheme.spacing['6'] + 'px' }}>
-        <button
-          onClick={saveSettings}
-          disabled={isLoading}
-          style={{
-            width: '100%',
-            backgroundColor: isLoading ? currentTheme.colors.border : currentTheme.colors.success,
-            color: 'white',
-            border: 'none',
-            borderRadius: currentTheme.borderRadius.xl + 'px',
-            padding: `${currentTheme.spacing['4']}px ${currentTheme.spacing['6']}px`,
-            fontSize: currentTheme.typography.sizes.lg,
-            fontWeight: currentTheme.typography.weights.bold,
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            marginBottom: currentTheme.spacing['3'] + 'px',
-            boxShadow: currentTheme.shadows.md,
-            opacity: isLoading ? 0.6 : 1,
-            transition: `all ${currentTheme.animations.duration.normal}`
-          }}
-        >
-          ✅ {isLoading
-            ? (language === 'tl' ? 'Sine-save...' : 'Saving...')
-            : (language === 'tl' ? 'I-save ang Settings' : 'Save Settings')}
-        </button>
-
-        <button
-          onClick={resetToDefaults}
-          style={{
-            width: '100%',
-            backgroundColor: currentTheme.colors.surface,
-            color: currentTheme.colors.textSecondary,
-            border: `2px solid ${currentTheme.colors.border}`,
-            borderRadius: currentTheme.borderRadius.xl + 'px',
-            padding: `${currentTheme.spacing['4']}px ${currentTheme.spacing['6']}px`,
-            fontSize: currentTheme.typography.sizes.md,
-            fontWeight: currentTheme.typography.weights.semibold,
-            cursor: 'pointer',
-            transition: `all ${currentTheme.animations.duration.fast}`
-          }}
-        >
-          🔄 {language === 'tl' ? 'I-reset sa Defaults' : 'Reset to Defaults'}
-        </button>
       </div>
     </div>
   );
