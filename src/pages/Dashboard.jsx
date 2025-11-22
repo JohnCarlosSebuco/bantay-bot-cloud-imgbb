@@ -14,23 +14,23 @@ export default function Dashboard({ language }) {
   const [refreshing, setRefreshing] = useState(false);
   const fadeOpacity = useRef(1);
 
-  // Connection state
-  const [isConnected, setIsConnected] = useState(false);
+  // Connection state - temp demo: default to connected
+  const [isConnected, setIsConnected] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   // Quick action loading states
   const [loadingAction, setLoadingAction] = useState(null);
 
-  // Sensor data state
+  // Sensor data state - temp demo data
   const [sensorData, setSensorData] = useState({
     motion: 0,
     headPosition: 90,
     dhtTemperature: 25.5,
     dhtHumidity: 60,
-    soilHumidity: 45,
-    soilTemperature: 24.2,
-    soilConductivity: 850,
-    ph: 6.8,
+    soilHumidity: 15,
+    soilTemperature: 25,
+    soilConductivity: 150,
+    ph: 8.3,
     currentTrack: 1,
     volume: 20,
     audioPlaying: false,
@@ -95,34 +95,37 @@ export default function Dashboard({ language }) {
     animate();
 
     const handleConnection = (status) => {
-      setIsConnected(status.connected);
+      // Temp demo: always show connected
+      setIsConnected(true);
     };
 
     const handleData = (data) => {
+      // Temp demo: keep demo sensor values, only update non-soil data
       const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
-      setSensorData({
+      setSensorData(prev => ({
+        ...prev,
         motion: data?.motion ? 1 : 0,
-        headPosition: safeNumber(data?.headPosition, 0),
-        dhtTemperature: safeNumber(data?.dhtTemperature, 0),
-        dhtHumidity: safeNumber(data?.dhtHumidity, 0),
-        soilHumidity: safeNumber(data?.soilHumidity, 0),
-        soilTemperature: safeNumber(data?.soilTemperature, 0),
-        soilConductivity: safeNumber(data?.soilConductivity, 0),
-        ph: safeNumber(data?.ph, 7.0),
-        currentTrack: safeNumber(data?.currentTrack, 1),
-        volume: safeNumber(data?.volume, 20),
+        headPosition: safeNumber(data?.headPosition, prev.headPosition),
+        dhtTemperature: safeNumber(data?.dhtTemperature, prev.dhtTemperature),
+        dhtHumidity: safeNumber(data?.dhtHumidity, prev.dhtHumidity),
+        // Keep demo values for soil sensors
+        // soilHumidity: safeNumber(data?.soilHumidity, prev.soilHumidity),
+        // soilTemperature: safeNumber(data?.soilTemperature, prev.soilTemperature),
+        // soilConductivity: safeNumber(data?.soilConductivity, prev.soilConductivity),
+        // ph: safeNumber(data?.ph, prev.ph),
+        currentTrack: safeNumber(data?.currentTrack, prev.currentTrack),
+        volume: safeNumber(data?.volume, prev.volume),
         audioPlaying: data?.audioPlaying || false,
-        leftArmAngle: safeNumber(data?.leftArmAngle, 90),
-        rightArmAngle: safeNumber(data?.rightArmAngle, 90),
+        leftArmAngle: safeNumber(data?.leftArmAngle, prev.leftArmAngle),
+        rightArmAngle: safeNumber(data?.rightArmAngle, prev.rightArmAngle),
         oscillating: data?.oscillating || false,
         birdDetectionEnabled: data?.birdDetectionEnabled !== undefined ? data.birdDetectionEnabled : true,
-        birdsDetectedToday: safeNumber(data?.birdsDetectedToday, 0),
-        detectionSensitivity: safeNumber(data?.detectionSensitivity, 2),
+        birdsDetectedToday: safeNumber(data?.birdsDetectedToday, prev.birdsDetectedToday),
+        detectionSensitivity: safeNumber(data?.detectionSensitivity, prev.detectionSensitivity),
         hasDFPlayer: data?.hasDFPlayer || false,
-        hasRS485Sensor: data?.hasRS485Sensor || false,
+        hasRS485Sensor: true, // Keep true for demo
         hasServos: data?.hasServos || false,
-      });
-      setLastUpdate(new Date());
+      }));
     };
 
     const initServices = async () => {
@@ -140,23 +143,24 @@ export default function Dashboard({ language }) {
     ConnectionManager.onStatusUpdate(handleData);
 
     // Subscribe to Firebase sensor data for real-time updates
+    // Temp demo: commented out to keep demo sensor values
     const unsubscribeSensor = DeviceService.subscribeToSensorData(CONFIG.DEVICE_ID, (data) => {
       if (data) {
         console.log('📡 Firebase sensor data received:', data);
         const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
         setSensorData(prev => ({
           ...prev,
-          soilHumidity: safeNumber(data.soilHumidity, prev.soilHumidity),
-          soilTemperature: safeNumber(data.soilTemperature, prev.soilTemperature),
-          soilConductivity: safeNumber(data.soilConductivity, prev.soilConductivity),
-          ph: safeNumber(data.ph, prev.ph),
+          // Keep demo values for soil sensors
+          // soilHumidity: safeNumber(data.soilHumidity, prev.soilHumidity),
+          // soilTemperature: safeNumber(data.soilTemperature, prev.soilTemperature),
+          // soilConductivity: safeNumber(data.soilConductivity, prev.soilConductivity),
+          // ph: safeNumber(data.ph, prev.ph),
           currentTrack: safeNumber(data.currentTrack, prev.currentTrack),
           volume: safeNumber(data.volume, prev.volume),
           headPosition: safeNumber(data.headPosition, prev.headPosition),
           oscillating: data.servoActive || false,
           hasRS485Sensor: true,
         }));
-        setLastUpdate(new Date());
         setIsConnected(true);
       }
     });
@@ -168,11 +172,8 @@ export default function Dashboard({ language }) {
   }, [language]);
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour12: true,
-      hour: 'numeric',
-      minute: '2-digit'
-    });
+    // Temp demo: always show 5:49 AM
+    return '5:51 AM';
   };
 
   // Soil Health Calculation Functions
