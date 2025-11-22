@@ -1,5 +1,5 @@
 import { db } from './FirebaseService';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { DEVICE_CONFIG, FIREBASE_COLLECTIONS } from '../config/hardware.config';
 
 class DeviceService {
@@ -64,8 +64,7 @@ class DeviceService {
   async getSensorHistory(maxResults = 50) {
     try {
       const historyRef = collection(db, 'sensor_history');
-      const q = query(historyRef, orderBy('__name__', 'desc'), limit(maxResults));
-      const snapshot = await getDocs(q);
+      const snapshot = await getDocs(historyRef);
 
       const history = [];
       snapshot.forEach((doc) => {
@@ -81,7 +80,9 @@ class DeviceService {
         });
       });
 
-      return history;
+      // Sort by document ID (contains timestamp) descending, then limit
+      history.sort((a, b) => b.id.localeCompare(a.id));
+      return history.slice(0, maxResults);
     } catch (error) {
       console.error('Error fetching sensor history:', error);
       return [];
@@ -94,9 +95,8 @@ class DeviceService {
   subscribeToSensorHistory(callback, maxResults = 20) {
     try {
       const historyRef = collection(db, 'sensor_history');
-      const q = query(historyRef, orderBy('__name__', 'desc'), limit(maxResults));
 
-      return onSnapshot(q, (snapshot) => {
+      return onSnapshot(historyRef, (snapshot) => {
         const history = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
@@ -110,7 +110,9 @@ class DeviceService {
             deviceId: data.deviceId || 'main_001',
           });
         });
-        callback(history);
+        // Sort by document ID descending and limit
+        history.sort((a, b) => b.id.localeCompare(a.id));
+        callback(history.slice(0, maxResults));
       }, (error) => {
         console.error('Error subscribing to sensor history:', error);
         callback([]);
