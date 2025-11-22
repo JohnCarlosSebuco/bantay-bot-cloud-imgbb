@@ -1,11 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import {
-  ControlButton,
   AudioPlayerControl,
-  // ServoArmControl,
-  // DetectionControls,
-  // CameraSettings,
   HeadControlPanel
 } from '../components/ui';
 import CommandService from '../services/CommandService';
@@ -15,118 +11,78 @@ export default function Controls({ language }) {
   const { currentTheme } = useTheme();
   const [loadingStates, setLoadingStates] = useState({});
   const [lastCommand, setLastCommand] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Manual control states
+  // Audio controls state
   const [audioPlaying, setAudioPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(1);
   const [volume, setVolume] = useState(20);
-  const [leftArmAngle, setLeftArmAngle] = useState(90);
-  const [rightArmAngle, setRightArmAngle] = useState(90);
-  const [oscillating, setOscillating] = useState(false);
-  const [detectionEnabled, setDetectionEnabled] = useState(true);
-  const [detectionSensitivity, setDetectionSensitivity] = useState(2);
-  const [birdsDetectedToday, setBirdsDetectedToday] = useState(0);
-  const [cameraBrightness, setCameraBrightness] = useState(0);
-  const [cameraContrast, setCameraContrast] = useState(0);
-  const [grayscaleMode, setGrayscaleMode] = useState(false);
   const [headTargetAngle, setHeadTargetAngle] = useState(0);
   const [headLoadingAngle, setHeadLoadingAngle] = useState(null);
 
-  const t = {
+  const texts = {
     en: {
-      title: 'Remote Controls',
+      title: 'Controls',
       subtitle: 'Control your BantayBot',
       lastCommand: 'Last Command',
-      executedAt: 'Executed at',
-      movementControls: 'Movement Controls',
-      alertControls: 'Alert Controls',
-      systemControls: 'System Controls',
-      emergencyControls: 'Emergency Controls',
-      emergencyDescription: 'Use these controls only in emergency situations',
+      executedAt: 'at',
+      movementControls: 'Movement',
+      alertControls: 'Alerts',
+      systemControls: 'System',
       moveArms: 'Move Arms',
-      moveArmsDesc: 'Activate arm movement sequence',
-      rotateHead: 'Rotate Head',
-      rotateHeadDesc: 'Perform head rotation',
-      stopMovement: 'Stop Movement',
-      stopMovementDesc: 'Stop all servo movements immediately',
+      moveArmsDesc: 'Activate arm movement',
+      stopMovement: 'Stop All',
+      stopMovementDesc: 'Stop all motors',
       soundAlarm: 'Sound Alarm',
-      soundAlarmDesc: 'Trigger security alarm',
+      soundAlarmDesc: 'Trigger audio alert',
       testBuzzer: 'Test Buzzer',
       testBuzzerDesc: 'Quick buzzer test',
-      calibrateSensors: 'Calibrate Sensors',
-      calibrateSensorsDesc: 'Recalibrate all sensor readings',
-      resetSystem: 'Reset System',
-      resetSystemDesc: 'Restart the entire system',
-      emergencyStop: 'Emergency Stop',
-      emergencyStopDesc: 'Immediately stop all operations',
-      confirmAction: 'Confirm Action',
-      confirmReset: 'This will restart the entire BantayBot system. Are you sure you want to continue?',
-      confirmEmergencyStop: 'This will immediately stop all BantayBot operations. Continue?',
-      cancel: 'Cancel',
-      confirm: 'Confirm',
+      calibrateSensors: 'Calibrate',
+      calibrateSensorsDesc: 'Recalibrate sensors',
+      resetSystem: 'Reset',
+      resetSystemDesc: 'Restart BantayBot',
+      emergencyStop: 'EMERGENCY STOP',
+      emergencyStopDesc: 'Stop all operations immediately',
+      confirmReset: 'This will restart the entire BantayBot system. Continue?',
+      confirmEmergencyStop: 'This will immediately stop all operations. Continue?',
       success: 'Success',
       failed: 'Failed',
       successMessage: 'completed successfully!',
-      failedMessage: 'Please try again.',
-      processing: 'Processing...'
+      failedMessage: 'Please try again.'
     },
     tl: {
       title: 'Mga Kontrol',
-      subtitle: 'Kontrolin ang inyong BantayBot',
+      subtitle: 'Kontrolin ang BantayBot',
       lastCommand: 'Huling Utos',
-      executedAt: 'Isinagawa noong',
-      movementControls: 'Mga Kontrol ng Galaw',
-      alertControls: 'Mga Kontrol ng Alarm',
-      systemControls: 'Mga Kontrol ng Sistema',
-      emergencyControls: 'Emergency na Kontrol',
-      emergencyDescription: 'Gamitin lamang ang mga kontrol na ito sa emergency na sitwasyon',
-      moveArms: 'Galawin ang Braso',
-      moveArmsDesc: 'Simulan ang paggalaw ng braso',
-      rotateHead: 'Ikutin ang Ulo',
-      rotateHeadDesc: 'Isagawa ang pag-ikot ng ulo',
-      stopMovement: 'Ihinto ang Galaw',
-      stopMovementDesc: 'Ihinto kaagad ang lahat ng galaw',
-      soundAlarm: 'Tumugtog ng Alarm',
-      soundAlarmDesc: 'I-trigger ang alarm ng seguridad',
-      testBuzzer: 'Test ng Buzzer',
-      testBuzzerDesc: 'Mabilis na pagsubok ng buzzer',
-      calibrateSensors: 'I-calibrate ang Sensor',
-      calibrateSensorsDesc: 'I-calibrate muli ang lahat ng sensor',
-      resetSystem: 'I-reset ang Sistema',
-      resetSystemDesc: 'I-restart ang buong sistema',
-      emergencyStop: 'Emergency Stop',
-      emergencyStopDesc: 'Ihinto kaagad ang lahat ng operasyon',
-      confirmAction: 'Kumpirmahin ang Aksyon',
-      confirmReset: 'Ire-restart nito ang buong BantayBot system. Sigurado ka ba na magpatuloy?',
-      confirmEmergencyStop: 'Ihihinto kaagad nito ang lahat ng BantayBot operations. Magpatuloy?',
-      cancel: 'Kanselahin',
-      confirm: 'Kumpirmahin',
+      executedAt: 'noong',
+      movementControls: 'Galaw',
+      alertControls: 'Alarma',
+      systemControls: 'Sistema',
+      moveArms: 'Galaw Braso',
+      moveArmsDesc: 'I-activate ang braso',
+      stopMovement: 'Ihinto',
+      stopMovementDesc: 'Ihinto ang motors',
+      soundAlarm: 'Alarma',
+      soundAlarmDesc: 'I-trigger ang tunog',
+      testBuzzer: 'Test Buzzer',
+      testBuzzerDesc: 'Mabilis na test',
+      calibrateSensors: 'Calibrate',
+      calibrateSensorsDesc: 'I-calibrate sensors',
+      resetSystem: 'Reset',
+      resetSystemDesc: 'I-restart ang BantayBot',
+      emergencyStop: 'EMERGENCY STOP',
+      emergencyStopDesc: 'Ihinto kaagad ang lahat',
+      confirmReset: 'Ire-restart nito ang buong sistema. Magpatuloy?',
+      confirmEmergencyStop: 'Ihihinto nito ang lahat ng operasyon. Magpatuloy?',
       success: 'Tagumpay',
       failed: 'Nabigo',
-      successMessage: 'matagumpay na naisakatuparan!',
-      failedMessage: 'Subukan muli.',
-      processing: 'Pinoproseso...'
+      successMessage: 'matagumpay!',
+      failedMessage: 'Subukan muli.'
     }
   };
 
-  const texts = t[language] || t.en;
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  }, []);
+  const t = texts[language] || texts.en;
 
   const setLoading = (command, isLoading) => {
     setLoadingStates(prev => ({ ...prev, [command]: isLoading }));
-  };
-
-  const showConfirmDialog = (message, onConfirm) => {
-    if (window.confirm(`${texts.confirmAction}\n\n${message}`)) {
-      onConfirm();
-    }
   };
 
   const showAlert = (title, message) => {
@@ -135,80 +91,59 @@ export default function Controls({ language }) {
 
   const getCommandDisplayName = (command) => {
     const names = {
-      MOVE_ARMS: texts.moveArms,
-      ROTATE_HEAD: texts.rotateHead,
-      STOP_MOVEMENT: texts.stopMovement,
-      SOUND_ALARM: texts.soundAlarm,
-      TEST_BUZZER: texts.testBuzzer,
-      RESET_SYSTEM: texts.resetSystem,
-      CALIBRATE_SENSORS: texts.calibrateSensors
+      MOVE_ARMS: t.moveArms,
+      STOP_MOVEMENT: t.stopMovement,
+      SOUND_ALARM: t.soundAlarm,
+      TEST_BUZZER: t.testBuzzer,
+      RESET_SYSTEM: t.resetSystem,
+      CALIBRATE_SENSORS: t.calibrateSensors
     };
     return names[command] || command;
   };
 
-  const executeCommand = async (command) => {
+  const executeCommand = async (command, confirmMsg = null) => {
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+
     setLoading(command, true);
     setLastCommand({ command, timestamp: new Date() });
 
     try {
-      let result;
       switch (command) {
         case 'MOVE_ARMS':
-          result = await CommandService.moveArms(CONFIG.DEVICE_ID);
+          await CommandService.moveArms(CONFIG.DEVICE_ID);
           break;
         case 'STOP_MOVEMENT':
-          result = await CommandService.stopMovement(CONFIG.DEVICE_ID);
+          await CommandService.stopMovement(CONFIG.DEVICE_ID);
           break;
         case 'SOUND_ALARM':
-          result = await CommandService.soundAlarm(CONFIG.DEVICE_ID);
+          await CommandService.soundAlarm(CONFIG.DEVICE_ID);
           break;
         case 'TEST_BUZZER':
-          result = await CommandService.testBuzzer(CONFIG.DEVICE_ID);
+          await CommandService.testBuzzer(CONFIG.DEVICE_ID);
           break;
         case 'RESET_SYSTEM':
-          result = await CommandService.resetSystem(CONFIG.DEVICE_ID);
+          await CommandService.resetSystem(CONFIG.DEVICE_ID);
           break;
         case 'CALIBRATE_SENSORS':
-          result = await CommandService.calibrateSensors(CONFIG.DEVICE_ID);
+          await CommandService.calibrateSensors(CONFIG.DEVICE_ID);
           break;
         default:
           throw new Error('Unknown command');
       }
-
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      showAlert(
-        texts.success,
-        `${getCommandDisplayName(command)} ${texts.successMessage}`
-      );
+      await new Promise(resolve => setTimeout(resolve, 500));
+      showAlert(t.success, `${getCommandDisplayName(command)} ${t.successMessage}`);
     } catch (error) {
-      showAlert(
-        texts.failed,
-        `${texts.failed} ${getCommandDisplayName(command)}. ${texts.failedMessage}`
-      );
+      showAlert(t.failed, `${getCommandDisplayName(command)} ${t.failedMessage}`);
     } finally {
       setLoading(command, false);
     }
   };
 
-  const sendCommand = (command, confirmationMessage = null) => {
-    if (confirmationMessage) {
-      showConfirmDialog(confirmationMessage, () => executeCommand(command));
-    } else {
-      executeCommand(command);
-    }
-  };
-
   const formatTime = (date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour12: true,
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    return date.toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
   };
 
-  // Manual Control Handlers
+  // Audio handlers
   const handleAudioPlay = async () => {
     try {
       await CommandService.playAudio(CONFIG.DEVICE_ID);
@@ -236,450 +171,199 @@ export default function Controls({ language }) {
     }
   };
 
-  const handleTrackChange = async (track) => {
-    try {
-      await CommandService.setTrack(CONFIG.DEVICE_ID, track);
-      setCurrentTrack(track);
-    } catch (error) {
-      console.error('Track change failed:', error);
-    }
-  };
-
-  const handleLeftArmChange = async (angle) => {
-    try {
-      await CommandService.moveServo(CONFIG.DEVICE_ID, angle, rightArmAngle);
-      setLeftArmAngle(angle);
-    } catch (error) {
-      console.error('Left arm movement failed:', error);
-    }
-  };
-
-  const handleRightArmChange = async (angle) => {
-    try {
-      await CommandService.moveServo(CONFIG.DEVICE_ID, leftArmAngle, angle);
-      setRightArmAngle(angle);
-    } catch (error) {
-      console.error('Right arm movement failed:', error);
-    }
-  };
-
-  const handleToggleOscillation = async () => {
-    try {
-      if (oscillating) {
-        await CommandService.stopOscillate(CONFIG.DEVICE_ID);
-      } else {
-        await CommandService.oscillateArms(CONFIG.DEVICE_ID);
-      }
-      setOscillating(!oscillating);
-    } catch (error) {
-      console.error('Oscillation toggle failed:', error);
-    }
-  };
-
-  const handleDetectionToggle = async (enabled) => {
-    try {
-      if (enabled) {
-        await CommandService.enableDetection(CONFIG.DEVICE_ID);
-      } else {
-        await CommandService.disableDetection(CONFIG.DEVICE_ID);
-      }
-      setDetectionEnabled(enabled);
-    } catch (error) {
-      console.error('Detection toggle failed:', error);
-    }
-  };
-
-  const handleSensitivityChange = async (sensitivity) => {
-    try {
-      await CommandService.setSensitivity(CONFIG.DEVICE_ID, sensitivity);
-      setDetectionSensitivity(sensitivity);
-    } catch (error) {
-      console.error('Sensitivity change failed:', error);
-    }
-  };
-
-  const handleResetDetectionCount = () => {
-    setBirdsDetectedToday(0);
-  };
-
-  const handleBrightnessChange = async (brightness) => {
-    try {
-      await CommandService.setBrightness(CONFIG.DEVICE_ID, brightness);
-      setCameraBrightness(brightness);
-    } catch (error) {
-      console.error('Brightness change failed:', error);
-    }
-  };
-
-  const handleContrastChange = async (contrast) => {
-    try {
-      await CommandService.setContrast(CONFIG.DEVICE_ID, contrast);
-      setCameraContrast(contrast);
-    } catch (error) {
-      console.error('Contrast change failed:', error);
-    }
-  };
-
-  const handleGrayscaleToggle = async () => {
-    try {
-      await CommandService.toggleGrayscale(CONFIG.DEVICE_ID);
-      setGrayscaleMode(!grayscaleMode);
-    } catch (error) {
-      console.error('Grayscale toggle failed:', error);
-    }
-  };
-
   const handleHeadAngleSelect = async (angle) => {
     setHeadLoadingAngle(angle);
     try {
       await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID, angle);
       setHeadTargetAngle(angle);
-      showAlert(texts.success, `${texts.rotateHead} ${texts.successMessage}`);
     } catch (error) {
       console.error('Head rotation failed:', error);
-      showAlert(texts.failed, `${texts.failed} ${texts.rotateHead}. ${texts.failedMessage}`);
     } finally {
       setHeadLoadingAngle(null);
     }
   };
 
-  const containerStyle = {
-    minHeight: '100vh',
-    backgroundColor: currentTheme.colors.background,
-    overflowY: 'auto',
-    opacity: 1
-  };
+  // Control Button Component
+  const ControlBtn = ({ icon, title, desc, onClick, loading, color = 'brand', danger = false }) => (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className={`
+        relative w-full p-3 sm:p-4 rounded-xl border-2 transition-all duration-200 text-left
+        ${loading ? 'opacity-60 cursor-wait' : 'hover:shadow-md active:scale-[0.98] cursor-pointer'}
+        ${danger
+          ? 'bg-error/5 border-error/30 hover:bg-error/10 hover:border-error/50'
+          : 'surface-primary border-primary hover:border-brand/30'
+        }
+      `}
+    >
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className={`
+          w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0
+          ${danger ? 'bg-error/20' : `bg-${color}/20`}
+          ${loading ? 'animate-pulse' : ''}
+        `}>
+          {loading ? '⏳' : icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={`font-semibold text-xs sm:text-sm ${danger ? 'text-error' : 'text-primary'}`}>
+            {title}
+          </div>
+          <div className="text-[10px] sm:text-xs text-secondary truncate">{desc}</div>
+        </div>
+        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${danger ? 'bg-error/10' : 'bg-tertiary'}`}>
+          <span className="text-secondary text-xs sm:text-sm">→</span>
+        </div>
+      </div>
+    </button>
+  );
 
-  const headerStyle = {
-    paddingTop: '60px',
-    paddingBottom: currentTheme.spacing['6'] + 'px',
-    paddingLeft: currentTheme.spacing['4'] + 'px',
-    paddingRight: currentTheme.spacing['4'] + 'px',
-    backgroundColor: currentTheme.colors.background
-  };
-
-  const headerTopStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['3'] + 'px'
-  };
-
-  const brandSectionStyle = {
-    flex: 1
-  };
-
-  const brandRowStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['1'] + 'px'
-  };
-
-  const logoIconStyle = {
-    marginRight: currentTheme.spacing['2'] + 'px',
-    fontSize: '28px',
-    color: currentTheme.colors.primary
-  };
-
-  const titleStyle = {
-    fontSize: '32px',
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    letterSpacing: '-0.5px'
-  };
-
-  const subtitleStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.textSecondary,
-    fontWeight: currentTheme.typography.weights.medium
-  };
-
-  const contentStyle = {
-    padding: currentTheme.spacing['4'] + 'px'
-  };
-
-  const lastCommandCardStyle = {
-    backgroundColor: currentTheme.colors.surface,
-    borderRadius: currentTheme.borderRadius.xl + 'px',
-    padding: currentTheme.spacing['4'] + 'px',
-    marginBottom: currentTheme.spacing['4'] + 'px',
-    boxShadow: currentTheme.shadows.sm,
-    border: `1px solid ${currentTheme.colors.border}`,
-    borderLeft: `4px solid ${currentTheme.colors.primary}`
-  };
-
-  const lastCommandHeaderStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['2'] + 'px'
-  };
-
-  const lastCommandTitleStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    fontWeight: currentTheme.typography.weights.semibold,
-    color: currentTheme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    marginLeft: currentTheme.spacing['2'] + 'px'
-  };
-
-  const lastCommandNameStyle = {
-    fontSize: currentTheme.typography.sizes.lg,
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    marginBottom: currentTheme.spacing['1'] + 'px'
-  };
-
-  const lastCommandTimeStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.textSecondary,
-    fontFamily: 'monospace'
-  };
-
-  const sectionHeaderStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['3'] + 'px',
-    marginTop: currentTheme.spacing['2'] + 'px'
-  };
-
-  const sectionTitleStyle = {
-    fontSize: currentTheme.typography.sizes.lg,
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    marginLeft: currentTheme.spacing['2'] + 'px'
-  };
-
-  const emergencySectionStyle = {
-    backgroundColor: currentTheme.colors.error + '10',
-    borderRadius: currentTheme.borderRadius.xl + 'px',
-    padding: currentTheme.spacing['4'] + 'px',
-    marginTop: currentTheme.spacing['4'] + 'px',
-    marginBottom: currentTheme.spacing['6'] + 'px',
-    border: `2px solid ${currentTheme.colors.error}30`
-  };
-
-  const emergencyHeaderStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['3'] + 'px'
-  };
-
-  const emergencyTitleStyle = {
-    fontSize: currentTheme.typography.sizes.lg,
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.error,
-    marginLeft: currentTheme.spacing['2'] + 'px'
-  };
-
-  const emergencyDescriptionStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.error,
-    marginBottom: currentTheme.spacing['3'] + 'px',
-    fontStyle: 'italic'
-  };
+  // Section Header Component
+  const SectionHeader = ({ icon, title, color = 'brand' }) => (
+    <div className="flex items-center gap-2 mb-2 sm:mb-3 mt-4 sm:mt-6">
+      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-${color}/20 flex items-center justify-center`}>
+        <span className="text-sm sm:text-base">{icon}</span>
+      </div>
+      <h2 className="text-sm sm:text-base font-bold text-primary">{title}</h2>
+    </div>
+  );
 
   return (
-    <div style={containerStyle}>
-      <div style={{ opacity: 1 }}>
-        {/* Modern Header */}
-        <div style={headerStyle}>
-          <div style={headerTopStyle}>
-            <div style={brandSectionStyle}>
-              <div style={brandRowStyle}>
-                <span style={logoIconStyle}>🎮</span>
-                <h1 style={titleStyle}>{texts.title}</h1>
-              </div>
-              <p style={subtitleStyle}>{texts.subtitle}</p>
+    <div className="min-h-screen bg-secondary">
+      <div className="max-w-lg mx-auto">
+        {/* Header */}
+        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4 bg-secondary">
+          <div className="flex items-center mb-1 sm:mb-2">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
+              <span className="text-xl sm:text-2xl">🎮</span>
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+              <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
             </div>
           </div>
         </div>
 
-        <div style={contentStyle}>
+        <div className="px-3 sm:px-4 pb-24">
           {/* Last Command Status */}
           {lastCommand && (
-            <div style={lastCommandCardStyle}>
-              <div style={lastCommandHeaderStyle}>
-                <span style={{ fontSize: '16px', color: currentTheme.colors.primary }}>✓</span>
-                <span style={lastCommandTitleStyle}>{texts.lastCommand}</span>
+            <div className="surface-primary rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border-l-4 border-success shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-success text-sm">✓</span>
+                <span className="text-[10px] sm:text-xs font-semibold text-secondary uppercase tracking-wide">{t.lastCommand}</span>
               </div>
-              <div style={lastCommandNameStyle}>
-                {getCommandDisplayName(lastCommand.command)}
-              </div>
-              <div style={lastCommandTimeStyle}>
-                {texts.executedAt} {formatTime(lastCommand.timestamp)}
-              </div>
+              <div className="font-bold text-sm sm:text-base text-primary">{getCommandDisplayName(lastCommand.command)}</div>
+              <div className="text-[10px] sm:text-xs text-secondary font-mono">{t.executedAt} {formatTime(lastCommand.timestamp)}</div>
             </div>
           )}
 
-          {/* Manual Control Panels */}
+          {/* Movement Controls */}
+          <SectionHeader icon="🦾" title={t.movementControls} color="brand" />
+          <div className="space-y-2 sm:space-y-3">
+            <ControlBtn
+              icon="🦾"
+              title={t.moveArms}
+              desc={t.moveArmsDesc}
+              onClick={() => executeCommand('MOVE_ARMS')}
+              loading={loadingStates.MOVE_ARMS}
+              color="brand"
+            />
+            <HeadControlPanel
+              language={language}
+              currentAngle={headTargetAngle}
+              loadingAngle={headLoadingAngle}
+              onAngleSelect={handleHeadAngleSelect}
+            />
+            <ControlBtn
+              icon="⏹️"
+              title={t.stopMovement}
+              desc={t.stopMovementDesc}
+              onClick={() => executeCommand('STOP_MOVEMENT')}
+              loading={loadingStates.STOP_MOVEMENT}
+              color="warning"
+            />
+          </div>
 
-          {/* Audio Player Control */}
+          {/* Alert Controls */}
+          <SectionHeader icon="🔊" title={t.alertControls} color="warning" />
+          <div className="space-y-2 sm:space-y-3">
+            <ControlBtn
+              icon="📢"
+              title={t.soundAlarm}
+              desc={t.soundAlarmDesc}
+              onClick={() => executeCommand('SOUND_ALARM')}
+              loading={loadingStates.SOUND_ALARM}
+              color="error"
+            />
+            <ControlBtn
+              icon="🔔"
+              title={t.testBuzzer}
+              desc={t.testBuzzerDesc}
+              onClick={() => executeCommand('TEST_BUZZER')}
+              loading={loadingStates.TEST_BUZZER}
+              color="warning"
+            />
+          </div>
+
+          {/* Audio Controls */}
+          <SectionHeader icon="🎵" title="Audio" color="info" />
           <AudioPlayerControl
             isPlaying={audioPlaying}
             isLoading={loadingStates.audio}
             onPlay={handleAudioPlay}
             onStop={handleAudioStop}
-            currentTrack={currentTrack}
-            onTrackChange={handleTrackChange}
             currentVolume={volume}
             onVolumeChange={handleVolumeChange}
             language={language}
-            className="mb-6"
           />
 
-          {/*
-          <ServoArmControl
-            leftArmAngle={leftArmAngle}
-            rightArmAngle={rightArmAngle}
-            oscillating={oscillating}
-            onLeftChange={handleLeftArmChange}
-            onRightChange={handleRightArmChange}
-            onToggleOscillation={handleToggleOscillation}
-            lang={language}
-            className="mb-6"
-          />
-          */}
-
-          {/* Detection Controls */}
-          {/*
-          <DetectionControls
-            detectionEnabled={detectionEnabled}
-            onDetectionToggle={handleDetectionToggle}
-            sensitivity={detectionSensitivity}
-            onSensitivityChange={handleSensitivityChange}
-            birdsDetectedToday={birdsDetectedToday}
-            onResetCount={handleResetDetectionCount}
-            className="mb-6"
-          />
-
-          <CameraSettings
-            brightness={cameraBrightness}
-            onBrightnessChange={handleBrightnessChange}
-            contrast={cameraContrast}
-            onContrastChange={handleContrastChange}
-            grayscaleMode={grayscaleMode}
-            onGrayscaleToggle={handleGrayscaleToggle}
-            language={language}
-            className="mb-6"
-          />
-          */}
-
-          {/* Movement Controls Section */}
-          <div style={sectionHeaderStyle}>
-            <span style={{ fontSize: '20px', color: currentTheme.colors.primary }}>↔️</span>
-            <h2 style={sectionTitleStyle}>{texts.movementControls}</h2>
-          </div>
-
-          <ControlButton
-            command="MOVE_ARMS"
-            title={texts.moveArms}
-            description={texts.moveArmsDesc}
-            icon="🦾"
-            iconColor={currentTheme.colors.primary}
-            onPress={sendCommand}
-            isLoading={loadingStates.MOVE_ARMS}
-          />
-
-          <HeadControlPanel
-            language={language}
-            currentAngle={headTargetAngle}
-            loadingAngle={headLoadingAngle}
-            onAngleSelect={handleHeadAngleSelect}
-            className="mb-6"
-          />
-
-          <ControlButton
-            command="STOP_MOVEMENT"
-            title={texts.stopMovement}
-            description={texts.stopMovementDesc}
-            icon="⏹️"
-            iconColor={currentTheme.colors.warning}
-            onPress={sendCommand}
-            isLoading={loadingStates.STOP_MOVEMENT}
-          />
-
-          {/* Alert Controls Section */}
-          <div style={sectionHeaderStyle}>
-            <span style={{ fontSize: '20px', color: currentTheme.colors.error }}>🚨</span>
-            <h2 style={sectionTitleStyle}>{texts.alertControls}</h2>
-          </div>
-
-          <ControlButton
-            command="SOUND_ALARM"
-            title={texts.soundAlarm}
-            description={texts.soundAlarmDesc}
-            icon="📢"
-            iconColor={currentTheme.colors.error}
-            onPress={sendCommand}
-            isLoading={loadingStates.SOUND_ALARM}
-          />
-
-          <ControlButton
-            command="TEST_BUZZER"
-            title={texts.testBuzzer}
-            description={texts.testBuzzerDesc}
-            icon="🔊"
-            iconColor={currentTheme.colors.warning}
-            onPress={sendCommand}
-            isLoading={loadingStates.TEST_BUZZER}
-          />
-
-          {/* System Controls Section */}
-          <div style={sectionHeaderStyle}>
-            <span style={{ fontSize: '20px', color: currentTheme.colors.success }}>⚙️</span>
-            <h2 style={sectionTitleStyle}>{texts.systemControls}</h2>
-          </div>
-
-          <ControlButton
-            command="CALIBRATE_SENSORS"
-            title={texts.calibrateSensors}
-            description={texts.calibrateSensorsDesc}
-            icon="🔧"
-            iconColor={currentTheme.colors.success}
-            onPress={sendCommand}
-            isLoading={loadingStates.CALIBRATE_SENSORS}
-          />
-
-          <ControlButton
-            command="RESET_SYSTEM"
-            title={texts.resetSystem}
-            description={texts.resetSystemDesc}
-            icon="🔄"
-            iconColor={currentTheme.colors.info}
-            onPress={sendCommand}
-            confirmationMessage={texts.confirmReset}
-            isLoading={loadingStates.RESET_SYSTEM}
-          />
-
-          {/* Emergency Section */}
-          <div style={emergencySectionStyle}>
-            <div style={emergencyHeaderStyle}>
-              <span style={{ fontSize: '24px', color: currentTheme.colors.error }}>⚠️</span>
-              <h2 style={emergencyTitleStyle}>{texts.emergencyControls}</h2>
-            </div>
-            <p style={emergencyDescriptionStyle}>{texts.emergencyDescription}</p>
-            <ControlButton
-              command="STOP_MOVEMENT"
-              title={texts.emergencyStop}
-              description={texts.emergencyStopDesc}
-              icon="🛑"
-              iconColor={currentTheme.colors.error}
-              onPress={sendCommand}
-              confirmationMessage={texts.confirmEmergencyStop}
-              isLoading={loadingStates.STOP_MOVEMENT}
+          {/* System Controls */}
+          <SectionHeader icon="⚙️" title={t.systemControls} color="success" />
+          <div className="space-y-2 sm:space-y-3">
+            <ControlBtn
+              icon="🔧"
+              title={t.calibrateSensors}
+              desc={t.calibrateSensorsDesc}
+              onClick={() => executeCommand('CALIBRATE_SENSORS')}
+              loading={loadingStates.CALIBRATE_SENSORS}
+              color="success"
             />
+            <ControlBtn
+              icon="🔄"
+              title={t.resetSystem}
+              desc={t.resetSystemDesc}
+              onClick={() => executeCommand('RESET_SYSTEM', t.confirmReset)}
+              loading={loadingStates.RESET_SYSTEM}
+              color="info"
+            />
+          </div>
+
+          {/* Emergency Stop */}
+          <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-error/5 border-2 border-error/30">
+            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+              <span className="text-xl sm:text-2xl">⚠️</span>
+              <span className="font-bold text-error text-sm sm:text-base">Emergency</span>
+            </div>
+            <button
+              onClick={() => executeCommand('STOP_MOVEMENT', t.confirmEmergencyStop)}
+              disabled={loadingStates.STOP_MOVEMENT}
+              className={`
+                w-full py-3 sm:py-4 rounded-xl font-bold text-white transition-all text-sm sm:text-base
+                ${loadingStates.STOP_MOVEMENT
+                  ? 'bg-error/50 cursor-wait'
+                  : 'bg-error hover:bg-error/90 active:scale-[0.98] cursor-pointer shadow-lg hover:shadow-xl'
+                }
+              `}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-lg sm:text-xl">{loadingStates.STOP_MOVEMENT ? '⏳' : '🛑'}</span>
+                <span>{t.emergencyStop}</span>
+              </div>
+            </button>
+            <p className="text-[10px] sm:text-xs text-error/70 text-center mt-2">{t.emergencyStopDesc}</p>
           </div>
         </div>
       </div>
-
-      {/* CSS Animation */}
-      <style jsx>{`
-        @keyframes fadeIn {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

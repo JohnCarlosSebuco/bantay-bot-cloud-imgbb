@@ -372,10 +372,16 @@ void updateArmSteppers() {
     digitalWrite(ARM2_STEP_PIN, LOW);
     delayMicroseconds(ARM_PULSE_DELAY_US);
 
+    // Inter-step delay - allows motors to physically move (1000 steps/sec)
+    delayMicroseconds(800);
+
     // Increment step counters
     armCurrentStep1 += armStepDirection;
     armCurrentStep2 -= armStepDirection;
   }
+
+  // Pause for 1 second between half-sweeps for dramatic effect
+  delay(1000);
 
   // Reverse direction after completing half-sweep
   armStepDirection = -armStepDirection;

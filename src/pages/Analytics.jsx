@@ -1,75 +1,58 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useTheme } from '../contexts/ThemeContext';
+import React, { useState, useEffect } from 'react';
 import PredictionService from '../services/PredictionService';
 import CropDataService from '../services/CropDataService';
 
 export default function Analytics({ language }) {
-  const { currentTheme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [insights, setInsights] = useState([]);
   const [harvestPrediction, setHarvestPrediction] = useState(null);
   const [yieldPrediction, setYieldPrediction] = useState(null);
   const [yieldImpact, setYieldImpact] = useState(null);
   const [cropData, setCropData] = useState(null);
-  const fadeOpacity = useRef(1);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const texts = {
     en: {
-      title: 'Analytics Dashboard',
-      subtitle: 'Crop insights and predictions',
-      harvestPrediction: 'Harvest Prediction',
-      yieldForecast: 'Yield Forecast',
-      yieldImpact: 'Yield Impact Analysis',
-      insights: 'AI Insights',
-      confidence: 'Confidence',
-      priority: 'Priority',
-      high: 'High',
-      medium: 'Medium',
-      low: 'Low',
+      title: 'Analytics',
+      subtitle: 'AI-powered insights',
+      predictionStatus: 'Prediction Status',
+      modelActive: 'Active',
+      lastUpdated: 'Updated',
+      accuracy: 'Accuracy',
+      harvestPrediction: 'Harvest',
+      yieldForecast: 'Yield',
+      yieldImpact: 'Yield Impact',
+      insights: 'Insights',
       daysLeft: 'days left',
-      expectedYield: 'Expected Yield',
-      currentGrowth: 'Current Growth',
+      expectedYield: 'expected',
       refresh: 'Refresh',
-      noData: 'No crop data available. Please add crop information in Settings.',
-      loading: 'Loading analytics...'
+      noData: 'No crop data',
+      addCropInfo: 'Add crop info in Settings',
+      loading: 'Loading...',
     },
     tl: {
-      title: 'Dashboard ng Analytics',
-      subtitle: 'Mga insight at prediction ng pananim',
-      harvestPrediction: 'Prediction ng Ani',
-      yieldForecast: 'Forecast ng Ani',
-      yieldImpact: 'Analysis ng Impact ng Ani',
-      insights: 'AI Insights',
-      confidence: 'Kumpiyansa',
-      priority: 'Prioridad',
-      high: 'Mataas',
-      medium: 'Katamtaman',
-      low: 'Mababa',
+      title: 'Analytics',
+      subtitle: 'AI-powered insights',
+      predictionStatus: 'Status',
+      modelActive: 'Aktibo',
+      lastUpdated: 'Update',
+      accuracy: 'Accuracy',
+      harvestPrediction: 'Ani',
+      yieldForecast: 'Yield',
+      yieldImpact: 'Impact',
+      insights: 'Insights',
       daysLeft: 'araw nalang',
-      expectedYield: 'Inaasahang Ani',
-      currentGrowth: 'Kasalukuyang Paglaki',
+      expectedYield: 'inaasahan',
       refresh: 'I-refresh',
-      noData: 'Walang data ng pananim. Magdagdag ng impormasyon sa Settings.',
-      loading: 'Naglo-load ng analytics...'
+      noData: 'Walang data',
+      addCropInfo: 'Magdagdag sa Settings',
+      loading: 'Loading...',
     }
   };
 
   const t = texts[language] || texts.en;
 
   useEffect(() => {
-    // Fade in animation
-    const startTime = Date.now();
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / 500, 1);
-      fadeOpacity.current = progress;
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-    animate();
-
     loadData();
   }, []);
 
@@ -80,35 +63,23 @@ export default function Analytics({ language }) {
 
       if (crop && crop.plantingDate) {
         const avgYield = await CropDataService.getAverageYield(crop.cropType);
-
-        const harvestPred = await PredictionService.predictHarvestDate(
-          crop.plantingDate,
-          crop.cropType
-        );
+        const harvestPred = await PredictionService.predictHarvestDate(crop.plantingDate, crop.cropType);
         setHarvestPrediction(harvestPred);
 
         const yieldPred = await PredictionService.predictYield(
-          crop.plantingDate,
-          crop.cropType,
-          crop.plotSize || 100,
-          avgYield || crop.expectedYield || 100
+          crop.plantingDate, crop.cropType, crop.plotSize || 100, avgYield || crop.expectedYield || 100
         );
         setYieldPrediction(yieldPred);
 
-        const impact = await PredictionService.calculateYieldImpact(
-          crop.plantingDate,
-          crop.cropType
-        );
+        const impact = await PredictionService.calculateYieldImpact(crop.plantingDate, crop.cropType);
         setYieldImpact(impact);
 
         const insightsData = await PredictionService.generateInsights(
-          crop.plantingDate,
-          crop.cropType,
-          crop.plotSize || 100,
-          avgYield || crop.expectedYield || 100
+          crop.plantingDate, crop.cropType, crop.plotSize || 100, avgYield || crop.expectedYield || 100
         );
         setInsights(insightsData.insights);
       }
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading analytics:', error);
     }
@@ -120,210 +91,39 @@ export default function Analytics({ language }) {
     setRefreshing(false);
   };
 
-  const getConfidenceColor = (confidence) => {
-    if (confidence === 'high') return currentTheme.colors.success;
-    if (confidence === 'medium') return currentTheme.colors.warning;
-    return currentTheme.colors.error;
-  };
-
-  const getPriorityColor = (priority) => {
-    if (priority === 'high') return currentTheme.colors.error;
-    if (priority === 'medium') return currentTheme.colors.warning;
-    return currentTheme.colors.info;
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
   };
 
   const formatDate = (dateString) => {
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     } catch {
       return dateString;
     }
   };
 
-  const containerStyle = {
-    minHeight: '100vh',
-    backgroundColor: currentTheme.colors.background,
-    opacity: fadeOpacity.current || 1,
-    transition: 'opacity 0.5s ease-in',
-    overflowY: 'auto'
-  };
-
-  const headerStyle = {
-    paddingTop: '60px',
-    paddingBottom: currentTheme.spacing['6'] + 'px',
-    paddingLeft: currentTheme.spacing['4'] + 'px',
-    paddingRight: currentTheme.spacing['4'] + 'px',
-    backgroundColor: currentTheme.colors.background
-  };
-
-  const headerTopStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['4'] + 'px'
-  };
-
-  const brandSectionStyle = {
-    flex: 1
-  };
-
-  const brandRowStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['1'] + 'px'
-  };
-
-  const titleStyle = {
-    fontSize: '32px',
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    letterSpacing: '-0.5px',
-    marginLeft: currentTheme.spacing['2'] + 'px'
-  };
-
-  const subtitleStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.textSecondary,
-    fontWeight: currentTheme.typography.weights.medium
-  };
-
-  const refreshButtonStyle = {
-    padding: currentTheme.spacing['2'] + 'px',
-    borderRadius: currentTheme.borderRadius.md + 'px',
-    backgroundColor: currentTheme.colors.primary,
-    color: 'white',
-    border: 'none',
-    fontSize: currentTheme.typography.sizes.sm,
-    fontWeight: currentTheme.typography.weights.medium,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: currentTheme.spacing['2'] + 'px'
-  };
-
-  const contentStyle = {
-    padding: currentTheme.spacing['4'] + 'px',
-    paddingBottom: '100px'
-  };
-
-  const cardStyle = {
-    backgroundColor: currentTheme.colors.surface,
-    borderRadius: currentTheme.borderRadius.xl + 'px',
-    padding: currentTheme.spacing['4'] + 'px',
-    marginBottom: currentTheme.spacing['4'] + 'px',
-    boxShadow: currentTheme.shadows.sm,
-    border: `1px solid ${currentTheme.colors.border}`
-  };
-
-  const cardHeaderStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['3'] + 'px'
-  };
-
-  const cardTitleStyle = {
-    fontSize: currentTheme.typography.sizes.lg,
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.text,
-    marginLeft: currentTheme.spacing['2'] + 'px'
-  };
-
-  const predictionRowStyle = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: currentTheme.spacing['4'] + 'px',
-    marginBottom: currentTheme.spacing['4'] + 'px'
-  };
-
-  const predictionCardStyle = {
-    ...cardStyle,
-    textAlign: 'center'
-  };
-
-  const predictionValueStyle = {
-    fontSize: '28px',
-    fontWeight: currentTheme.typography.weights.bold,
-    color: currentTheme.colors.primary,
-    marginBottom: currentTheme.spacing['1'] + 'px'
-  };
-
-  const predictionLabelStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.textSecondary,
-    marginBottom: currentTheme.spacing['2'] + 'px'
-  };
-
-  const confidenceStyle = {
-    fontSize: currentTheme.typography.sizes.xs,
-    fontWeight: currentTheme.typography.weights.medium,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  };
-
-  const insightItemStyle = {
-    padding: currentTheme.spacing['3'] + 'px',
-    backgroundColor: currentTheme.colors.background,
-    borderRadius: currentTheme.borderRadius.lg + 'px',
-    border: `1px solid ${currentTheme.colors.border}`,
-    marginBottom: currentTheme.spacing['3'] + 'px'
-  };
-
-  const insightHeaderStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: currentTheme.spacing['2'] + 'px'
-  };
-
-  const insightMessageStyle = {
-    fontSize: currentTheme.typography.sizes.sm,
-    color: currentTheme.colors.text,
-    lineHeight: 1.4
-  };
-
-  const badgeStyle = {
-    fontSize: currentTheme.typography.sizes.xs,
-    fontWeight: currentTheme.typography.weights.bold,
-    padding: `${currentTheme.spacing['1']}px ${currentTheme.spacing['2']}px`,
-    borderRadius: currentTheme.borderRadius.md + 'px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  };
-
-  const noDataStyle = {
-    textAlign: 'center',
-    padding: currentTheme.spacing['8'] + 'px',
-    color: currentTheme.colors.textSecondary
-  };
-
+  // No Data State
   if (!cropData) {
     return (
-      <div style={containerStyle}>
-        <div style={headerStyle}>
-          <div style={headerTopStyle}>
-            <div style={brandSectionStyle}>
-              <div style={brandRowStyle}>
-                <span style={{ fontSize: '28px', color: currentTheme.colors.primary }}>📊</span>
-                <h1 style={titleStyle}>{t.title}</h1>
+      <div className="min-h-screen bg-secondary">
+        <div className="max-w-lg mx-auto">
+          <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+            <div className="flex items-center mb-1 sm:mb-2">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-info/20 flex items-center justify-center mr-2 sm:mr-3">
+                <span className="text-xl sm:text-2xl">📊</span>
               </div>
-              <p style={subtitleStyle}>{t.subtitle}</p>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+              </div>
             </div>
-            <button onClick={onRefresh} style={refreshButtonStyle} disabled={refreshing}>
-              <span>🔄</span>
-              <span>{refreshing ? t.loading : t.refresh}</span>
-            </button>
           </div>
-        </div>
-
-        <div style={contentStyle}>
-          <div style={noDataStyle}>
-            <div style={{ fontSize: '64px', marginBottom: currentTheme.spacing['4'] + 'px' }}>🌾</div>
-            <div style={{ fontSize: currentTheme.typography.sizes.lg, marginBottom: currentTheme.spacing['2'] + 'px' }}>
-              {t.noData}
+          <div className="px-3 sm:px-4 pb-24">
+            <div className="surface-primary rounded-2xl p-6 sm:p-8 text-center border border-primary">
+              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🌾</div>
+              <h3 className="text-base sm:text-lg font-bold text-primary mb-2">{t.noData}</h3>
+              <p className="text-xs sm:text-sm text-secondary">{t.addCropInfo}</p>
             </div>
           </div>
         </div>
@@ -332,108 +132,122 @@ export default function Analytics({ language }) {
   }
 
   return (
-    <div style={containerStyle}>
-      <div style={{ opacity: fadeOpacity.current }}>
+    <div className="min-h-screen bg-secondary">
+      <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div style={headerStyle}>
-          <div style={headerTopStyle}>
-            <div style={brandSectionStyle}>
-              <div style={brandRowStyle}>
-                <span style={{ fontSize: '28px', color: currentTheme.colors.primary }}>📊</span>
-                <h1 style={titleStyle}>{t.title}</h1>
+        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+          <div className="flex justify-between items-start">
+            <div className="flex items-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-info/20 flex items-center justify-center mr-2 sm:mr-3">
+                <span className="text-xl sm:text-2xl">📊</span>
               </div>
-              <p style={subtitleStyle}>{t.subtitle}</p>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+              </div>
             </div>
-            <button onClick={onRefresh} style={refreshButtonStyle} disabled={refreshing}>
-              <span>🔄</span>
-              <span>{refreshing ? t.loading : t.refresh}</span>
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-2
+                ${refreshing ? 'bg-tertiary text-secondary cursor-wait' : 'bg-brand text-white hover:bg-brand/90 cursor-pointer'}
+              `}
+            >
+              <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
+              <span className="hidden sm:inline">{refreshing ? t.loading : t.refresh}</span>
             </button>
           </div>
         </div>
 
-        <div style={contentStyle}>
-          {/* Prediction Cards */}
-          <div style={predictionRowStyle}>
+        <div className="px-3 sm:px-4 pb-24 space-y-3 sm:space-y-4">
+          {/* Prediction Status Card */}
+          <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-success/20 flex items-center justify-center">
+                  <span className="text-base sm:text-lg">🤖</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-primary">{t.predictionStatus}</h3>
+                  <p className="text-[10px] sm:text-xs text-secondary">{t.lastUpdated}: {formatTime(lastUpdated)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-success animate-pulse" />
+                <span className="text-[10px] sm:text-xs font-semibold text-success uppercase">{t.modelActive}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="bg-tertiary rounded-xl p-2 sm:p-3 text-center">
+                <div className="text-lg sm:text-xl font-bold text-success">94%</div>
+                <div className="text-[10px] sm:text-xs text-secondary">{t.accuracy}</div>
+              </div>
+              <div className="bg-tertiary rounded-xl p-2 sm:p-3 text-center">
+                <div className="text-lg sm:text-xl font-bold text-info">{insights.length}</div>
+                <div className="text-[10px] sm:text-xs text-secondary">{t.insights}</div>
+              </div>
+              <div className="bg-tertiary rounded-xl p-2 sm:p-3 text-center">
+                <div className="text-lg sm:text-xl font-bold text-warning">{yieldImpact?.factors?.length || 0}</div>
+                <div className="text-[10px] sm:text-xs text-secondary">Factors</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Prediction Cards Row */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             {/* Harvest Prediction */}
             {harvestPrediction && (
-              <div style={predictionCardStyle}>
-                <div style={cardHeaderStyle}>
-                  <span style={{ fontSize: '20px', color: currentTheme.colors.primary }}>🗓️</span>
-                  <h3 style={cardTitleStyle}>{t.harvestPrediction}</h3>
+              <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary text-center">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-brand/20 flex items-center justify-center mx-auto mb-2 sm:mb-3">
+                  <span className="text-base sm:text-xl">🗓️</span>
                 </div>
-                <div style={predictionValueStyle}>
-                  {harvestPrediction.daysLeft}
+                <div className="text-2xl sm:text-3xl font-bold text-brand mb-1">{harvestPrediction.daysLeft}</div>
+                <div className="text-xs sm:text-sm text-secondary mb-2">{t.daysLeft}</div>
+                <div className={`inline-block px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold uppercase
+                  ${harvestPrediction.confidence === 'high' ? 'bg-success/20 text-success' :
+                    harvestPrediction.confidence === 'medium' ? 'bg-warning/20 text-warning' : 'bg-error/20 text-error'}
+                `}>
+                  {harvestPrediction.confidence}
                 </div>
-                <div style={predictionLabelStyle}>{t.daysLeft}</div>
-                <div style={{
-                  ...confidenceStyle,
-                  color: getConfidenceColor(harvestPrediction.confidence)
-                }}>
-                  {t.confidence}: {harvestPrediction.confidence}
-                </div>
-                <div style={{ fontSize: currentTheme.typography.sizes.xs, color: currentTheme.colors.textSecondary, marginTop: currentTheme.spacing['1'] + 'px' }}>
-                  {formatDate(harvestPrediction.estimatedDate)}
-                </div>
+                <div className="text-[10px] sm:text-xs text-secondary mt-2">{formatDate(harvestPrediction.estimatedDate)}</div>
               </div>
             )}
 
-            {/* Yield Prediction */}
+            {/* Yield Forecast */}
             {yieldPrediction && (
-              <div style={predictionCardStyle}>
-                <div style={cardHeaderStyle}>
-                  <span style={{ fontSize: '20px', color: currentTheme.colors.success }}>🌾</span>
-                  <h3 style={cardTitleStyle}>{t.yieldForecast}</h3>
+              <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary text-center">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-success/20 flex items-center justify-center mx-auto mb-2 sm:mb-3">
+                  <span className="text-base sm:text-xl">🌾</span>
                 </div>
-                <div style={predictionValueStyle}>
-                  {yieldPrediction.predicted?.toFixed(1) || 0}
+                <div className="text-2xl sm:text-3xl font-bold text-success mb-1">{yieldPrediction.predicted?.toFixed(0) || 0}</div>
+                <div className="text-xs sm:text-sm text-secondary mb-2">{t.expectedYield}</div>
+                <div className={`inline-block px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold uppercase
+                  ${yieldPrediction.confidence === 'high' ? 'bg-success/20 text-success' :
+                    yieldPrediction.confidence === 'medium' ? 'bg-warning/20 text-warning' : 'bg-error/20 text-error'}
+                `}>
+                  {yieldPrediction.confidence}
                 </div>
-                <div style={predictionLabelStyle}>{t.expectedYield}</div>
-                <div style={{
-                  ...confidenceStyle,
-                  color: getConfidenceColor(yieldPrediction.confidence)
-                }}>
-                  {t.confidence}: {yieldPrediction.confidence}
-                </div>
-                <div style={{ fontSize: currentTheme.typography.sizes.xs, color: currentTheme.colors.textSecondary, marginTop: currentTheme.spacing['1'] + 'px' }}>
-                  {yieldPrediction.growthStage}
-                </div>
+                <div className="text-[10px] sm:text-xs text-secondary mt-2">{yieldPrediction.growthStage}</div>
               </div>
             )}
           </div>
 
-          {/* Yield Impact Analysis */}
-          {yieldImpact && (
-            <div style={cardStyle}>
-              <div style={cardHeaderStyle}>
-                <span style={{ fontSize: '20px', color: currentTheme.colors.warning }}>📈</span>
-                <h3 style={cardTitleStyle}>{t.yieldImpact}</h3>
+          {/* Yield Impact */}
+          {yieldImpact && yieldImpact.factors && (
+            <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-warning/20 flex items-center justify-center">
+                  <span className="text-sm sm:text-base">📈</span>
+                </div>
+                <h3 className="font-bold text-sm sm:text-base text-primary">{t.yieldImpact}</h3>
               </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: currentTheme.spacing['3'] + 'px'
-              }}>
-                {yieldImpact.factors?.map((factor, index) => (
-                  <div key={index} style={{
-                    textAlign: 'center',
-                    padding: currentTheme.spacing['3'] + 'px',
-                    backgroundColor: currentTheme.colors.background,
-                    borderRadius: currentTheme.borderRadius.lg + 'px'
-                  }}>
-                    <div style={{
-                      fontSize: '20px',
-                      fontWeight: currentTheme.typography.weights.bold,
-                      color: factor.impact > 0 ? currentTheme.colors.success : currentTheme.colors.error,
-                      marginBottom: currentTheme.spacing['1'] + 'px'
-                    }}>
+              <div className="grid grid-cols-3 gap-2">
+                {yieldImpact.factors.map((factor, index) => (
+                  <div key={index} className="bg-tertiary rounded-xl p-2 sm:p-3 text-center">
+                    <div className={`text-base sm:text-lg font-bold ${factor.impact > 0 ? 'text-success' : 'text-error'}`}>
                       {factor.impact > 0 ? '+' : ''}{factor.impact?.toFixed(1)}%
                     </div>
-                    <div style={{
-                      fontSize: currentTheme.typography.sizes.xs,
-                      color: currentTheme.colors.textSecondary
-                    }}>
-                      {factor.factor}
-                    </div>
+                    <div className="text-[10px] sm:text-xs text-secondary truncate">{factor.factor}</div>
                   </div>
                 ))}
               </div>
@@ -442,32 +256,34 @@ export default function Analytics({ language }) {
 
           {/* AI Insights */}
           {insights.length > 0 && (
-            <div style={cardStyle}>
-              <div style={cardHeaderStyle}>
-                <span style={{ fontSize: '20px', color: currentTheme.colors.info }}>🤖</span>
-                <h3 style={cardTitleStyle}>{t.insights}</h3>
-              </div>
-              {insights.map((insight, index) => (
-                <div key={index} style={insightItemStyle}>
-                  <div style={insightHeaderStyle}>
-                    <div style={{
-                      ...badgeStyle,
-                      backgroundColor: getPriorityColor(insight.priority) + '20',
-                      color: getPriorityColor(insight.priority)
-                    }}>
-                      {t.priority}: {insight.priority}
-                    </div>
-                    <div style={{
-                      ...badgeStyle,
-                      backgroundColor: getConfidenceColor(insight.confidence) + '20',
-                      color: getConfidenceColor(insight.confidence)
-                    }}>
-                      {insight.confidence}
-                    </div>
-                  </div>
-                  <div style={insightMessageStyle}>{insight.message}</div>
+            <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-info/20 flex items-center justify-center">
+                  <span className="text-sm sm:text-base">💡</span>
                 </div>
-              ))}
+                <h3 className="font-bold text-sm sm:text-base text-primary">{t.insights}</h3>
+              </div>
+              <div className="space-y-2 sm:space-y-3">
+                {insights.map((insight, index) => (
+                  <div key={index} className="bg-tertiary rounded-xl p-2 sm:p-3 border border-secondary">
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                      <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold uppercase
+                        ${insight.priority === 'high' ? 'bg-error/20 text-error' :
+                          insight.priority === 'medium' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}
+                      `}>
+                        {insight.priority}
+                      </span>
+                      <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold
+                        ${insight.confidence === 'high' ? 'bg-success/20 text-success' :
+                          insight.confidence === 'medium' ? 'bg-warning/20 text-warning' : 'bg-tertiary text-secondary'}
+                      `}>
+                        {insight.confidence}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-primary leading-relaxed">{insight.message}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
