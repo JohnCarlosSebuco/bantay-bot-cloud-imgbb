@@ -937,11 +937,63 @@ void checkFirebaseCommands() {
               readRS485Sensor();
               Serial.println("🔧 Sensors recalibrated");
             }
-            else if (action == "reset_system") {
+            else if (action == "reset_system" || action == "restart") {
               // Restart the ESP32
               Serial.println("🔄 System reset requested");
               delay(100);
               ESP.restart();
+            }
+            // Audio commands
+            else if (action == "stop_audio") {
+              stopAudio();
+            }
+            else if (action == "next_track") {
+              int nextTrack = currentTrack + 1;
+              if (nextTrack > TOTAL_TRACKS) nextTrack = 1;
+              if (nextTrack == 3) nextTrack = 4;  // Skip track 3
+              playAudio(nextTrack);
+            }
+            else if (action == "prev_track") {
+              int prevTrack = currentTrack - 1;
+              if (prevTrack < 1) prevTrack = TOTAL_TRACKS;
+              if (prevTrack == 3) prevTrack = 2;  // Skip track 3
+              playAudio(prevTrack);
+            }
+            else if (action == "set_track") {
+              FirebaseJsonData trackData;
+              docJson.get(trackData, "fields/params/mapValue/fields/track/integerValue");
+              int track = trackData.intValue;
+              playAudio(track);
+            }
+            // Head rotation shortcuts
+            else if (action == "rotate_left") {
+              rotateHead(-90);
+            }
+            else if (action == "rotate_right") {
+              rotateHead(90);
+            }
+            else if (action == "rotate_center") {
+              rotateHead(0);
+            }
+            // Arm commands
+            else if (action == "stop_oscillate") {
+              stopArmStepperSequence();
+            }
+            else if (action == "arms_rest") {
+              stopArmStepperSequence();
+              Serial.println("🦾 Arms at rest position");
+            }
+            else if (action == "arms_alert" || action == "arms_wave") {
+              startArmStepperSequence();
+              Serial.println("🦾 Arms alert/wave sequence");
+            }
+            else if (action == "move_servo") {
+              // Legacy servo command - map to arm oscillation
+              startArmStepperSequence();
+              Serial.println("🦾 Move servo mapped to arm oscillation");
+            }
+            else {
+              Serial.println("⚠️ Unknown command: " + action);
             }
 
             // Mark as completed - get document name/id

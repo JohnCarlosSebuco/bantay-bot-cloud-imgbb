@@ -208,18 +208,6 @@ class CommandService {
     return this.sendCommand(deviceId, 'calibrate_sensors');
   }
 
-  // Motor control
-  async startMotor(deviceId, motorType) {
-    return this.sendCommand(deviceId, 'START_MOTOR', { motor: motorType });
-  }
-
-  async stopMotor(deviceId, motorType) {
-    return this.sendCommand(deviceId, 'STOP_MOTOR', { motor: motorType });
-  }
-
-  async stopAllMotors(deviceId) {
-    return this.sendCommand(deviceId, 'STOP_ALL_MOTORS');
-  }
 }
 
 export default new CommandService();
