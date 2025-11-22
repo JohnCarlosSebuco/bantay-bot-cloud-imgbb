@@ -108,7 +108,7 @@ const float PH_THRESHOLD = 0.1;             // ±0.1
 
 // Timing intervals for smart updates
 const unsigned long LATEST_UPDATE_INTERVAL = 60000;  // 60 seconds for "latest" doc
-const unsigned long HISTORY_UPDATE_INTERVAL = 60000; // 1 minute for testing (change to 900000 for 15 min in production)
+const unsigned long HISTORY_UPDATE_INTERVAL = 900000; // 15 minutes for production
 unsigned long lastLatestUpdate = 0;
 unsigned long lastHistoryUpdate = 0;
 
