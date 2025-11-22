@@ -206,7 +206,7 @@ const SoilSensorCard = ({
           </div>
           <div className="w-full bg-tertiary rounded-full h-2">
             <div
-              className="h-2 rounded-full transition-all duration-500 bg-secondary"
+              className="h-2 rounded-full transition-all duration-500 bg-purple-500"
               style={{ width: `${((ph - 4) / 6) * 100}%` }}
             />
           </div>

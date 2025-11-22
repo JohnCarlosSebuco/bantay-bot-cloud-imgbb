@@ -328,10 +328,10 @@ export default function Settings({ language, onLanguageChange }) {
   );
 
   return (
-    <div className="min-h-screen bg-secondary pb-24">
+    <div className="min-h-screen bg-secondary pb-10">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
           <div className="flex items-center mb-1 sm:mb-2">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
               <span className="text-xl sm:text-2xl">⚙️</span>

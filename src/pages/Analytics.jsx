@@ -108,7 +108,7 @@ export default function Analytics({ language }) {
     return (
       <div className="min-h-screen bg-secondary">
         <div className="max-w-lg mx-auto">
-          <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+          <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
             <div className="flex items-center mb-1 sm:mb-2">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-info/20 flex items-center justify-center mr-2 sm:mr-3">
                 <span className="text-xl sm:text-2xl">📊</span>
@@ -119,7 +119,7 @@ export default function Analytics({ language }) {
               </div>
             </div>
           </div>
-          <div className="px-3 sm:px-4 pb-24">
+          <div className="px-3 sm:px-4 pb-10">
             <div className="surface-primary rounded-2xl p-6 sm:p-8 text-center border border-primary">
               <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🌾</div>
               <h3 className="text-base sm:text-lg font-bold text-primary mb-2">{t.noData}</h3>
@@ -135,7 +135,7 @@ export default function Analytics({ language }) {
     <div className="min-h-screen bg-secondary">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
           <div className="flex justify-between items-start">
             <div className="flex items-center">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-info/20 flex items-center justify-center mr-2 sm:mr-3">
@@ -159,7 +159,7 @@ export default function Analytics({ language }) {
           </div>
         </div>
 
-        <div className="px-3 sm:px-4 pb-24 space-y-3 sm:space-y-4">
+        <div className="px-3 sm:px-4 pb-10 space-y-3 sm:space-y-4">
           {/* Prediction Status Card */}
           <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
             <div className="flex items-center justify-between mb-3 sm:mb-4">

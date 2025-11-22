@@ -117,7 +117,7 @@ function AppContent() {
   return (
     <Router>
       <div className="min-h-screen bg-secondary pb-16 transition-colors duration-300">
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
         <main className="animate-fade-in">
           <Routes>
             <Route path="/" element={<Dashboard language={language} />} />

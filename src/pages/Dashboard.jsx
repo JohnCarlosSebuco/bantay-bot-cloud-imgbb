@@ -230,7 +230,7 @@ export default function Dashboard({ language }) {
     <div className="min-h-screen bg-secondary">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4 bg-secondary">
+        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 bg-secondary">
           <div className="flex justify-between items-start mb-4 sm:mb-6">
             <div className="flex-1">
               <div className="flex items-center mb-1 sm:mb-2">
@@ -289,7 +289,7 @@ export default function Dashboard({ language }) {
           </div>
         </div>
 
-        <div className="px-3 sm:px-4 pb-24">
+        <div className="px-3 sm:px-4 pb-10">
           {/* Soil Sensor Section */}
           {sensorData.hasRS485Sensor && (
             <div className="mb-4 sm:mb-6">
@@ -332,6 +332,156 @@ export default function Dashboard({ language }) {
                 loading={loadingAction === 'sound'}
                 color="warning"
               />
+            </div>
+          </div>
+
+          {/* Rice Crop Status Card */}
+          <div className="mb-4 sm:mb-6">
+            <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
+              <div className="flex justify-between items-start">
+                {/* Left side - Status info */}
+                <div className="flex-1">
+                  <h3 className="text-base sm:text-lg font-bold text-success mb-4">Rice Crop Status</h3>
+
+                  {/* Growth Stage */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-success/20 flex items-center justify-center">
+                        <span className="text-base sm:text-lg">🌱</span>
+                      </div>
+                      <span className="text-xs sm:text-sm text-secondary">Growth Stage</span>
+                    </div>
+                    <span className="text-xs sm:text-sm font-semibold text-primary">Ripening</span>
+                  </div>
+
+                  {/* Predicted Harvest */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-success/20 flex items-center justify-center">
+                        <span className="text-base sm:text-lg">📅</span>
+                      </div>
+                      <span className="text-xs sm:text-sm text-secondary">Predicted Harvest</span>
+                    </div>
+                    <span className="text-xs sm:text-sm font-semibold text-primary">In 3 weeks</span>
+                  </div>
+
+                  {/* Maturity Level */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-success/20 flex items-center justify-center">
+                        <span className="text-base sm:text-lg">💧</span>
+                      </div>
+                      <span className="text-xs sm:text-sm text-secondary">Maturity Level</span>
+                    </div>
+                    <span className="text-xs sm:text-sm font-semibold text-success">On Track</span>
+                  </div>
+                </div>
+
+                {/* Right side - Circular Progress */}
+                <div className="ml-4 flex-shrink-0">
+                  <div className="relative w-20 h-20 sm:w-24 sm:h-24">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      {/* Background circle */}
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="8"
+                        className="text-gray-200 dark:text-gray-700"
+                      />
+                      {/* Progress circle */}
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="url(#greenGradient)"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={`${85 * 2.64} ${100 * 2.64}`}
+                      />
+                      <defs>
+                        <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#22c55e" />
+                          <stop offset="100%" stopColor="#16a34a" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-lg sm:text-xl font-bold text-success">85%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Harvest Prediction Card */}
+          <div className="mb-4 sm:mb-6">
+            <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base sm:text-lg font-bold text-primary">Harvest Prediction</h3>
+                <span className="px-2 py-1 rounded-full bg-success/20 text-success text-[10px] sm:text-xs font-semibold">On Track</span>
+              </div>
+
+              {/* Week Timeline */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] sm:text-xs text-secondary">November</span>
+                  <span className="text-[10px] sm:text-xs font-semibold text-success">December</span>
+                </div>
+                <div className="flex gap-1 sm:gap-1.5">
+                  {/* Nov W4 - Current */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <div className="w-full h-2 sm:h-2.5 rounded-full bg-success mb-1.5"></div>
+                    <span className="text-[8px] sm:text-[10px] text-secondary">W4</span>
+                  </div>
+                  {/* Dec W1 */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <div className="w-full h-2 sm:h-2.5 rounded-full bg-success/40 mb-1.5"></div>
+                    <span className="text-[8px] sm:text-[10px] text-secondary">W1</span>
+                  </div>
+                  {/* Dec W2 - Target */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <div className="w-full h-2 sm:h-2.5 rounded-full bg-gradient-to-r from-success to-success/80 mb-1.5 ring-2 ring-success/30 ring-offset-1"></div>
+                    <span className="text-[8px] sm:text-[10px] font-bold text-success">W2</span>
+                  </div>
+                  {/* Dec W3 */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <div className="w-full h-2 sm:h-2.5 rounded-full bg-gray-200 dark:bg-gray-700 mb-1.5"></div>
+                    <span className="text-[8px] sm:text-[10px] text-secondary">W3</span>
+                  </div>
+                  {/* Dec W4 */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <div className="w-full h-2 sm:h-2.5 rounded-full bg-gray-200 dark:bg-gray-700 mb-1.5"></div>
+                    <span className="text-[8px] sm:text-[10px] text-secondary">W4</span>
+                  </div>
+                </div>
+                <div className="flex justify-center mt-2">
+                  <span className="text-[10px] sm:text-xs text-success font-medium">Target: Week 2 of December</span>
+                </div>
+              </div>
+
+              {/* Stats Row */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-tertiary rounded-xl p-3 text-center">
+                  <p className="text-2xl sm:text-3xl font-bold text-success mb-0.5">3</p>
+                  <p className="text-[10px] sm:text-xs text-secondary">Weeks Left</p>
+                </div>
+                <div className="bg-tertiary rounded-xl p-3 text-center">
+                  <p className="text-2xl sm:text-3xl font-bold text-success mb-0.5">85%</p>
+                  <p className="text-[10px] sm:text-xs text-secondary">Maturity</p>
+                </div>
+              </div>
+
+              {/* Bottom description */}
+              <div className="pt-3 border-t border-primary">
+                <p className="text-[10px] sm:text-xs text-secondary leading-relaxed">
+                  Based on current soil and environmental readings, your rice crop is progressing normally.
+                </p>
+              </div>
             </div>
           </div>
         </div>

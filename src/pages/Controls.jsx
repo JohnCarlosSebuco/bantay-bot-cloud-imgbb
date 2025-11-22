@@ -232,7 +232,7 @@ export default function Controls({ language }) {
     <div className="min-h-screen bg-secondary">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4 bg-secondary">
+        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 bg-secondary">
           <div className="flex items-center mb-1 sm:mb-2">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
               <span className="text-xl sm:text-2xl">🎮</span>
@@ -244,7 +244,7 @@ export default function Controls({ language }) {
           </div>
         </div>
 
-        <div className="px-3 sm:px-4 pb-24">
+        <div className="px-3 sm:px-4 pb-10">
           {/* Last Command Status */}
           {lastCommand && (
             <div className="surface-primary rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border-l-4 border-success shadow-sm">
