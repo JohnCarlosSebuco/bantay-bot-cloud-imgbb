@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import HistoryService from '../services/HistoryService';
+import DeviceService from '../services/DeviceService';
 
 const formatTime = (ts) => {
   try {
@@ -29,14 +30,16 @@ export default function History({ language }) {
   const { currentTheme } = useTheme();
   const [motion, setMotion] = useState([]);
   const [env, setEnv] = useState([]);
+  const [sensorHistory, setSensorHistory] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('motion');
+  const [activeTab, setActiveTab] = useState('sensor');
   const fadeOpacity = useRef(1);
 
   const texts = {
     en: {
       title: 'History',
-      subtitle: 'Events & logs',
+      subtitle: 'Sensor logs',
+      sensorHistory: 'Sensor',
       motionHistory: 'Motion',
       environmentHistory: 'Environment',
       clearAll: 'Clear',
@@ -46,13 +49,14 @@ export default function History({ language }) {
       motionDetected: 'Motion detected',
       temperatureChange: 'Temperature',
       humidityChange: 'Humidity',
-      noEvents: 'No events yet',
+      noEvents: 'No records yet',
       loading: 'Loading...',
-      events: 'events'
+      events: 'records'
     },
     tl: {
       title: 'Kasaysayan',
-      subtitle: 'Events at logs',
+      subtitle: 'Logs ng sensor',
+      sensorHistory: 'Sensor',
       motionHistory: 'Galaw',
       environmentHistory: 'Environment',
       clearAll: 'Burahin',
@@ -62,21 +66,23 @@ export default function History({ language }) {
       motionDetected: 'May galaw',
       temperatureChange: 'Temperatura',
       humidityChange: 'Humidity',
-      noEvents: 'Walang events',
+      noEvents: 'Walang records',
       loading: 'Loading...',
-      events: 'events'
+      events: 'records'
     }
   };
 
   const t = texts[language] || texts.en;
 
   const refresh = async () => {
-    const [m, e] = await Promise.all([
+    const [m, e, s] = await Promise.all([
       HistoryService.getMotionHistory(),
       HistoryService.getEnvHistory(),
+      DeviceService.getSensorHistory(50),
     ]);
     setMotion(m);
     setEnv(e);
+    setSensorHistory(s);
   };
 
   useEffect(() => {
@@ -95,9 +101,16 @@ export default function History({ language }) {
     refresh();
     const onUpdate = () => refresh();
     HistoryService.on('update', onUpdate);
+
+    // Subscribe to Firebase sensor history
+    const unsubscribeSensor = DeviceService.subscribeToSensorHistory((history) => {
+      setSensorHistory(history);
+    }, 50);
+
     return () => {
       HistoryService.off('update', onUpdate);
       HistoryService.stop();
+      if (unsubscribeSensor) unsubscribeSensor();
     };
   }, []);
 
@@ -163,6 +176,45 @@ export default function History({ language }) {
     </div>
   );
 
+  // Sensor History Item Component
+  const SensorHistoryItem = ({ item, isLast }) => (
+    <div className={`p-3 sm:p-4 ${!isLast ? 'border-b border-primary' : ''}`}>
+      <div className="flex justify-between items-start mb-2">
+        <div className="text-xs sm:text-sm font-medium text-primary">{item.timestamp}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">💧</span>
+          <div>
+            <div className="text-[10px] text-secondary">{language === 'tl' ? 'Halumigmig' : 'Humidity'}</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.soilHumidity?.toFixed(1)}%</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🌡️</span>
+          <div>
+            <div className="text-[10px] text-secondary">{language === 'tl' ? 'Temperatura' : 'Temperature'}</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.soilTemperature?.toFixed(1)}°C</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">⚡</span>
+          <div>
+            <div className="text-[10px] text-secondary">{language === 'tl' ? 'Sustansya' : 'EC'}</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.soilConductivity?.toFixed(0)} µS</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🧪</span>
+          <div>
+            <div className="text-[10px] text-secondary">pH</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.ph?.toFixed(2)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Empty State Component
   const EmptyState = ({ icon }) => (
     <div className="surface-primary rounded-xl p-8 sm:p-12 text-center border border-primary">
@@ -171,7 +223,7 @@ export default function History({ language }) {
     </div>
   );
 
-  const currentData = activeTab === 'motion' ? motion : env;
+  const currentData = activeTab === 'sensor' ? sensorHistory : activeTab === 'motion' ? motion : env;
 
   return (
     <div className="min-h-screen bg-secondary">
@@ -214,6 +266,13 @@ export default function History({ language }) {
           {/* Tab Switcher */}
           <div className="flex gap-2 surface-primary p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-primary">
             <TabButton
+              label={t.sensorHistory}
+              icon="🌱"
+              count={sensorHistory.length}
+              isActive={activeTab === 'sensor'}
+              onClick={() => setActiveTab('sensor')}
+            />
+            <TabButton
               label={t.motionHistory}
               icon="🐦"
               count={motion.length}
@@ -232,17 +291,27 @@ export default function History({ language }) {
 
         <div className="px-3 sm:px-4 pb-10">
           {currentData.length === 0 ? (
-            <EmptyState icon={activeTab === 'motion' ? '🔍' : '📊'} />
+            <EmptyState icon={activeTab === 'sensor' ? '🌱' : activeTab === 'motion' ? '🔍' : '📊'} />
           ) : (
             <div className="surface-primary rounded-xl sm:rounded-2xl border border-primary overflow-hidden max-h-[60vh] overflow-y-auto">
-              {currentData.map((item, index) => (
-                <EventItem
-                  key={index}
-                  item={item}
-                  type={activeTab}
-                  isLast={index === currentData.length - 1}
-                />
-              ))}
+              {activeTab === 'sensor' ? (
+                currentData.map((item, index) => (
+                  <SensorHistoryItem
+                    key={item.id || index}
+                    item={item}
+                    isLast={index === currentData.length - 1}
+                  />
+                ))
+              ) : (
+                currentData.map((item, index) => (
+                  <EventItem
+                    key={index}
+                    item={item}
+                    type={activeTab}
+                    isLast={index === currentData.length - 1}
+                  />
+                ))
+              )}
             </div>
           )}
 

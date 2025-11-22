@@ -6,6 +6,7 @@ import {
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
 import FirebaseService from '../services/FirebaseService';
+import DeviceService from '../services/DeviceService';
 import { CONFIG } from '../config/config';
 
 export default function Dashboard({ language }) {
@@ -138,8 +139,31 @@ export default function Dashboard({ language }) {
     ConnectionManager.onConnectionChange(handleConnection);
     ConnectionManager.onStatusUpdate(handleData);
 
+    // Subscribe to Firebase sensor data for real-time updates
+    const unsubscribeSensor = DeviceService.subscribeToSensorData(CONFIG.DEVICE_ID, (data) => {
+      if (data) {
+        console.log('📡 Firebase sensor data received:', data);
+        const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
+        setSensorData(prev => ({
+          ...prev,
+          soilHumidity: safeNumber(data.soilHumidity, prev.soilHumidity),
+          soilTemperature: safeNumber(data.soilTemperature, prev.soilTemperature),
+          soilConductivity: safeNumber(data.soilConductivity, prev.soilConductivity),
+          ph: safeNumber(data.ph, prev.ph),
+          currentTrack: safeNumber(data.currentTrack, prev.currentTrack),
+          volume: safeNumber(data.volume, prev.volume),
+          headPosition: safeNumber(data.headPosition, prev.headPosition),
+          oscillating: data.servoActive || false,
+          hasRS485Sensor: true,
+        }));
+        setLastUpdate(new Date());
+        setIsConnected(true);
+      }
+    });
+
     return () => {
       ConnectionManager.disconnect();
+      if (unsubscribeSensor) unsubscribeSensor();
     };
   }, [language]);
 

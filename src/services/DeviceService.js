@@ -1,5 +1,5 @@
 import { db } from './FirebaseService';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { DEVICE_CONFIG, FIREBASE_COLLECTIONS } from '../config/hardware.config';
 
 class DeviceService {
@@ -55,6 +55,70 @@ class DeviceService {
   getCameraStreamUrl(device) {
     if (!device) return null;
     return device.stream_url || `http://${device.ip_address}:80/stream`;
+  }
+
+  /**
+   * Get sensor history from Firebase
+   * Returns array of sensor snapshots, most recent first
+   */
+  async getSensorHistory(maxResults = 50) {
+    try {
+      const historyRef = collection(db, 'sensor_history');
+      const q = query(historyRef, orderBy('__name__', 'desc'), limit(maxResults));
+      const snapshot = await getDocs(q);
+
+      const history = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        history.push({
+          id: doc.id,
+          soilHumidity: data.soilHumidity || 0,
+          soilTemperature: data.soilTemperature || 0,
+          soilConductivity: data.soilConductivity || 0,
+          ph: data.ph || 7,
+          timestamp: data.timestamp || doc.id,
+          deviceId: data.deviceId || 'main_001',
+        });
+      });
+
+      return history;
+    } catch (error) {
+      console.error('Error fetching sensor history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Subscribe to sensor history updates (real-time)
+   */
+  subscribeToSensorHistory(callback, maxResults = 20) {
+    try {
+      const historyRef = collection(db, 'sensor_history');
+      const q = query(historyRef, orderBy('__name__', 'desc'), limit(maxResults));
+
+      return onSnapshot(q, (snapshot) => {
+        const history = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          history.push({
+            id: doc.id,
+            soilHumidity: data.soilHumidity || 0,
+            soilTemperature: data.soilTemperature || 0,
+            soilConductivity: data.soilConductivity || 0,
+            ph: data.ph || 7,
+            timestamp: data.timestamp || doc.id,
+            deviceId: data.deviceId || 'main_001',
+          });
+        });
+        callback(history);
+      }, (error) => {
+        console.error('Error subscribing to sensor history:', error);
+        callback([]);
+      });
+    } catch (error) {
+      console.error('Error setting up sensor history subscription:', error);
+      return () => {};
+    }
   }
 }
 
