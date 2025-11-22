@@ -336,7 +336,7 @@ export const COMMAND_TYPES = {
   SET_SENSITIVITY: 'set_sensitivity',
 
   // System commands
-  RESTART: 'restart',
+  RESTART: 'reset_system',
   TRIGGER_ALARM: 'trigger_alarm',
 };
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import HistoryService from '../services/HistoryService';
+import DeviceService from '../services/DeviceService';
 
 const formatTime = (ts) => {
   try {
@@ -29,14 +30,18 @@ export default function History({ language }) {
   const { currentTheme } = useTheme();
   const [motion, setMotion] = useState([]);
   const [env, setEnv] = useState([]);
+  const [sensorHistory, setSensorHistory] = useState([]);
+  const [detectionHistory, setDetectionHistory] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('motion');
+  const [activeTab, setActiveTab] = useState('sensor');
   const fadeOpacity = useRef(1);
 
   const texts = {
     en: {
       title: 'History',
-      subtitle: 'Events & logs',
+      subtitle: 'Sensor logs',
+      sensorHistory: 'Sensor',
+      detectionHistory: 'Detection',
       motionHistory: 'Motion',
       environmentHistory: 'Environment',
       clearAll: 'Clear',
@@ -46,13 +51,15 @@ export default function History({ language }) {
       motionDetected: 'Motion detected',
       temperatureChange: 'Temperature',
       humidityChange: 'Humidity',
-      noEvents: 'No events yet',
+      noEvents: 'No records yet',
       loading: 'Loading...',
-      events: 'events'
+      events: 'records'
     },
     tl: {
       title: 'Kasaysayan',
-      subtitle: 'Events at logs',
+      subtitle: 'Logs ng sensor',
+      sensorHistory: 'Sensor',
+      detectionHistory: 'Deteksyon',
       motionHistory: 'Galaw',
       environmentHistory: 'Environment',
       clearAll: 'Burahin',
@@ -62,21 +69,25 @@ export default function History({ language }) {
       motionDetected: 'May galaw',
       temperatureChange: 'Temperatura',
       humidityChange: 'Humidity',
-      noEvents: 'Walang events',
+      noEvents: 'Walang records',
       loading: 'Loading...',
-      events: 'events'
+      events: 'records'
     }
   };
 
   const t = texts[language] || texts.en;
 
   const refresh = async () => {
-    const [m, e] = await Promise.all([
+    const [m, e, s, d] = await Promise.all([
       HistoryService.getMotionHistory(),
       HistoryService.getEnvHistory(),
+      DeviceService.getSensorHistory(50),
+      DeviceService.getDetectionHistory(50),
     ]);
     setMotion(m);
     setEnv(e);
+    setSensorHistory(s);
+    setDetectionHistory(d);
   };
 
   useEffect(() => {
@@ -95,9 +106,22 @@ export default function History({ language }) {
     refresh();
     const onUpdate = () => refresh();
     HistoryService.on('update', onUpdate);
+
+    // Subscribe to Firebase sensor history
+    const unsubscribeSensor = DeviceService.subscribeToSensorHistory((history) => {
+      setSensorHistory(history);
+    }, 50);
+
+    // Subscribe to Firebase detection history
+    const unsubscribeDetection = DeviceService.subscribeToDetectionHistory((history) => {
+      setDetectionHistory(history);
+    }, 50);
+
     return () => {
       HistoryService.off('update', onUpdate);
       HistoryService.stop();
+      if (unsubscribeSensor) unsubscribeSensor();
+      if (unsubscribeDetection) unsubscribeDetection();
     };
   }, []);
 
@@ -163,6 +187,98 @@ export default function History({ language }) {
     </div>
   );
 
+  // Sensor History Item Component
+  const SensorHistoryItem = ({ item, isLast }) => (
+    <div className={`p-3 sm:p-4 ${!isLast ? 'border-b border-primary' : ''}`}>
+      <div className="flex justify-between items-start mb-2">
+        <div className="text-xs sm:text-sm font-medium text-primary">{item.timestamp}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">💧</span>
+          <div>
+            <div className="text-[10px] text-secondary">{language === 'tl' ? 'Halumigmig' : 'Humidity'}</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.soilHumidity?.toFixed(1)}%</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🌡️</span>
+          <div>
+            <div className="text-[10px] text-secondary">{language === 'tl' ? 'Temperatura' : 'Temperature'}</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.soilTemperature?.toFixed(1)}°C</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">⚡</span>
+          <div>
+            <div className="text-[10px] text-secondary">{language === 'tl' ? 'Sustansya' : 'EC'}</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.soilConductivity?.toFixed(0)} µS</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🧪</span>
+          <div>
+            <div className="text-[10px] text-secondary">pH</div>
+            <div className="text-xs sm:text-sm font-semibold text-primary">{item.ph?.toFixed(2)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Detection History Item Component
+  const DetectionHistoryItem = ({ item, isLast }) => (
+    <div className={`p-3 sm:p-4 ${!isLast ? 'border-b border-primary' : ''}`}>
+      <div className="flex gap-3">
+        {/* Thumbnail */}
+        {item.imageUrl && (
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-tertiary flex-shrink-0">
+            <img
+              src={item.imageUrl}
+              alt="Detection"
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start mb-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🐦</span>
+              <span className="text-xs sm:text-sm font-semibold text-primary">
+                {language === 'tl' ? 'Ibon Nakita' : 'Bird Detected'}
+              </span>
+            </div>
+            {item.triggered && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-warning/20 text-warning">
+                {language === 'tl' ? 'Na-trigger' : 'Triggered'}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div>
+              <div className="text-[10px] text-secondary">{language === 'tl' ? 'Laki' : 'Size'}</div>
+              <div className="text-xs font-medium text-primary">{item.birdSize?.toFixed(0) || 0} px</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-secondary">{language === 'tl' ? 'Kumpiyansa' : 'Confidence'}</div>
+              <div className="text-xs font-medium text-primary">{(item.confidence * 100)?.toFixed(0) || 0}%</div>
+            </div>
+            {item.detectionZone && (
+              <div className="col-span-2">
+                <div className="text-[10px] text-secondary">{language === 'tl' ? 'Lokasyon' : 'Zone'}</div>
+                <div className="text-xs font-medium text-primary truncate">{item.detectionZone}</div>
+              </div>
+            )}
+          </div>
+          <div className="text-[10px] text-secondary mt-1">
+            {formatTime(item.timestamp)} - {formatDate(item.timestamp)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Empty State Component
   const EmptyState = ({ icon }) => (
     <div className="surface-primary rounded-xl p-8 sm:p-12 text-center border border-primary">
@@ -171,13 +287,13 @@ export default function History({ language }) {
     </div>
   );
 
-  const currentData = activeTab === 'motion' ? motion : env;
+  const currentData = activeTab === 'sensor' ? sensorHistory : activeTab === 'detection' ? detectionHistory : activeTab === 'motion' ? motion : env;
 
   return (
     <div className="min-h-screen bg-secondary">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
           <div className="flex justify-between items-start mb-3 sm:mb-4">
             <div className="flex items-center">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
@@ -212,14 +328,28 @@ export default function History({ language }) {
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex gap-2 surface-primary p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-primary">
+          <div className="flex gap-1 sm:gap-2 surface-primary p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-primary">
             <TabButton
-              label={t.motionHistory}
+              label={t.sensorHistory}
+              icon="🌱"
+              count={sensorHistory.length}
+              isActive={activeTab === 'sensor'}
+              onClick={() => setActiveTab('sensor')}
+            />
+            <TabButton
+              label={t.detectionHistory}
               icon="🐦"
+              count={detectionHistory.length}
+              isActive={activeTab === 'detection'}
+              onClick={() => setActiveTab('detection')}
+            />
+            {/* <TabButton
+              label={t.motionHistory}
+              icon="👁️"
               count={motion.length}
               isActive={activeTab === 'motion'}
               onClick={() => setActiveTab('motion')}
-            />
+            /> */}
             <TabButton
               label={t.environmentHistory}
               icon="🌡️"
@@ -230,19 +360,37 @@ export default function History({ language }) {
           </div>
         </div>
 
-        <div className="px-3 sm:px-4 pb-24">
+        <div className="px-3 sm:px-4 pb-10">
           {currentData.length === 0 ? (
-            <EmptyState icon={activeTab === 'motion' ? '🔍' : '📊'} />
+            <EmptyState icon={activeTab === 'sensor' ? '🌱' : activeTab === 'detection' ? '🐦' : activeTab === 'motion' ? '🔍' : '📊'} />
           ) : (
             <div className="surface-primary rounded-xl sm:rounded-2xl border border-primary overflow-hidden max-h-[60vh] overflow-y-auto">
-              {currentData.map((item, index) => (
-                <EventItem
-                  key={index}
-                  item={item}
-                  type={activeTab}
-                  isLast={index === currentData.length - 1}
-                />
-              ))}
+              {activeTab === 'sensor' ? (
+                currentData.map((item, index) => (
+                  <SensorHistoryItem
+                    key={item.id || index}
+                    item={item}
+                    isLast={index === currentData.length - 1}
+                  />
+                ))
+              ) : activeTab === 'detection' ? (
+                currentData.map((item, index) => (
+                  <DetectionHistoryItem
+                    key={item.id || index}
+                    item={item}
+                    isLast={index === currentData.length - 1}
+                  />
+                ))
+              ) : (
+                currentData.map((item, index) => (
+                  <EventItem
+                    key={index}
+                    item={item}
+                    type={activeTab}
+                    isLast={index === currentData.length - 1}
+                  />
+                ))
+              )}
             </div>
           )}
 

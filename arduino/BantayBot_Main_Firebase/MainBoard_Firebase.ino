@@ -22,6 +22,7 @@
 #include <DHT.h>
 #include "DFRobotDFPlayerMini.h"
 #include <base64.h>
+#include <time.h>  // NTP time sync
 
 // Firebase includes
 #include <Firebase_ESP_Client.h>
@@ -92,6 +93,29 @@ float soilHumidity = 0.0;
 float soilTemperature = 0.0;
 float soilConductivity = 0.0;
 float soilPH = 0.0;
+
+// Smart Sensor Update - Last sent values for change detection
+float lastSentHumidity = -999.0;
+float lastSentTemperature = -999.0;
+float lastSentConductivity = -999.0;
+float lastSentPH = -999.0;
+
+// Change thresholds - only update "latest" if values change beyond these
+const float HUMIDITY_THRESHOLD = 2.0;       // ±2%
+const float TEMPERATURE_THRESHOLD = 0.5;    // ±0.5°C
+const float CONDUCTIVITY_THRESHOLD = 50.0;  // ±50 µS/cm
+const float PH_THRESHOLD = 0.1;             // ±0.1
+
+// Timing intervals for smart updates
+const unsigned long LATEST_UPDATE_INTERVAL = 60000;  // 60 seconds for "latest" doc
+const unsigned long HISTORY_UPDATE_INTERVAL = 900000; // 15 minutes for production
+unsigned long lastLatestUpdate = 0;
+unsigned long lastHistoryUpdate = 0;
+
+// NTP Time Configuration (Philippines timezone: UTC+8)
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 8 * 3600;  // UTC+8 for Philippines
+const int daylightOffset_sec = 0;     // No daylight saving in PH
 
 // Stepper Motor State
 int currentHeadPosition = 0;  // degrees
@@ -178,8 +202,24 @@ void updateDeviceStatus() {
   }
 }
 
-void updateSensorData() {
+// Check if sensor values changed beyond thresholds
+bool sensorValuesChanged() {
+  if (abs(soilHumidity - lastSentHumidity) >= HUMIDITY_THRESHOLD) return true;
+  if (abs(soilTemperature - lastSentTemperature) >= TEMPERATURE_THRESHOLD) return true;
+  if (abs(soilConductivity - lastSentConductivity) >= CONDUCTIVITY_THRESHOLD) return true;
+  if (abs(soilPH - lastSentPH) >= PH_THRESHOLD) return true;
+  return false;
+}
+
+// Update "latest" sensor data - only if values changed
+void updateSensorDataSmart() {
   if (!firebaseConnected) return;
+
+  // Check if values changed beyond thresholds
+  if (!sensorValuesChanged()) {
+    Serial.println("📊 Sensor values unchanged, skipping update");
+    return;
+  }
 
   FirebaseJson json;
   json.set("fields/soilHumidity/doubleValue", soilHumidity);
@@ -195,9 +235,70 @@ void updateSensorData() {
   String path = "sensor_data/" + String(MAIN_DEVICE_ID);
 
   if (Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw(), "")) {
-    Serial.println("✅ Sensor data updated");
+    Serial.println("✅ Sensor data updated (values changed)");
+    // Update last sent values
+    lastSentHumidity = soilHumidity;
+    lastSentTemperature = soilTemperature;
+    lastSentConductivity = soilConductivity;
+    lastSentPH = soilPH;
   } else {
     Serial.println("❌ Sensor update failed: " + fbdo.errorReason());
+  }
+}
+
+// Get formatted timestamp for document ID: main_001_MM-DD-YYYY_HH-MM-SS-AM/PM
+String getFormattedTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    // Fallback to millis if NTP failed
+    return String(MAIN_DEVICE_ID) + "_" + String(millis());
+  }
+
+  char timestamp[40];
+  // Format: MM-DD-YYYY_HH-MM-SS-AM (Firestore doesn't allow : or /)
+  strftime(timestamp, sizeof(timestamp), "%m-%d-%Y_%I-%M-%S-%p", &timeinfo);
+
+  return String(MAIN_DEVICE_ID) + "_" + String(timestamp);
+}
+
+// Get readable timestamp for storing in document field
+String getReadableTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return "Time not synced";
+  }
+
+  char timestamp[50];
+  strftime(timestamp, sizeof(timestamp), "%B %d, %Y %I:%M:%S %p", &timeinfo);
+  return String(timestamp);
+}
+
+// Save sensor history snapshot - always writes (every 15 min)
+void saveSensorHistory() {
+  if (!firebaseConnected) return;
+
+  String docId = getFormattedTimestamp();
+  String readableTime = getReadableTimestamp();
+
+  Serial.printf("📜 Saving sensor history: %s\n", docId.c_str());
+
+  FirebaseJson json;
+  json.set("fields/soilHumidity/doubleValue", soilHumidity);
+  json.set("fields/soilTemperature/doubleValue", soilTemperature);
+  json.set("fields/soilConductivity/doubleValue", soilConductivity);
+  json.set("fields/ph/doubleValue", soilPH);
+  json.set("fields/currentTrack/integerValue", String(currentTrack));
+  json.set("fields/volume/integerValue", String(volumeLevel));
+  json.set("fields/headPosition/integerValue", String(currentHeadPosition));
+  json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
+  json.set("fields/timestamp/stringValue", readableTime);
+
+  String path = "sensor_history/" + docId;
+
+  if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+    Serial.println("✅ Sensor history saved!");
+  } else {
+    Serial.println("❌ History save failed: " + fbdo.errorReason());
   }
 }
 
@@ -825,6 +926,27 @@ void setup() {
   Serial.println("\n✅ WiFi connected!");
   Serial.println("📍 IP address: " + WiFi.localIP().toString());
 
+  // Initialize NTP time sync
+  Serial.println("🕐 Syncing time with NTP server...");
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Wait for time to sync
+  struct tm timeinfo;
+  int retries = 0;
+  while (!getLocalTime(&timeinfo) && retries < 10) {
+    Serial.print(".");
+    delay(500);
+    retries++;
+  }
+  if (retries < 10) {
+    Serial.println("\n✅ Time synced!");
+    char timeStr[50];
+    strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
+    Serial.printf("📅 Current time: %s\n", timeStr);
+  } else {
+    Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+  }
+
   // Initialize Firebase
   initializeFirebase();
 
@@ -937,14 +1059,67 @@ void checkFirebaseCommands() {
               readRS485Sensor();
               Serial.println("🔧 Sensors recalibrated");
             }
-            else if (action == "reset_system") {
+            else if (action == "reset_system" || action == "restart") {
               // Restart the ESP32
               Serial.println("🔄 System reset requested");
               delay(100);
               ESP.restart();
             }
+            // Audio commands
+            else if (action == "stop_audio") {
+              stopAudio();
+            }
+            else if (action == "next_track") {
+              int nextTrack = currentTrack + 1;
+              if (nextTrack > TOTAL_TRACKS) nextTrack = 1;
+              if (nextTrack == 3) nextTrack = 4;  // Skip track 3
+              playAudio(nextTrack);
+            }
+            else if (action == "prev_track") {
+              int prevTrack = currentTrack - 1;
+              if (prevTrack < 1) prevTrack = TOTAL_TRACKS;
+              if (prevTrack == 3) prevTrack = 2;  // Skip track 3
+              playAudio(prevTrack);
+            }
+            else if (action == "set_track") {
+              FirebaseJsonData trackData;
+              docJson.get(trackData, "fields/params/mapValue/fields/track/integerValue");
+              int track = trackData.intValue;
+              playAudio(track);
+            }
+            // Head rotation shortcuts
+            else if (action == "rotate_left") {
+              rotateHead(-90);
+            }
+            else if (action == "rotate_right") {
+              rotateHead(90);
+            }
+            else if (action == "rotate_center") {
+              rotateHead(0);
+            }
+            // Arm commands
+            else if (action == "stop_oscillate") {
+              stopArmStepperSequence();
+            }
+            else if (action == "arms_rest") {
+              stopArmStepperSequence();
+              Serial.println("🦾 Arms at rest position");
+            }
+            else if (action == "arms_alert" || action == "arms_wave") {
+              startArmStepperSequence();
+              Serial.println("🦾 Arms alert/wave sequence");
+            }
+            else if (action == "move_servo") {
+              // Legacy servo command - map to arm oscillation
+              startArmStepperSequence();
+              Serial.println("🦾 Move servo mapped to arm oscillation");
+            }
+            else {
+              Serial.println("⚠️ Unknown command: " + action);
+            }
 
-            // Mark as completed - get document name/id
+            // Delete command after execution to prevent race condition
+            // (Previously marked as "completed" but PWA deletion was slower than device polling)
             FirebaseJsonData nameData;
             docJson.get(nameData, "name");
             String docName = nameData.stringValue;
@@ -954,12 +1129,13 @@ void checkFirebaseCommands() {
             String docId = docName.substring(lastSlash + 1);
             String completePath = path + "/" + docId;
 
-            FirebaseJson updateDoc;
-            updateDoc.set("fields/status/stringValue", "completed");
-            updateDoc.set("fields/completed_at/integerValue", String(millis()));
+            Serial.printf("🗑️ Deleting command: %s\n", completePath.c_str());
 
-            Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str(),
-                                           updateDoc.raw(), "status,completed_at");
+            if (Firebase.Firestore.deleteDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str())) {
+              Serial.println("✅ Command deleted successfully!");
+            } else {
+              Serial.println("❌ Failed to delete command: " + fbdo.errorReason());
+            }
           }
         }
       }
@@ -1000,14 +1176,20 @@ void loop() {
 
   // Firebase operations
   if (firebaseConnected) {
-    // NEW: Check for Firebase commands
+    // Check for Firebase commands
     checkFirebaseCommands();
 
-    // Update device status
-    if (currentTime - lastFirebaseUpdate >= FIREBASE_UPDATE_INTERVAL) {
+    // Smart sensor update - every 60 sec, only if values changed
+    if (currentTime - lastLatestUpdate >= LATEST_UPDATE_INTERVAL) {
       updateDeviceStatus();
-      updateSensorData();
-      lastFirebaseUpdate = currentTime;
+      updateSensorDataSmart();
+      lastLatestUpdate = currentTime;
+    }
+
+    // History snapshot - every 15 min, always saves
+    if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
+      saveSensorHistory();
+      lastHistoryUpdate = currentTime;
     }
   }
 

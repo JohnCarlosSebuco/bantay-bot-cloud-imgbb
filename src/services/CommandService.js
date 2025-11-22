@@ -47,17 +47,23 @@ class CommandService {
   monitorCommandLifecycle(docRef) {
     const unsubscribe = onSnapshot(docRef, async (snapshot) => {
       if (!snapshot.exists()) {
+        // Document was deleted by device after execution - command completed successfully
+        console.log(`✅ [CommandService] Command ${docRef.id} executed and cleaned up by device`);
         unsubscribe();
         return;
       }
 
       const data = snapshot.data();
+      // Fallback: if device marks as completed instead of deleting, clean up from PWA
       if (data?.status === 'completed') {
         try {
           await deleteDoc(docRef);
           console.log(`🧹 [CommandService] Deleted completed command ${docRef.id}`);
         } catch (error) {
-          console.warn(`⚠️ [CommandService] Failed to delete command ${docRef.id}:`, error);
+          // Ignore error if already deleted by device
+          if (error.code !== 'not-found') {
+            console.warn(`⚠️ [CommandService] Failed to delete command ${docRef.id}:`, error);
+          }
         } finally {
           unsubscribe();
         }
@@ -208,18 +214,6 @@ class CommandService {
     return this.sendCommand(deviceId, 'calibrate_sensors');
   }
 
-  // Motor control
-  async startMotor(deviceId, motorType) {
-    return this.sendCommand(deviceId, 'START_MOTOR', { motor: motorType });
-  }
-
-  async stopMotor(deviceId, motorType) {
-    return this.sendCommand(deviceId, 'STOP_MOTOR', { motor: motorType });
-  }
-
-  async stopAllMotors(deviceId) {
-    return this.sendCommand(deviceId, 'STOP_ALL_MOTORS');
-  }
 }
 
 export default new CommandService();
