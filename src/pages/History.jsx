@@ -7,7 +7,6 @@ const formatTime = (ts) => {
     return new Date(ts).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      second: '2-digit',
       hour12: true,
     });
   } catch (_) {
@@ -31,42 +30,41 @@ export default function History({ language }) {
   const [motion, setMotion] = useState([]);
   const [env, setEnv] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('motion');
   const fadeOpacity = useRef(1);
 
   const texts = {
     en: {
-      title: 'Event History',
-      subtitle: 'System events and sensor logs',
-      motionHistory: 'Motion Detection History',
-      environmentHistory: 'Environment History',
-      clearAll: 'Clear All',
+      title: 'History',
+      subtitle: 'Events & logs',
+      motionHistory: 'Motion',
+      environmentHistory: 'Environment',
+      clearAll: 'Clear',
       refresh: 'Refresh',
-      confirmClearTitle: 'Clear All History',
-      confirmClearMessage: 'Are you sure you want to clear all history? This cannot be undone.',
-      cancel: 'Cancel',
-      clear: 'Clear',
+      confirmClearTitle: 'Clear All',
+      confirmClearMessage: 'Clear all history? This cannot be undone.',
       motionDetected: 'Motion detected',
-      temperatureChange: 'Temperature change',
-      humidityChange: 'Humidity change',
-      noEvents: 'No events recorded yet',
-      loading: 'Loading history...'
+      temperatureChange: 'Temperature',
+      humidityChange: 'Humidity',
+      noEvents: 'No events yet',
+      loading: 'Loading...',
+      events: 'events'
     },
     tl: {
-      title: 'Kasaysayan ng Event',
-      subtitle: 'Mga event ng sistema at sensor logs',
-      motionHistory: 'Kasaysayan ng Pagdetekta ng Galaw',
-      environmentHistory: 'Kasaysayan ng Environment',
-      clearAll: 'Burahin Lahat',
+      title: 'Kasaysayan',
+      subtitle: 'Events at logs',
+      motionHistory: 'Galaw',
+      environmentHistory: 'Environment',
+      clearAll: 'Burahin',
       refresh: 'I-refresh',
-      confirmClearTitle: 'Burahin ang Lahat',
-      confirmClearMessage: 'Sigurado ka bang gusto mong burahin ang lahat ng history? Hindi na ito maibabalik.',
-      cancel: 'Kanselahin',
-      clear: 'Burahin',
-      motionDetected: 'Nadetektang galaw',
-      temperatureChange: 'Pagbabago sa temperatura',
-      humidityChange: 'Pagbabago sa humidity',
-      noEvents: 'Walang narekord na events',
-      loading: 'Naglo-load ng history...'
+      confirmClearTitle: 'Burahin',
+      confirmClearMessage: 'Burahin lahat? Hindi maibabalik.',
+      motionDetected: 'May galaw',
+      temperatureChange: 'Temperatura',
+      humidityChange: 'Humidity',
+      noEvents: 'Walang events',
+      loading: 'Loading...',
+      events: 'events'
     }
   };
 
@@ -82,13 +80,11 @@ export default function History({ language }) {
   };
 
   useEffect(() => {
-    // Fade in animation
     const startTime = Date.now();
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / 500, 1);
       fadeOpacity.current = progress;
-
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
@@ -118,105 +114,146 @@ export default function History({ language }) {
     }
   };
 
-  // Now using CSS classes instead of inline styles for better theme reliability
+  // Tab Button Component
+  const TabButton = ({ label, icon, count, isActive, onClick }) => (
+    <button
+      onClick={onClick}
+      className={`
+        flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 px-2 sm:px-4 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm transition-all cursor-pointer
+        ${isActive
+          ? 'bg-brand text-white shadow-md'
+          : 'bg-tertiary text-secondary hover:bg-brand/10 hover:text-primary'
+        }
+      `}
+    >
+      <span>{icon}</span>
+      <span>{label}</span>
+      {count > 0 && (
+        <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
+          isActive ? 'bg-white/20' : 'bg-brand/20 text-brand'
+        }`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
 
-  const MotionHistorySection = () => (
-    <div className="mb-6">
-      <div className="flex items-center mb-3">
-        <span className="text-xl text-warning mr-2">🚶</span>
-        <h2 className="text-lg font-bold text-primary">{t.motionHistory}</h2>
-      </div>
-      <div className="surface-primary rounded-xl border border-primary max-h-96 overflow-y-auto">
-        {motion.length === 0 ? (
-          <div className="text-center p-8 text-secondary">
-            <div className="text-5xl mb-2">🔍</div>
-            <div>{t.noEvents}</div>
+  // Event Item Component
+  const EventItem = ({ item, type, isLast }) => (
+    <div className={`flex justify-between items-center p-2 sm:p-3 ${!isLast ? 'border-b border-primary' : ''}`}>
+      <div className="flex items-center gap-2 sm:gap-3 flex-1">
+        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${
+          type === 'motion' ? 'bg-warning/20' : 'bg-info/20'
+        }`}>
+          <span className="text-sm sm:text-lg">
+            {type === 'motion' ? '🐦' : item.type === 'temperature' ? '🌡️' : '💧'}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs sm:text-sm text-primary font-medium truncate">
+            {type === 'motion'
+              ? t.motionDetected
+              : `${item.type === 'temperature' ? t.temperatureChange : t.humidityChange}: ${item.value?.toFixed(1)}${item.type === 'temperature' ? '°C' : '%'}`
+            }
           </div>
-        ) : (
-          motion.map((item, index) => (
-            <div key={index} className={`flex justify-between items-center p-3 ${
-              index !== motion.length - 1 ? 'border-b border-primary' : ''
-            }`}>
-              <div className="flex-1">
-                <div className="text-sm text-primary mb-1">{t.motionDetected}</div>
-                <div className="text-xs text-secondary">{formatTime(item.timestamp)}</div>
-              </div>
-              <div className="text-xs text-secondary text-right min-w-15">{formatDate(item.timestamp)}</div>
-            </div>
-          ))
-        )}
+          <div className="text-[10px] sm:text-xs text-secondary">{formatTime(item.timestamp)}</div>
+        </div>
       </div>
+      <div className="text-[10px] sm:text-xs text-secondary text-right shrink-0 ml-2">{formatDate(item.timestamp)}</div>
     </div>
   );
 
-  const EnvironmentHistorySection = () => (
-    <div className="mb-6">
-      <div className="flex items-center mb-3">
-        <span className="text-xl text-info mr-2">🌡️</span>
-        <h2 className="text-lg font-bold text-primary">{t.environmentHistory}</h2>
-      </div>
-      <div className="surface-primary rounded-xl border border-primary max-h-96 overflow-y-auto">
-        {env.length === 0 ? (
-          <div className="text-center p-8 text-secondary">
-            <div className="text-5xl mb-2">📊</div>
-            <div>{t.noEvents}</div>
-          </div>
-        ) : (
-          env.map((item, index) => (
-            <div key={index} className={`flex justify-between items-center p-3 ${
-              index !== env.length - 1 ? 'border-b border-primary' : ''
-            }`}>
-              <div className="flex-1">
-                <div className="text-sm text-primary mb-1">
-                  {item.type === 'temperature' ? t.temperatureChange : t.humidityChange}: {item.value?.toFixed(1)}
-                  {item.type === 'temperature' ? '°C' : '%'}
-                </div>
-                <div className="text-xs text-secondary">{formatTime(item.timestamp)}</div>
-              </div>
-              <div className="text-xs text-secondary text-right min-w-15">{formatDate(item.timestamp)}</div>
-            </div>
-          ))
-        )}
-      </div>
+  // Empty State Component
+  const EmptyState = ({ icon }) => (
+    <div className="surface-primary rounded-xl p-8 sm:p-12 text-center border border-primary">
+      <div className="text-4xl sm:text-5xl mb-3 sm:mb-4 opacity-50">{icon}</div>
+      <div className="text-sm sm:text-base text-secondary font-medium">{t.noEvents}</div>
     </div>
   );
+
+  const currentData = activeTab === 'motion' ? motion : env;
 
   return (
     <div className="min-h-screen bg-secondary">
-      <div className="opacity-100">
+      <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-16 pb-6 px-4 bg-secondary">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex-1">
-              <div className="flex items-center mb-1">
-                <span className="text-3xl text-brand mr-2">📊</span>
-                <h1 className="text-4xl font-bold text-primary">{t.title}</h1>
+        <div className="pt-14 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4">
+          <div className="flex justify-between items-start mb-3 sm:mb-4">
+            <div className="flex items-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
+                <span className="text-xl sm:text-2xl">📋</span>
               </div>
-              <p className="text-sm text-secondary font-medium">{t.subtitle}</p>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1 sm:gap-2">
               <button
                 onClick={onRefresh}
-                className="flex items-center gap-2 px-2 py-2 rounded-md bg-brand text-white text-sm font-medium cursor-pointer border-0"
                 disabled={refreshing}
+                className={`
+                  px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1
+                  ${refreshing
+                    ? 'bg-tertiary text-secondary cursor-wait'
+                    : 'bg-brand text-white hover:bg-brand/90 cursor-pointer'
+                  }
+                `}
               >
-                <span>🔄</span>
-                <span>{refreshing ? t.loading : t.refresh}</span>
+                <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
               </button>
               <button
                 onClick={clearAll}
-                className="flex items-center gap-2 px-2 py-2 rounded-md bg-error text-white text-sm font-medium cursor-pointer border-0"
+                className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium bg-error/10 text-error hover:bg-error/20 transition-all cursor-pointer flex items-center gap-1"
               >
                 <span>🗑️</span>
-                <span>{t.clearAll}</span>
               </button>
             </div>
           </div>
+
+          {/* Tab Switcher */}
+          <div className="flex gap-2 surface-primary p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-primary">
+            <TabButton
+              label={t.motionHistory}
+              icon="🐦"
+              count={motion.length}
+              isActive={activeTab === 'motion'}
+              onClick={() => setActiveTab('motion')}
+            />
+            <TabButton
+              label={t.environmentHistory}
+              icon="🌡️"
+              count={env.length}
+              isActive={activeTab === 'environment'}
+              onClick={() => setActiveTab('environment')}
+            />
+          </div>
         </div>
 
-        <div className="p-4 pb-24">
-          <MotionHistorySection />
-          <EnvironmentHistorySection />
+        <div className="px-3 sm:px-4 pb-24">
+          {currentData.length === 0 ? (
+            <EmptyState icon={activeTab === 'motion' ? '🔍' : '📊'} />
+          ) : (
+            <div className="surface-primary rounded-xl sm:rounded-2xl border border-primary overflow-hidden max-h-[60vh] overflow-y-auto">
+              {currentData.map((item, index) => (
+                <EventItem
+                  key={index}
+                  item={item}
+                  type={activeTab}
+                  isLast={index === currentData.length - 1}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Event Count */}
+          {currentData.length > 0 && (
+            <div className="text-center mt-3 sm:mt-4">
+              <span className="text-[10px] sm:text-xs text-secondary">
+                {currentData.length} {t.events}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
