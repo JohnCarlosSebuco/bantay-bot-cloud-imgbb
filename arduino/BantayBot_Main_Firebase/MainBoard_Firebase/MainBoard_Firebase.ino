@@ -93,6 +93,24 @@ float soilTemperature = 0.0;
 float soilConductivity = 0.0;
 float soilPH = 0.0;
 
+// Smart Sensor Update - Last sent values for change detection
+float lastSentHumidity = -999.0;
+float lastSentTemperature = -999.0;
+float lastSentConductivity = -999.0;
+float lastSentPH = -999.0;
+
+// Change thresholds - only update "latest" if values change beyond these
+const float HUMIDITY_THRESHOLD = 2.0;       // ±2%
+const float TEMPERATURE_THRESHOLD = 0.5;    // ±0.5°C
+const float CONDUCTIVITY_THRESHOLD = 50.0;  // ±50 µS/cm
+const float PH_THRESHOLD = 0.1;             // ±0.1
+
+// Timing intervals for smart updates
+const unsigned long LATEST_UPDATE_INTERVAL = 60000;   // 60 seconds for "latest" doc
+const unsigned long HISTORY_UPDATE_INTERVAL = 900000; // 15 minutes for history snapshots
+unsigned long lastLatestUpdate = 0;
+unsigned long lastHistoryUpdate = 0;
+
 // Stepper Motor State
 int currentHeadPosition = 0;  // degrees
 bool headMovementPaused = false;  // Pause head during arm movement
@@ -178,8 +196,24 @@ void updateDeviceStatus() {
   }
 }
 
-void updateSensorData() {
+// Check if sensor values changed beyond thresholds
+bool sensorValuesChanged() {
+  if (abs(soilHumidity - lastSentHumidity) >= HUMIDITY_THRESHOLD) return true;
+  if (abs(soilTemperature - lastSentTemperature) >= TEMPERATURE_THRESHOLD) return true;
+  if (abs(soilConductivity - lastSentConductivity) >= CONDUCTIVITY_THRESHOLD) return true;
+  if (abs(soilPH - lastSentPH) >= PH_THRESHOLD) return true;
+  return false;
+}
+
+// Update "latest" sensor data - only if values changed
+void updateSensorDataSmart() {
   if (!firebaseConnected) return;
+
+  // Check if values changed beyond thresholds
+  if (!sensorValuesChanged()) {
+    Serial.println("📊 Sensor values unchanged, skipping update");
+    return;
+  }
 
   FirebaseJson json;
   json.set("fields/soilHumidity/doubleValue", soilHumidity);
@@ -195,9 +229,40 @@ void updateSensorData() {
   String path = "sensor_data/" + String(MAIN_DEVICE_ID);
 
   if (Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw(), "")) {
-    Serial.println("✅ Sensor data updated");
+    Serial.println("✅ Sensor data updated (values changed)");
+    // Update last sent values
+    lastSentHumidity = soilHumidity;
+    lastSentTemperature = soilTemperature;
+    lastSentConductivity = soilConductivity;
+    lastSentPH = soilPH;
   } else {
     Serial.println("❌ Sensor update failed: " + fbdo.errorReason());
+  }
+}
+
+// Save sensor history snapshot - always writes (every 15 min)
+void saveSensorHistory() {
+  if (!firebaseConnected) return;
+
+  Serial.println("📜 Saving sensor history snapshot...");
+
+  FirebaseJson json;
+  json.set("fields/soilHumidity/doubleValue", soilHumidity);
+  json.set("fields/soilTemperature/doubleValue", soilTemperature);
+  json.set("fields/soilConductivity/doubleValue", soilConductivity);
+  json.set("fields/ph/doubleValue", soilPH);
+  json.set("fields/currentTrack/integerValue", String(currentTrack));
+  json.set("fields/volume/integerValue", String(volumeLevel));
+  json.set("fields/headPosition/integerValue", String(currentHeadPosition));
+  json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
+  json.set("fields/timestamp/integerValue", String(millis()));
+
+  String path = "sensor_history/" + String(MAIN_DEVICE_ID);
+
+  if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+    Serial.println("✅ Sensor history saved!");
+  } else {
+    Serial.println("❌ History save failed: " + fbdo.errorReason());
   }
 }
 
@@ -1054,14 +1119,20 @@ void loop() {
 
   // Firebase operations
   if (firebaseConnected) {
-    // NEW: Check for Firebase commands
+    // Check for Firebase commands
     checkFirebaseCommands();
 
-    // Update device status
-    if (currentTime - lastFirebaseUpdate >= FIREBASE_UPDATE_INTERVAL) {
+    // Smart sensor update - every 60 sec, only if values changed
+    if (currentTime - lastLatestUpdate >= LATEST_UPDATE_INTERVAL) {
       updateDeviceStatus();
-      updateSensorData();
-      lastFirebaseUpdate = currentTime;
+      updateSensorDataSmart();
+      lastLatestUpdate = currentTime;
+    }
+
+    // History snapshot - every 15 min, always saves
+    if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
+      saveSensorHistory();
+      lastHistoryUpdate = currentTime;
     }
   }
 
