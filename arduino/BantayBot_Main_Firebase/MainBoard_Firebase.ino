@@ -996,7 +996,8 @@ void checkFirebaseCommands() {
               Serial.println("⚠️ Unknown command: " + action);
             }
 
-            // Mark as completed - get document name/id
+            // Delete command after execution to prevent race condition
+            // (Previously marked as "completed" but PWA deletion was slower than device polling)
             FirebaseJsonData nameData;
             docJson.get(nameData, "name");
             String docName = nameData.stringValue;
@@ -1006,12 +1007,13 @@ void checkFirebaseCommands() {
             String docId = docName.substring(lastSlash + 1);
             String completePath = path + "/" + docId;
 
-            FirebaseJson updateDoc;
-            updateDoc.set("fields/status/stringValue", "completed");
-            updateDoc.set("fields/completed_at/integerValue", String(millis()));
+            Serial.printf("🗑️ Deleting command: %s\n", completePath.c_str());
 
-            Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str(),
-                                           updateDoc.raw(), "status,completed_at");
+            if (Firebase.Firestore.deleteDocument(&fbdo, FIREBASE_PROJECT_ID, "", completePath.c_str())) {
+              Serial.println("✅ Command deleted successfully!");
+            } else {
+              Serial.println("❌ Failed to delete command: " + fbdo.errorReason());
+            }
           }
         }
       }
