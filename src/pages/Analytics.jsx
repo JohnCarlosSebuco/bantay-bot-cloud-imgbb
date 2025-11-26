@@ -215,7 +215,7 @@ export default function Analytics({ language }) {
   const recommendations = getRecommendations();
   const overallStatus = getOverallStatus(overallHealthScore);
 
-  // No Data State
+  // No Data State - still show Soil Health cards
   if (!cropData) {
     return (
       <div className="min-h-screen bg-secondary">
@@ -231,11 +231,133 @@ export default function Analytics({ language }) {
               </div>
             </div>
           </div>
-          <div className="px-3 sm:px-4 pb-10">
-            <div className="surface-primary rounded-2xl p-6 sm:p-8 text-center border border-primary">
-              <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🌾</div>
-              <h3 className="text-base sm:text-lg font-bold text-primary mb-2">{t.noData}</h3>
-              <p className="text-xs sm:text-sm text-secondary">{t.addCropInfo}</p>
+          <div className="px-3 sm:px-4 pb-10 space-y-3 sm:space-y-4">
+            {/* Soil Health Score Card */}
+            <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-4">
+                    <h3 className="text-base sm:text-lg font-bold text-primary">{language === 'tl' ? 'Kalusugan ng Lupa' : 'Soil Health'}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-${overallStatus.color}/20 text-${overallStatus.color}`}>
+                      {overallStatus.label}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(humidityScore).color}/20`}>
+                        <span className="text-sm sm:text-base">{'\u{1F4A7}'}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Halumigmig' : 'Humidity'}</div>
+                        <div className={`text-xs sm:text-sm font-semibold text-${getSensorStatus(humidityScore).color}`}>{getSensorStatus(humidityScore).label}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(temperatureScore).color}/20`}>
+                        <span className="text-sm sm:text-base">{'\u{1F321}'}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Temperatura' : 'Temperature'}</div>
+                        <div className={`text-xs sm:text-sm font-semibold text-${getSensorStatus(temperatureScore).color}`}>{getSensorStatus(temperatureScore).label}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(conductivityScore).color}/20`}>
+                        <span className="text-sm sm:text-base">{'\u{26A1}'}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Sustansya' : 'Nutrients'}</div>
+                        <div className={`text-xs sm:text-sm font-semibold text-${getSensorStatus(conductivityScore).color}`}>{getSensorStatus(conductivityScore).label}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(phScore).color}/20`}>
+                        <span className="text-sm sm:text-base">{'\u{1F9EA}'}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] sm:text-xs text-secondary truncate">pH Level</div>
+                        <div className={`text-xs sm:text-sm font-semibold text-${getSensorStatus(phScore).color}`}>{getSensorStatus(phScore).label}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-4 flex-shrink-0">
+                  <div className="relative w-20 h-20 sm:w-24 sm:h-24">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="8" className="text-gray-200 dark:text-gray-700" />
+                      <circle cx="50" cy="50" r="42" fill="none"
+                        stroke={overallHealthScore >= 60 ? '#22c55e' : overallHealthScore >= 40 ? '#eab308' : '#ef4444'}
+                        strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray={`${overallHealthScore * 2.64} ${100 * 2.64}`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className={`text-lg sm:text-xl font-bold text-${overallStatus.color}`}>{overallHealthScore}%</span>
+                      <span className="text-[8px] sm:text-[10px] text-secondary">{language === 'tl' ? 'Kalusugan' : 'Health'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Smart Recommendations Card */}
+            <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base sm:text-lg font-bold text-primary">{language === 'tl' ? 'Mga Rekomendasyon' : 'Recommendations'}</h3>
+                <span className={`px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold ${
+                  recommendations.length === 0 ? 'bg-success/20 text-success'
+                    : recommendations[0]?.priority === 'high' ? 'bg-error/20 text-error' : 'bg-warning/20 text-warning'
+                }`}>
+                  {recommendations.length === 0 ? (language === 'tl' ? 'Lahat OK' : 'All Good')
+                    : `${recommendations.length} ${language === 'tl' ? 'aksyon' : 'action'}${recommendations.length > 1 ? 's' : ''}`}
+                </span>
+              </div>
+              {recommendations.length === 0 ? (
+                <div className="text-center py-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl sm:text-3xl">{'\u{2705}'}</span>
+                  </div>
+                  <p className="text-sm sm:text-base font-semibold text-success mb-1">
+                    {language === 'tl' ? 'Lahat ng kondisyon ay optimal!' : 'All conditions are optimal!'}
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-secondary">
+                    {language === 'tl' ? 'Walang aksyon na kailangan' : 'No action needed at this time'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 sm:space-y-3">
+                  {recommendations.slice(0, 3).map((rec, index) => (
+                    <div key={index} className={`flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border-l-4 ${
+                      rec.priority === 'high' ? 'bg-error/5 border-error'
+                        : rec.priority === 'medium' ? 'bg-warning/5 border-warning' : 'bg-info/5 border-info'
+                    }`}>
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        rec.priority === 'high' ? 'bg-error/20' : rec.priority === 'medium' ? 'bg-warning/20' : 'bg-info/20'
+                      }`}>
+                        <span className="text-lg sm:text-xl">{rec.icon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs sm:text-sm font-semibold ${
+                          rec.priority === 'high' ? 'text-error' : rec.priority === 'medium' ? 'text-warning' : 'text-info'
+                        }`}>{rec.action}</p>
+                        <p className="text-[10px] sm:text-xs text-secondary truncate">{rec.reason}</p>
+                      </div>
+                      <div className={`px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold uppercase ${
+                        rec.priority === 'high' ? 'bg-error/20 text-error'
+                          : rec.priority === 'medium' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'
+                      }`}>
+                        {rec.priority === 'high' ? (language === 'tl' ? 'Mataas' : 'High')
+                          : rec.priority === 'medium' ? (language === 'tl' ? 'Katamtaman' : 'Med') : (language === 'tl' ? 'Mababa' : 'Low')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="pt-3 mt-3 border-t border-primary">
+                <p className="text-[10px] sm:text-xs text-secondary leading-relaxed">
+                  {language === 'tl' ? 'Batay sa real-time na datos ng sensor ng lupa.' : 'Based on real-time soil sensor data.'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
