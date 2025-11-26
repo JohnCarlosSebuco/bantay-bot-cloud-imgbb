@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import PredictionService from '../services/PredictionService';
 import CropDataService from '../services/CropDataService';
 import ConnectionManager from '../services/ConnectionManager';
+import FirebaseService from '../services/FirebaseService';
+import DeviceService from '../services/DeviceService';
+import { CONFIG } from '../config/config';
 
 export default function Analytics({ language }) {
   const [refreshing, setRefreshing] = useState(false);
@@ -64,7 +67,19 @@ export default function Analytics({ language }) {
   useEffect(() => {
     loadData();
 
-    // Listen for sensor data updates
+    // Initialize Firebase
+    const initServices = async () => {
+      try {
+        await FirebaseService.initialize();
+        console.log('Firebase ready for Analytics page');
+      } catch (error) {
+        console.warn('Firebase initialization warning:', error);
+      }
+    };
+
+    initServices();
+
+    // Listen for sensor data updates from ConnectionManager
     const handleData = (data) => {
       const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
       setSensorData({
@@ -76,6 +91,28 @@ export default function Analytics({ language }) {
     };
 
     ConnectionManager.onStatusUpdate(handleData);
+
+    // Subscribe to Firebase sensor data for real-time updates
+    const unsubscribeSensor = DeviceService.subscribeToSensorData(CONFIG.DEVICE_ID, (data) => {
+      if (data) {
+        console.log('📡 Firebase sensor data received on Analytics:', data);
+        const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
+        setSensorData(prev => ({
+          soilHumidity: safeNumber(data.soilHumidity, prev.soilHumidity),
+          soilTemperature: safeNumber(data.soilTemperature, prev.soilTemperature),
+          soilConductivity: safeNumber(data.soilConductivity, prev.soilConductivity),
+          ph: safeNumber(data.ph, prev.ph),
+        }));
+        setLastUpdated(new Date());
+      }
+    });
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      if (unsubscribeSensor) {
+        unsubscribeSensor();
+      }
+    };
   }, []);
 
   const loadData = async () => {
