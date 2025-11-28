@@ -296,14 +296,14 @@ export default function History({ language }) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Tab Button Component - Compact
+  // Tab Button Component - Readable for older users
   const TabButton = ({ label, icon, count, isActive, onClick }) => (
     <button
       onClick={onClick}
       className={`
         flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer
         ${isActive
-          ? 'bg-brand text-white shadow-md shadow-brand/20'
+          ? 'bg-brand text-white shadow-sm shadow-brand/20'
           : 'text-secondary hover:text-primary hover:bg-tertiary'
         }
       `}
@@ -411,7 +411,7 @@ export default function History({ language }) {
     );
   };
 
-  // Compact Sensor History Item Component
+  // Compact Sensor History Item Component - Readable for older users
   const SensorHistoryItem = ({ item, isLast, isFirst }) => {
     const humidityStatus = getSensorStatus('humidity', item.soilHumidity);
     const tempStatus = getSensorStatus('temperature', item.soilTemperature);
@@ -426,37 +426,37 @@ export default function History({ language }) {
     };
 
     return (
-      <div className={`px-2.5 py-1.5 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
+      <div className={`px-2.5 py-2 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
         {/* Compact Row Layout */}
         <div className="flex items-center gap-2">
           {/* Status Indicator */}
-          <div className={`w-1 h-8 rounded-full ${
+          <div className={`w-1 h-8 rounded-full flex-shrink-0 ${
             overallStatus === 'optimal' ? 'bg-success' : overallStatus === 'warning' ? 'bg-warning' : 'bg-error'
           }`} />
 
           {/* Time */}
           <div className="w-14 shrink-0">
-            <div className="text-[9px] font-semibold text-primary leading-tight">{formatTime(item.timestamp)}</div>
-            <div className="text-[8px] text-secondary">{formatDate(item.timestamp)}</div>
+            <div className="text-[11px] font-semibold text-primary leading-tight">{formatTime(item.timestamp)}</div>
+            <div className="text-[10px] text-secondary">{formatDate(item.timestamp)}</div>
           </div>
 
           {/* Sensor Values - Compact Grid */}
           <div className="flex-1 grid grid-cols-4 gap-1">
             <div className="text-center">
-              <div className="text-[8px] text-secondary leading-none">💧</div>
-              <div className={`text-[10px] font-bold leading-tight ${statusColors[humidityStatus]}`}>{item.soilHumidity?.toFixed(0)}%</div>
+              <div className="text-[10px] text-secondary leading-none">💧</div>
+              <div className={`text-xs font-bold leading-tight ${statusColors[humidityStatus]}`}>{item.soilHumidity?.toFixed(0)}%</div>
             </div>
             <div className="text-center">
-              <div className="text-[8px] text-secondary leading-none">🌡️</div>
-              <div className={`text-[10px] font-bold leading-tight ${statusColors[tempStatus]}`}>{item.soilTemperature?.toFixed(1)}°</div>
+              <div className="text-[10px] text-secondary leading-none">🌡️</div>
+              <div className={`text-xs font-bold leading-tight ${statusColors[tempStatus]}`}>{item.soilTemperature?.toFixed(1)}°</div>
             </div>
             <div className="text-center">
-              <div className="text-[8px] text-secondary leading-none">⚡</div>
-              <div className={`text-[10px] font-bold leading-tight ${statusColors[ecStatus]}`}>{item.soilConductivity?.toFixed(0)}</div>
+              <div className="text-[10px] text-secondary leading-none">⚡</div>
+              <div className={`text-xs font-bold leading-tight ${statusColors[ecStatus]}`}>{item.soilConductivity?.toFixed(0)}</div>
             </div>
             <div className="text-center">
-              <div className="text-[8px] text-secondary leading-none">🧪</div>
-              <div className={`text-[10px] font-bold leading-tight ${statusColors[phStatus]}`}>{item.ph?.toFixed(1)}</div>
+              <div className="text-[10px] text-secondary leading-none">🧪</div>
+              <div className={`text-xs font-bold leading-tight ${statusColors[phStatus]}`}>{item.ph?.toFixed(1)}</div>
             </div>
           </div>
         </div>
@@ -464,9 +464,9 @@ export default function History({ language }) {
     );
   };
 
-  // Compact Detection History Item Component
+  // Compact Detection History Item Component - Readable for older users
   const DetectionHistoryItem = ({ item, isLast }) => (
-    <div className={`px-2.5 py-1.5 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
+    <div className={`px-2.5 py-2 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
       <div className="flex items-center gap-2">
         {/* Thumbnail */}
         {item.imageUrl && (
@@ -488,14 +488,14 @@ export default function History({ language }) {
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-primary">{t.birdDetected}</span>
+            <span className="text-[11px] font-semibold text-primary">{t.birdDetected}</span>
             {item.triggered && (
-              <span className="px-1 py-0.5 rounded text-[7px] font-bold bg-warning/15 text-warning uppercase">
+              <span className="px-1 py-0.5 rounded text-[8px] font-bold bg-warning/15 text-warning uppercase">
                 {t.triggered}
               </span>
             )}
           </div>
-          <div className="text-[8px] text-secondary">
+          <div className="text-[10px] text-secondary">
             {formatTime(item.timestamp)} • {formatDate(item.timestamp)}
           </div>
         </div>
@@ -503,12 +503,12 @@ export default function History({ language }) {
         {/* Stats */}
         <div className="flex items-center gap-2 text-center">
           <div>
-            <div className="text-[7px] text-secondary">{t.size}</div>
-            <div className="text-[10px] font-bold text-primary">{item.birdSize?.toFixed(0) || 0}px</div>
+            <div className="text-[9px] text-secondary">{t.size}</div>
+            <div className="text-[11px] font-bold text-primary">{item.birdSize?.toFixed(0) || 0}px</div>
           </div>
           <div>
-            <div className="text-[7px] text-secondary">{t.confidence}</div>
-            <div className="text-[10px] font-bold text-success">{((item.confidence || 0) * 100).toFixed(0)}%</div>
+            <div className="text-[9px] text-secondary">{t.confidence}</div>
+            <div className="text-[11px] font-bold text-success">{((item.confidence || 0) * 100).toFixed(0)}%</div>
           </div>
         </div>
       </div>
@@ -566,11 +566,11 @@ export default function History({ language }) {
   const getSortLabel = () => sortOptions.find(o => o.value === sortOrder)?.label || t.newest;
 
   return (
-    <div className="bg-secondary flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
-      <div className="max-w-lg mx-auto w-full flex flex-col flex-1 overflow-hidden">
-        {/* Header - Consistent with Dashboard/Analytics */}
-        <div className="pt-3 sm:pt-4 pb-2 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
-          <div className="flex items-center mb-2 sm:mb-3">
+    <div className="bg-secondary flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 64px)' }}>
+      <div className="max-w-lg mx-auto w-full flex flex-col flex-1 overflow-hidden min-h-0">
+        {/* Header - Consistent with Dashboard/Controls */}
+        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
+          <div className="flex items-center mb-1 sm:mb-2">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
               <span className="text-xl sm:text-2xl">📋</span>
             </div>

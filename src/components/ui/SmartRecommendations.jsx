@@ -485,8 +485,8 @@ export default function SmartRecommendations({ sensorData, language }) {
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-        <div className="w-full max-w-md max-h-[85vh] overflow-y-auto surface-primary rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+        <div className="w-full max-w-md max-h-[70vh] sm:max-h-[75vh] overflow-y-auto surface-primary rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
           {/* Header */}
           <div className={`sticky top-0 z-10 p-4 rounded-t-2xl flex items-center justify-between border-b border-primary/20 ${
             recommendation.priority === 'high'

@@ -318,8 +318,8 @@ export default function Settings({ language, onLanguageChange }) {
   };
 
   // Section Header Component
-  const SectionHeader = ({ icon, title, color = 'brand' }) => (
-    <div className="flex items-center gap-2 mb-3 sm:mb-4 mt-5 sm:mt-8">
+  const SectionHeader = ({ icon, title, color = 'brand', first = false }) => (
+    <div className={`flex items-center gap-2 mb-2 sm:mb-3 ${first ? 'mt-0' : 'mt-4 sm:mt-6'}`}>
       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-${color}/20 flex items-center justify-center`}>
         <span className="text-sm sm:text-base">{icon}</span>
       </div>
@@ -345,7 +345,7 @@ export default function Settings({ language, onLanguageChange }) {
 
         <div className="px-3 sm:px-4">
           {/* Connection Settings Section */}
-          <SectionHeader icon="📡" title={txt.connectionSettings} color="info" />
+          <SectionHeader icon="📡" title={txt.connectionSettings} color="info" first={true} />
 
           <div className="space-y-2 sm:space-y-3">
             <InputCard

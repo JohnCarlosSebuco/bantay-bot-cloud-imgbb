@@ -211,8 +211,8 @@ export default function Controls({ language }) {
   );
 
   // Section Header Component
-  const SectionHeader = ({ icon, title, color = 'brand' }) => (
-    <div className="flex items-center gap-2 mb-2 sm:mb-3 mt-4 sm:mt-6">
+  const SectionHeader = ({ icon, title, color = 'brand', first = false }) => (
+    <div className={`flex items-center gap-2 mb-2 sm:mb-3 ${first ? 'mt-0' : 'mt-4 sm:mt-6'}`}>
       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-${color}/20 flex items-center justify-center`}>
         <span className="text-sm sm:text-base">{icon}</span>
       </div>
@@ -250,7 +250,7 @@ export default function Controls({ language }) {
           )}
 
           {/* Movement Controls */}
-          <SectionHeader icon="🦾" title={t.movementControls} color="brand" />
+          <SectionHeader icon="🦾" title={t.movementControls} color="brand" first={!lastCommand} />
           <div className="space-y-2 sm:space-y-3">
             <ControlBtn
               icon="🦾"
