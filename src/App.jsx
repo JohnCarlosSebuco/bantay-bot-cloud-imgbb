@@ -52,6 +52,17 @@ function ThemeToggle() {
   );
 }
 
+// ScrollToTop component - scrolls to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function Navigation({ language }) {
   const location = useLocation();
   const { isDark } = useTheme();
@@ -116,6 +127,7 @@ function AppContent() {
 
   return (
     <Router>
+      <ScrollToTop />
       <div className="min-h-screen bg-secondary pb-16 transition-colors duration-300">
         {/* <ThemeToggle /> */}
         <main className="animate-fade-in">
