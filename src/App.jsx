@@ -13,15 +13,29 @@ import BirdAnalytics from './pages/BirdAnalytics';
 import Reports from './pages/Reports';
 import { translations } from './i18n/translations';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { Home, Gamepad2, BarChart3, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 
-// Enhanced Icon component with better styling
-const Icon = ({ name, className, active }) => (
-  <span
-    className={`text-2xl transition-all duration-200 ${active ? 'scale-110' : ''} ${className}`}
-  >
-    {name}
-  </span>
-);
+// Navigation Icon Components Map
+const NavIcons = {
+  home: Home,
+  controls: Gamepad2,
+  analytics: BarChart3,
+  history: HistoryIcon,
+  settings: SettingsIcon,
+};
+
+// Enhanced Icon component with Lucide icons
+const NavIcon = ({ name, active, className }) => {
+  const IconComponent = NavIcons[name];
+  if (!IconComponent) return null;
+  return (
+    <IconComponent
+      size={24}
+      strokeWidth={active ? 2.5 : 2}
+      className={`transition-all duration-200 ${active ? 'scale-110' : ''} ${className}`}
+    />
+  );
+};
 
 // Theme Toggle Button - Modern Pill Design
 function ThemeToggle() {
@@ -38,7 +52,7 @@ function ThemeToggle() {
         flex items-center justify-center w-9 h-9 rounded-full transition-all duration-300
         ${!isDark ? 'bg-warning/20 scale-110' : 'opacity-50 scale-90'}
       `}>
-        <span className="text-lg">☀️</span>
+        <Sun size={18} className="text-warning" />
       </div>
 
       {/* Dark mode indicator */}
@@ -46,7 +60,7 @@ function ThemeToggle() {
         flex items-center justify-center w-9 h-9 rounded-full transition-all duration-300
         ${isDark ? 'bg-brand/20 scale-110' : 'opacity-50 scale-90'}
       `}>
-        <span className="text-lg">🌙</span>
+        <Moon size={18} className="text-brand" />
       </div>
     </button>
   );
@@ -69,11 +83,11 @@ function Navigation({ language }) {
   const t = translations[language];
 
   const navItems = [
-    { path: '/', label: t.dashboard, icon: '🏠' },
-    { path: '/controls', label: t.controls, icon: '🎮' },
-    { path: '/analytics', label: t.analytics, icon: '📊' },
-    { path: '/history', label: t.history, icon: '🕐' },
-    { path: '/settings', label: t.settings, icon: '⚙️' }
+    { path: '/', label: t.dashboard, icon: 'home' },
+    { path: '/controls', label: t.controls, icon: 'controls' },
+    { path: '/analytics', label: t.analytics, icon: 'analytics' },
+    { path: '/history', label: t.history, icon: 'history' },
+    { path: '/settings', label: t.settings, icon: 'settings' }
   ];
 
   return (
@@ -91,7 +105,7 @@ function Navigation({ language }) {
                   : 'text-secondary hover:text-primary hover:scale-102'
               }`}
             >
-              <Icon
+              <NavIcon
                 name={item.icon}
                 active={isActive}
                 className={isActive ? 'animate-scale-in' : ''}

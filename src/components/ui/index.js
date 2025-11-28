@@ -1,6 +1,7 @@
 // UI Component Library - BantayBot PWA
 // Export all reusable UI components
 
+export { Icon, Icons } from './Icon';
 export { default as SoilSensorCard } from './SoilSensorCard';
 export { default as AudioPlayerControl } from './AudioPlayerControl';
 export { default as ServoArmControl } from './ServoArmControl';

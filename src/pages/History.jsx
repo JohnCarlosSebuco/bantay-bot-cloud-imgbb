@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { ClipboardList, BarChart3, Bird, Droplets, Thermometer, Zap, FlaskConical, Calendar, Circle, ArrowUpDown, Search } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import DeviceService from '../services/DeviceService';
 
@@ -308,7 +309,7 @@ export default function History({ language }) {
         }
       `}
     >
-      <span className="text-sm">{icon}</span>
+      {icon}
       <span>{label}</span>
       {count > 0 && (
         <span className={`min-w-[18px] px-1 py-0.5 rounded-full text-[9px] font-bold text-center ${
@@ -344,7 +345,7 @@ export default function History({ language }) {
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
           className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-tertiary hover:bg-tertiary/80 text-[10px] font-medium text-primary transition-all cursor-pointer"
         >
-          {icon && <span className="text-[10px] opacity-60">{icon}</span>}
+          {icon && <span className="opacity-60">{icon}</span>}
           <span className="truncate max-w-[60px]">{value}</span>
           <svg className={`w-3 h-3 text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -443,19 +444,19 @@ export default function History({ language }) {
           {/* Sensor Values - Compact Grid */}
           <div className="flex-1 grid grid-cols-4 gap-1">
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">💧</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><Droplets size={12} className="text-blue-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[humidityStatus]}`}>{item.soilHumidity?.toFixed(0)}%</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">🌡️</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><Thermometer size={12} className="text-orange-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[tempStatus]}`}>{item.soilTemperature?.toFixed(1)}°</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">⚡</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><Zap size={12} className="text-yellow-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[ecStatus]}`}>{item.soilConductivity?.toFixed(0)}</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">🧪</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><FlaskConical size={12} className="text-purple-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[phStatus]}`}>{item.ph?.toFixed(1)}</div>
             </div>
           </div>
@@ -481,7 +482,7 @@ export default function History({ language }) {
         )}
         {!item.imageUrl && (
           <div className="w-10 h-10 rounded-lg bg-tertiary flex items-center justify-center flex-shrink-0">
-            <span className="text-sm opacity-50">🐦</span>
+            <Bird size={16} className="text-secondary opacity-50" />
           </div>
         )}
 
@@ -516,10 +517,10 @@ export default function History({ language }) {
   );
 
   // Empty State Component - Compact
-  const EmptyState = ({ icon, title, description, showClearFilters = false }) => (
+  const EmptyState = ({ icon: IconComponent, title, description, showClearFilters = false }) => (
     <div className="surface-primary rounded-xl p-6 text-center border border-primary">
       <div className="w-12 h-12 rounded-xl bg-tertiary flex items-center justify-center mx-auto mb-3">
-        <span className="text-2xl opacity-50">{icon}</span>
+        <IconComponent size={24} className="text-secondary opacity-50" />
       </div>
       <h3 className="text-sm font-bold text-primary mb-1">{title}</h3>
       <p className="text-[10px] text-secondary max-w-[200px] mx-auto">{description}</p>
@@ -572,7 +573,7 @@ export default function History({ language }) {
         <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
           <div className="flex items-center mb-1 sm:mb-2">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-              <span className="text-xl sm:text-2xl">📋</span>
+              <ClipboardList size={24} className="text-brand" />
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
@@ -584,14 +585,14 @@ export default function History({ language }) {
           <div className="flex gap-1.5 surface-primary p-1 rounded-xl border border-primary mb-2">
             <TabButton
               label={t.sensorHistory}
-              icon="📊"
+              icon={<BarChart3 size={14} />}
               count={sensorHistory.length}
               isActive={activeTab === 'sensor'}
               onClick={() => setActiveTab('sensor')}
             />
             <TabButton
               label={t.detectionHistory}
-              icon="🐦"
+              icon={<Bird size={14} />}
               count={detectionHistory.length}
               isActive={activeTab === 'detection'}
               onClick={() => setActiveTab('detection')}
@@ -607,7 +608,7 @@ export default function History({ language }) {
               isOpen={showDateDropdown}
               onToggle={() => { setShowDateDropdown(!showDateDropdown); setShowStatusDropdown(false); setShowSortDropdown(false); }}
               onChange={setDateFilter}
-              icon="📅"
+              icon={<Calendar size={10} />}
             />
             {activeTab === 'sensor' && (
               <Dropdown
@@ -617,7 +618,7 @@ export default function History({ language }) {
                 isOpen={showStatusDropdown}
                 onToggle={() => { setShowStatusDropdown(!showStatusDropdown); setShowDateDropdown(false); setShowSortDropdown(false); }}
                 onChange={setStatusFilter}
-                icon="🔘"
+                icon={<Circle size={10} />}
               />
             )}
             <Dropdown
@@ -627,7 +628,7 @@ export default function History({ language }) {
               isOpen={showSortDropdown}
               onToggle={() => { setShowSortDropdown(!showSortDropdown); setShowDateDropdown(false); setShowStatusDropdown(false); }}
               onChange={setSortOrder}
-              icon="↕️"
+              icon={<ArrowUpDown size={10} />}
             />
             <div className="flex-1 min-w-0" />
             {hasActiveFilters && (
@@ -650,13 +651,13 @@ export default function History({ language }) {
         <div className="px-3 sm:px-4 flex-1 overflow-hidden flex flex-col min-h-0 relative z-10">
           {rawData.length === 0 ? (
             <EmptyState
-              icon={activeTab === 'sensor' ? '📊' : '🐦'}
+              icon={activeTab === 'sensor' ? BarChart3 : Bird}
               title={activeTab === 'sensor' ? t.noSensorData : t.noDetectionData}
               description={activeTab === 'sensor' ? t.noSensorDataDesc : t.noDetectionDataDesc}
             />
           ) : isFiltered ? (
             <EmptyState
-              icon="🔍"
+              icon={Search}
               title={t.noFilterResults}
               description={language === 'tl' ? 'Subukang baguhin ang iyong mga filter.' : 'Try adjusting your filter criteria.'}
               showClearFilters

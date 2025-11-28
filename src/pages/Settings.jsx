@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { translations } from '../i18n/translations';
 import {
@@ -318,10 +319,10 @@ export default function Settings({ language, onLanguageChange }) {
   };
 
   // Section Header Component
-  const SectionHeader = ({ icon, title, color = 'brand', first = false }) => (
+  const SectionHeader = ({ icon: IconComponent, title, color = 'brand', first = false }) => (
     <div className={`flex items-center gap-2 mb-2 sm:mb-3 ${first ? 'mt-0' : 'mt-4 sm:mt-6'}`}>
       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-${color}/20 flex items-center justify-center`}>
-        <span className="text-sm sm:text-base">{icon}</span>
+        <IconComponent size={16} className={`text-${color}`} />
       </div>
       <h2 className="text-sm sm:text-base font-bold text-primary">{title}</h2>
     </div>
@@ -334,7 +335,7 @@ export default function Settings({ language, onLanguageChange }) {
         <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
           <div className="flex items-center mb-1 sm:mb-2">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-              <span className="text-xl sm:text-2xl">⚙️</span>
+              <SettingsIcon size={24} className="text-brand" />
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-primary">{txt.title}</h1>
@@ -345,7 +346,7 @@ export default function Settings({ language, onLanguageChange }) {
 
         <div className="px-3 sm:px-4">
           {/* Connection Settings Section */}
-          <SectionHeader icon="📡" title={txt.connectionSettings} color="info" first={true} />
+          <SectionHeader icon={Wifi} title={txt.connectionSettings} color="info" first={true} />
 
           <div className="space-y-2 sm:space-y-3">
             <InputCard
@@ -424,7 +425,7 @@ export default function Settings({ language, onLanguageChange }) {
           </div>
 
           {/* Speaker & Audio Section */}
-          <SectionHeader icon="🔊" title={txt.speakerAudio} color="warning" />
+          <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" />
           <SpeakerControl
             volume={config.volume}
             onVolumeChange={(value) => updateConfig('volume', value)}
@@ -433,7 +434,7 @@ export default function Settings({ language, onLanguageChange }) {
           />
 
           {/* App Preferences Section */}
-          <SectionHeader icon="📱" title={txt.appPreferences} color="brand" />
+          <SectionHeader icon={Smartphone} title={txt.appPreferences} color="brand" />
 
           <div className="space-y-2 sm:space-y-3">
             {/* Language Toggle */}
@@ -481,12 +482,12 @@ export default function Settings({ language, onLanguageChange }) {
           </div>
 
           {/* System Information Section */}
-          <SectionHeader icon="ℹ️" title={txt.systemInfo} color="success" />
+          <SectionHeader icon={Info} title={txt.systemInfo} color="success" />
 
           <div className="surface-primary rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-primary shadow-sm mb-4 sm:mb-6">
             <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center">
-                <span className="text-xl sm:text-2xl">🛡️</span>
+                <Shield size={24} className="text-brand" />
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-primary">{txt.aboutBantayBot}</h3>
             </div>
@@ -513,7 +514,7 @@ export default function Settings({ language, onLanguageChange }) {
               `}
             >
               <span className="flex items-center justify-center gap-2">
-                <span>✅</span>
+                <CheckCircle size={20} />
                 <span>{isLoading ? txt.saving : txt.saveSettings}</span>
               </span>
             </button>
@@ -523,7 +524,7 @@ export default function Settings({ language, onLanguageChange }) {
               className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-semibold text-sm sm:text-base surface-primary border-2 border-primary text-secondary hover:bg-tertiary transition-all cursor-pointer"
             >
               <span className="flex items-center justify-center gap-2">
-                <span>🔄</span>
+                <RefreshCw size={18} />
                 <span>{txt.resetDefaults}</span>
               </span>
             </button>
