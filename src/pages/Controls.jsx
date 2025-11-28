@@ -33,8 +33,6 @@ export default function Controls({ language }) {
       stopMovementDesc: 'Stop all motors',
       soundAlarm: 'Sound Alarm',
       soundAlarmDesc: 'Trigger audio alert',
-      testBuzzer: 'Test Buzzer',
-      testBuzzerDesc: 'Quick buzzer test',
       calibrateSensors: 'Calibrate',
       calibrateSensorsDesc: 'Recalibrate sensors',
       resetSystem: 'Reset',
@@ -62,8 +60,6 @@ export default function Controls({ language }) {
       stopMovementDesc: 'Ihinto ang motors',
       soundAlarm: 'Alarma',
       soundAlarmDesc: 'I-trigger ang tunog',
-      testBuzzer: 'Test Buzzer',
-      testBuzzerDesc: 'Mabilis na test',
       calibrateSensors: 'Calibrate',
       calibrateSensorsDesc: 'I-calibrate sensors',
       resetSystem: 'Reset',
@@ -94,7 +90,6 @@ export default function Controls({ language }) {
       MOVE_ARMS: t.moveArms,
       STOP_MOVEMENT: t.stopMovement,
       SOUND_ALARM: t.soundAlarm,
-      TEST_BUZZER: t.testBuzzer,
       RESET_SYSTEM: t.resetSystem,
       CALIBRATE_SENSORS: t.calibrateSensors
     };
@@ -117,9 +112,6 @@ export default function Controls({ language }) {
           break;
         case 'SOUND_ALARM':
           await CommandService.soundAlarm(CONFIG.DEVICE_ID);
-          break;
-        case 'TEST_BUZZER':
-          await CommandService.testBuzzer(CONFIG.DEVICE_ID);
           break;
         case 'RESET_SYSTEM':
           await CommandService.resetSystem(CONFIG.DEVICE_ID);
@@ -189,7 +181,7 @@ export default function Controls({ language }) {
       onClick={onClick}
       disabled={loading}
       className={`
-        relative w-full p-3 sm:p-4 rounded-xl border-2 transition-all duration-200 text-left
+        relative w-full p-4 sm:p-5 rounded-xl border-2 transition-all duration-200 text-left
         ${loading ? 'opacity-60 cursor-wait' : 'hover:shadow-md active:scale-[0.98] cursor-pointer'}
         ${danger
           ? 'bg-error/5 border-error/30 hover:bg-error/10 hover:border-error/50'
@@ -197,22 +189,22 @@ export default function Controls({ language }) {
         }
       `}
     >
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-3 sm:gap-4">
         <div className={`
-          w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0
+          w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center text-xl sm:text-2xl shrink-0
           ${danger ? 'bg-error/20' : `bg-${color}/20`}
           ${loading ? 'animate-pulse' : ''}
         `}>
           {loading ? '⏳' : icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className={`font-semibold text-xs sm:text-sm ${danger ? 'text-error' : 'text-primary'}`}>
+          <div className={`font-semibold text-sm sm:text-base ${danger ? 'text-error' : 'text-primary'}`}>
             {title}
           </div>
-          <div className="text-[10px] sm:text-xs text-secondary truncate">{desc}</div>
+          <div className="text-xs sm:text-sm text-secondary truncate">{desc}</div>
         </div>
-        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${danger ? 'bg-error/10' : 'bg-tertiary'}`}>
-          <span className="text-secondary text-xs sm:text-sm">→</span>
+        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${danger ? 'bg-error/10' : 'bg-tertiary'}`}>
+          <span className="text-secondary text-sm sm:text-base">→</span>
         </div>
       </div>
     </button>
@@ -294,14 +286,6 @@ export default function Controls({ language }) {
               onClick={() => executeCommand('SOUND_ALARM')}
               loading={loadingStates.SOUND_ALARM}
               color="error"
-            />
-            <ControlBtn
-              icon="🔔"
-              title={t.testBuzzer}
-              desc={t.testBuzzerDesc}
-              onClick={() => executeCommand('TEST_BUZZER')}
-              loading={loadingStates.TEST_BUZZER}
-              color="warning"
             />
           </div>
 
