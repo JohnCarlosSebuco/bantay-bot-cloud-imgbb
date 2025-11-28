@@ -16,3 +16,5 @@ export { default as ToggleCard } from './ToggleCard';
 export { default as ConnectionTestCard } from './ConnectionTestCard';
 export { default as ControlButton } from './ControlButton';
 export { default as HeadControlPanel } from './HeadControlPanel';
+export { default as SoilHealthCard } from './SoilHealthCard';
+export { default as SmartRecommendations } from './SmartRecommendations';
