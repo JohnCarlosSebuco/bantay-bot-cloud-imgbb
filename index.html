@@ -12,6 +12,42 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Version check - runs before app loads
+      (function() {
+        var APP_VERSION = '1.0.2';
+        var VERSION_KEY = 'bantaybot_app_version';
+        var stored = localStorage.getItem(VERSION_KEY);
+
+        if (stored !== APP_VERSION) {
+          console.log('New version detected: ' + APP_VERSION);
+          localStorage.setItem(VERSION_KEY, APP_VERSION);
+
+          // Clear caches
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) {
+                caches.delete(name);
+              });
+            });
+          }
+
+          // Unregister service workers
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              regs.forEach(function(reg) {
+                reg.unregister();
+              });
+            });
+          }
+
+          // Reload after small delay to ensure cleanup
+          setTimeout(function() {
+            location.reload(true);
+          }, 100);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
