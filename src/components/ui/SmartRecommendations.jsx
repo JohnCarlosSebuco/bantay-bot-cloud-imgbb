@@ -1,4 +1,15 @@
 import React, { useState } from 'react';
+import { Droplets, Thermometer, Snowflake, Leaf, Zap, FlaskConical, BookOpen, HelpCircle, CheckCircle, Lightbulb, BookMarked, Info, X } from 'lucide-react';
+
+// Icon mapping for recommendation types
+const IconMap = {
+  droplets: Droplets,
+  thermometer: Thermometer,
+  snowflake: Snowflake,
+  leaf: Leaf,
+  zap: Zap,
+  flask: FlaskConical,
+};
 
 export default function SmartRecommendations({ sensorData, language }) {
   const [selectedRecommendation, setSelectedRecommendation] = useState(null);
@@ -10,7 +21,8 @@ export default function SmartRecommendations({ sensorData, language }) {
     // Humidity recommendations
     if (sensorData.soilHumidity < 40) {
       recommendations.push({
-        icon: '💧',
+        icon: 'droplets',
+        iconColor: 'text-blue-500',
         action: language === 'tl' ? 'Diligan ang bukid' : 'Irrigate field',
         reason: language === 'tl' ? 'Tuyo ang lupa' : 'Soil is dry',
         priority: 'high',
@@ -18,7 +30,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       });
     } else if (sensorData.soilHumidity > 70) {
       recommendations.push({
-        icon: '🚰',
+        icon: 'droplets',
+        iconColor: 'text-blue-500',
         action: language === 'tl' ? 'Patubigan ang bukid' : 'Drain excess water',
         reason: language === 'tl' ? 'Sobrang basa' : 'Too wet',
         priority: 'medium',
@@ -29,7 +42,8 @@ export default function SmartRecommendations({ sensorData, language }) {
     // Temperature recommendations
     if (sensorData.soilTemperature > 30) {
       recommendations.push({
-        icon: '🌡️',
+        icon: 'thermometer',
+        iconColor: 'text-orange-500',
         action: language === 'tl' ? 'Maglagay ng pantakip' : 'Add mulch/shade',
         reason: language === 'tl' ? 'Mainit ang lupa' : 'Soil too hot',
         priority: 'medium',
@@ -37,7 +51,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       });
     } else if (sensorData.soilTemperature < 20) {
       recommendations.push({
-        icon: '❄️',
+        icon: 'snowflake',
+        iconColor: 'text-sky-400',
         action: language === 'tl' ? 'Protektahan sa lamig' : 'Protect from cold',
         reason: language === 'tl' ? 'Malamig ang lupa' : 'Soil too cold',
         priority: 'low',
@@ -48,7 +63,8 @@ export default function SmartRecommendations({ sensorData, language }) {
     // Conductivity recommendations
     if (sensorData.soilConductivity < 200) {
       recommendations.push({
-        icon: '🌿',
+        icon: 'leaf',
+        iconColor: 'text-green-500',
         action: language === 'tl' ? 'Maglagay ng pataba' : 'Apply fertilizer',
         reason: language === 'tl' ? 'Kulang sa sustansya' : 'Low nutrients',
         priority: 'medium',
@@ -56,7 +72,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       });
     } else if (sensorData.soilConductivity > 2000) {
       recommendations.push({
-        icon: '⚡',
+        icon: 'zap',
+        iconColor: 'text-yellow-500',
         action: language === 'tl' ? 'Bawasan ang pataba' : 'Reduce fertilizer',
         reason: language === 'tl' ? 'Sobrang sustansya' : 'High salinity',
         priority: 'medium',
@@ -67,7 +84,8 @@ export default function SmartRecommendations({ sensorData, language }) {
     // pH recommendations
     if (sensorData.ph < 5.5) {
       recommendations.push({
-        icon: '🧪',
+        icon: 'flask',
+        iconColor: 'text-purple-500',
         action: language === 'tl' ? 'Dagdagan ng calcium' : 'Add lime/calcium',
         reason: language === 'tl' ? 'Masyado asido' : 'Too acidic',
         priority: 'high',
@@ -75,7 +93,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       });
     } else if (sensorData.ph > 7.5) {
       recommendations.push({
-        icon: '🧪',
+        icon: 'flask',
+        iconColor: 'text-purple-500',
         action: language === 'tl' ? 'Maglagay ng sulfur' : 'Apply sulfur',
         reason: language === 'tl' ? 'Masyado alkaline' : 'Too alkaline',
         priority: 'medium',
@@ -499,7 +518,10 @@ export default function SmartRecommendations({ sensorData, language }) {
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                 recommendation.priority === 'high' ? 'bg-error/30' : recommendation.priority === 'medium' ? 'bg-warning/30' : 'bg-info/30'
               }`}>
-                <span className="text-2xl">{recommendation.icon}</span>
+                {(() => {
+                  const IconComponent = IconMap[recommendation.icon];
+                  return IconComponent ? <IconComponent size={24} className={recommendation.iconColor} /> : null;
+                })()}
               </div>
               <div>
                 <h2 className={`font-bold text-lg ${
@@ -515,7 +537,7 @@ export default function SmartRecommendations({ sensorData, language }) {
               </div>
             </div>
             <button onClick={onClose} className="w-8 h-8 rounded-full bg-tertiary flex items-center justify-center text-secondary hover:text-primary transition-colors">
-              <span className="text-lg">×</span>
+              <X size={18} />
             </button>
           </div>
 
@@ -540,7 +562,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             {/* What Is It */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-lg">📖</span>
+                <BookOpen size={18} className="text-brand" />
                 <h3 className="font-bold text-sm text-primary">{language === 'tl' ? 'Ano Ito?' : 'What Is This?'}</h3>
               </div>
               <p className="text-sm text-secondary leading-relaxed pl-7">{details.whatIsIt}</p>
@@ -549,7 +571,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             {/* Why Needed */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-lg">❓</span>
+                <HelpCircle size={18} className="text-warning" />
                 <h3 className="font-bold text-sm text-primary">{language === 'tl' ? 'Bakit Kailangan?' : 'Why Is It Needed?'}</h3>
               </div>
               <p className="text-sm text-secondary leading-relaxed pl-7">{details.whyNeeded}</p>
@@ -558,7 +580,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             {/* How To Do */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-lg">✅</span>
+                <CheckCircle size={18} className="text-success" />
                 <h3 className="font-bold text-sm text-primary">{language === 'tl' ? 'Ano ang Gagawin?' : 'What To Do?'}</h3>
               </div>
               <div className="pl-7 space-y-2">
@@ -576,7 +598,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             {/* Tips */}
             <div className="p-3 rounded-xl bg-success/10 border border-success/20">
               <div className="flex items-start gap-2">
-                <span className="text-lg">💡</span>
+                <Lightbulb size={18} className="text-success flex-shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-sm text-success mb-1">{language === 'tl' ? 'Tip' : 'Tip'}</h3>
                   <p className="text-sm text-success/80 leading-relaxed">{details.tips}</p>
@@ -588,7 +610,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             {details.reference && (
               <div className="p-3 rounded-xl bg-info/10 border border-info/20">
                 <div className="flex items-start gap-2">
-                  <span className="text-lg">📚</span>
+                  <BookMarked size={18} className="text-info flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-sm text-info mb-1">{language === 'tl' ? 'Batay sa Pag-aaral' : 'Scientific Reference'}</h3>
                     <p className="text-sm text-info/80 leading-relaxed mb-2">"{details.reference.study}"</p>
@@ -650,7 +672,7 @@ export default function SmartRecommendations({ sensorData, language }) {
         {recommendations.length === 0 ? (
           <div className="text-center py-4">
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl sm:text-3xl">✅</span>
+              <CheckCircle size={28} className="text-success" />
             </div>
             <p className="text-sm sm:text-base font-semibold text-success mb-1">
               {language === 'tl' ? 'Lahat ng kondisyon ay optimal!' : 'All conditions are optimal!'}
@@ -679,7 +701,10 @@ export default function SmartRecommendations({ sensorData, language }) {
                       ? 'bg-warning/20'
                       : 'bg-info/20'
                 }`}>
-                  <span className="text-lg sm:text-xl">{rec.icon}</span>
+                  {(() => {
+                    const IconComponent = IconMap[rec.icon];
+                    return IconComponent ? <IconComponent size={20} className={rec.iconColor} /> : null;
+                  })()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs sm:text-sm font-semibold ${
@@ -697,7 +722,7 @@ export default function SmartRecommendations({ sensorData, language }) {
                   }`}
                   title={language === 'tl' ? 'Karagdagang impormasyon' : 'More info'}
                 >
-                  <span className="text-sm">ℹ️</span>
+                  <Info size={16} className={rec.priority === 'high' ? 'text-error' : rec.priority === 'medium' ? 'text-warning' : 'text-info'} />
                 </button>
               </div>
             ))}

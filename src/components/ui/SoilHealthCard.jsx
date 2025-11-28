@@ -1,4 +1,5 @@
 import React from 'react';
+import { Droplets, Thermometer, Zap, FlaskConical } from 'lucide-react';
 
 export default function SoilHealthCard({ sensorData, language }) {
   // Soil Health Calculation Functions
@@ -50,7 +51,7 @@ export default function SoilHealthCard({ sensorData, language }) {
             {/* Humidity */}
             <div className="flex items-center gap-2">
               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(humidityScore).color}/20`}>
-                <span className="text-sm sm:text-base">💧</span>
+                <Droplets size={16} className="text-blue-500" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Halumigmig' : 'Humidity'}</div>
@@ -60,7 +61,7 @@ export default function SoilHealthCard({ sensorData, language }) {
             {/* Temperature */}
             <div className="flex items-center gap-2">
               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(temperatureScore).color}/20`}>
-                <span className="text-sm sm:text-base">🌡️</span>
+                <Thermometer size={16} className="text-orange-500" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Temperatura' : 'Temperature'}</div>
@@ -70,7 +71,7 @@ export default function SoilHealthCard({ sensorData, language }) {
             {/* Conductivity */}
             <div className="flex items-center gap-2">
               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(conductivityScore).color}/20`}>
-                <span className="text-sm sm:text-base">⚡</span>
+                <Zap size={16} className="text-yellow-500" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Sustansya' : 'Nutrients'}</div>
@@ -80,7 +81,7 @@ export default function SoilHealthCard({ sensorData, language }) {
             {/* pH */}
             <div className="flex items-center gap-2">
               <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-${getSensorStatus(phScore).color}/20`}>
-                <span className="text-sm sm:text-base">🧪</span>
+                <FlaskConical size={16} className="text-purple-500" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs text-secondary truncate">pH Level</div>
