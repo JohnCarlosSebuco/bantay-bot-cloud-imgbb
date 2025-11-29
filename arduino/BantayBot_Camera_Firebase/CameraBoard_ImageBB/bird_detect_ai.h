@@ -16,7 +16,7 @@
 // AI FEATURE FLAG
 // Set to false to disable AI completely
 // ============================================
-#define AI_ENABLED false  // Start disabled, enable after testing
+#define AI_ENABLED true  // AI bird detection enabled
 
 // AI confidence threshold (0.0 - 1.0)
 // Detections below this are considered "not a bird"
