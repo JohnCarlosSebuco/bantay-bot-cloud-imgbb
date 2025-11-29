@@ -4,7 +4,10 @@
  * This is an ADD-ON to existing motion detection.
  * Set AI_ENABLED to false to completely disable AI features.
  *
- * Model: bird_model_small.h (16.8KB TFLite)
+ * Models available:
+ * - bird_model_small.h (16.8KB) - Faster, less memory, good accuracy
+ * - bird_model.h (49.7KB) - More accurate, requires more memory
+ *
  * Input: 64x64 grayscale image
  * Output: [not_bird, bird] confidence scores
  */
@@ -13,10 +16,16 @@
 #define BIRD_DETECT_AI_H
 
 // ============================================
-// AI FEATURE FLAG
-// Set to false to disable AI completely
+// AI CONFIGURATION
 // ============================================
-#define AI_ENABLED true  // AI bird detection enabled
+
+// Set to false to disable AI completely
+#define AI_ENABLED true
+
+// Model selection: true = small (16.8KB), false = normal (49.7KB)
+// Small model: faster inference, less memory (~40KB arena)
+// Normal model: better accuracy, more memory (~60KB arena)
+#define USE_SMALL_MODEL true
 
 // AI confidence threshold (0.0 - 1.0)
 // Detections below this are considered "not a bird"
@@ -28,15 +37,26 @@
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
-#include "bird_model_small.h"  // 16.8KB TFLite model
+
+// Load only ONE model based on selection
+#if USE_SMALL_MODEL
+  #include "bird_model_small.h"  // 16.8KB TFLite model
+  #define MODEL_DATA bird_model_small_tflite
+  #define MODEL_DATA_LEN bird_model_small_tflite_len
+  #define MODEL_NAME "small (16.8KB)"
+  constexpr int kTensorArenaSize = 40 * 1024;  // 40KB for small model
+#else
+  #include "bird_model.h"  // 49.7KB TFLite model
+  #define MODEL_DATA bird_model_tflite
+  #define MODEL_DATA_LEN bird_model_tflite_len
+  #define MODEL_NAME "normal (49.7KB)"
+  constexpr int kTensorArenaSize = 60 * 1024;  // 60KB for normal model
+#endif
 
 // Model input dimensions (adjust based on your trained model)
 #define AI_INPUT_WIDTH  64
 #define AI_INPUT_HEIGHT 64
 
-// Tensor arena size - memory for TFLite operations
-// 40KB should be sufficient for the small model
-constexpr int kTensorArenaSize = 40 * 1024;
 alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 
 // TFLite objects (static to persist across calls)
@@ -53,10 +73,10 @@ static bool ai_initialized = false;
  */
 bool initBirdAI() {
   Serial.println("=== Initializing Bird AI ===");
-  Serial.printf("Model size: %d bytes\n", bird_model_small_tflite_len);
+  Serial.printf("Model: %s (%d bytes)\n", MODEL_NAME, MODEL_DATA_LEN);
 
   // Load model from flash
-  model = tflite::GetModel(bird_model_small_tflite);
+  model = tflite::GetModel(MODEL_DATA);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     Serial.printf("Model version mismatch! Expected %d, got %d\n",
                   TFLITE_SCHEMA_VERSION, model->version());
