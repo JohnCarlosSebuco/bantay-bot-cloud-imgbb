@@ -518,7 +518,7 @@ export default function Settings({ language, onLanguageChange }) {
               </span>
             </button>
 
-            <button
+{/*             <button
               onClick={resetToDefaults}
               className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-semibold text-sm sm:text-base surface-primary border-2 border-primary text-secondary hover:bg-tertiary transition-all cursor-pointer"
             >
@@ -526,7 +526,7 @@ export default function Settings({ language, onLanguageChange }) {
                 <span>🔄</span>
                 <span>{txt.resetDefaults}</span>
               </span>
-            </button>
+            </button> */}
           </div>
         </div>
       </div>

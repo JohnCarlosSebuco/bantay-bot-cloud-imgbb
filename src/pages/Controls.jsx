@@ -302,7 +302,7 @@ export default function Controls({ language }) {
           />
 
           {/* System Controls */}
-          <SectionHeader icon="⚙️" title={t.systemControls} color="success" />
+          {/* <SectionHeader icon="⚙️" title={t.systemControls} color="success" />
           <div className="space-y-2 sm:space-y-3">
             <ControlBtn
               icon="🔧"
@@ -320,7 +320,7 @@ export default function Controls({ language }) {
               loading={loadingStates.RESET_SYSTEM}
               color="info"
             />
-          </div>
+          </div> */}
 
           {/* Emergency Stop */}
           <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-error/5 border-2 border-error/30">
