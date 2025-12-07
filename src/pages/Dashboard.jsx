@@ -5,6 +5,7 @@ import {
   SoilHealthCard,
   SmartRecommendations,
 } from '../components/ui';
+import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2 } from 'lucide-react';
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
 import FirebaseService from '../services/FirebaseService';
@@ -222,7 +223,7 @@ export default function Dashboard({ language }) {
   };
 
   // Quick Action Button Component - Compact for 3-column layout
-  const QuickActionButton = ({ icon, title, subtitle, onClick, loading, color = 'brand' }) => (
+  const QuickActionButton = ({ icon: IconComponent, title, subtitle, onClick, loading, color = 'brand' }) => (
     <button
       onClick={onClick}
       disabled={loading}
@@ -238,11 +239,11 @@ export default function Dashboard({ language }) {
       )}
       <div className="flex flex-col items-center text-center gap-1 sm:gap-2">
         <div className={`
-          w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-xl sm:text-2xl
+          w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center
           bg-${color}/20
           ${loading ? 'animate-pulse' : ''}
         `}>
-          {loading ? '⏳' : icon}
+          {loading ? <Loader2 size={24} className="animate-spin" /> : <IconComponent size={24} />}
         </div>
         <div>
           <div className="font-bold text-xs sm:text-sm text-primary">
@@ -255,9 +256,9 @@ export default function Dashboard({ language }) {
   );
 
   // Section Header Component
-  const SectionHeader = ({ icon, title }) => (
+  const SectionHeader = ({ icon: IconComponent, title }) => (
     <div className="flex items-center gap-2 mb-3 sm:mb-4">
-      <span className="text-base sm:text-lg">{icon}</span>
+      <IconComponent size={20} className="text-brand" />
       <h2 className="text-base sm:text-lg font-bold text-primary">{title}</h2>
     </div>
   );
@@ -271,7 +272,7 @@ export default function Dashboard({ language }) {
             <div className="flex-1">
               <div className="flex items-center mb-1 sm:mb-2">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-                  <span className="text-xl sm:text-2xl">🛡️</span>
+                  <Shield size={24} className="text-brand" />
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
@@ -301,7 +302,7 @@ export default function Dashboard({ language }) {
             <div className="surface-primary rounded-xl p-3 sm:p-4 shadow-sm border border-primary">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-warning/20 flex items-center justify-center">
-                  <span className="text-lg sm:text-xl">🐦</span>
+                  <Bird size={22} className="text-warning" />
                 </div>
                 <div>
                   <div className="text-xl sm:text-2xl font-bold text-primary">{sensorData.birdsDetectedToday}</div>
@@ -314,7 +315,7 @@ export default function Dashboard({ language }) {
             <div className="surface-primary rounded-xl p-3 sm:p-4 shadow-sm border border-primary">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-info/20 flex items-center justify-center">
-                  <span className="text-lg sm:text-xl">🕐</span>
+                  <Clock size={22} className="text-info" />
                 </div>
                 <div>
                   <div className="text-base sm:text-lg font-bold text-primary">{formatTime(lastUpdate)}</div>
@@ -329,7 +330,7 @@ export default function Dashboard({ language }) {
           {/* Soil Sensor Section */}
           {sensorData.hasRS485Sensor && (
             <div className="mb-4 sm:mb-6">
-              <SectionHeader icon="🌱" title={t.soilConditions} />
+              <SectionHeader icon={Sprout} title={t.soilConditions} />
               <SoilSensorCard
                 humidity={sensorData.soilHumidity}
                 temperature={sensorData.soilTemperature}
@@ -342,10 +343,10 @@ export default function Dashboard({ language }) {
 
           {/* Quick Controls Section */}
           <div className="mb-4 sm:mb-6">
-            <SectionHeader icon="⚡" title={t.quickControls} />
+            <SectionHeader icon={Zap} title={t.quickControls} />
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <QuickActionButton
-                icon="🦾"
+                icon={Cog}
                 title={t.moveArms}
                 subtitle={t.moveArmsDesc}
                 onClick={handleMoveArms}
@@ -353,7 +354,7 @@ export default function Dashboard({ language }) {
                 color="brand"
               />
               <QuickActionButton
-                icon="🔄"
+                icon={RefreshCw}
                 title={t.moveHead}
                 subtitle={t.moveHeadDesc}
                 onClick={handleMoveHead}
@@ -361,7 +362,7 @@ export default function Dashboard({ language }) {
                 color="info"
               />
               <QuickActionButton
-                icon="🔊"
+                icon={Volume2}
                 title={t.soundAlarm}
                 subtitle={t.soundAlarmDesc}
                 onClick={handleSoundAlarm}
