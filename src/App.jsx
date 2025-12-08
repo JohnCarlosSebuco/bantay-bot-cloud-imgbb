@@ -13,6 +13,7 @@ import BirdAnalytics from './pages/BirdAnalytics';
 import Reports from './pages/Reports';
 import { translations } from './i18n/translations';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { VolumeProvider } from './contexts/VolumeContext';
 import { Home, Gamepad2, BarChart3, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 
 // Navigation Icon Components Map
@@ -167,11 +168,13 @@ function AppContent() {
   );
 }
 
-// Main App component with Theme Provider
+// Main App component with Theme and Volume Providers
 function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <VolumeProvider>
+        <AppContent />
+      </VolumeProvider>
     </ThemeProvider>
   );
 }

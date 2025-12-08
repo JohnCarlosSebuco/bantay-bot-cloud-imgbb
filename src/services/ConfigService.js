@@ -17,8 +17,8 @@ class ConfigService {
       useMDNS: false,
       connectionTimeout: 5000,
 
-      // Audio Settings
-      volume: 1.0,
+      // Audio Settings (volume is 0-100, managed by VolumeContext)
+      volume: 70,
       isMuted: false,
 
       // App Preferences
@@ -182,9 +182,9 @@ class ConfigService {
       errors.push('Update interval must be at least 100ms');
     }
 
-    // Validate volume
-    if (config.volume !== undefined && (config.volume < 0 || config.volume > 1)) {
-      errors.push('Volume must be between 0 and 1');
+    // Validate volume (0-100 range)
+    if (config.volume !== undefined && (config.volume < 0 || config.volume > 100)) {
+      errors.push('Volume must be between 0 and 100');
     }
 
     return {
