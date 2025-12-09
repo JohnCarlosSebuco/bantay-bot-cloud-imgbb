@@ -52,6 +52,49 @@ unsigned long lastFirebaseUpdate = 0;
 unsigned long lastCommandCheck = 0;
 
 // ===========================
+// WiFi State Management (Offline/Online Mode)
+// ===========================
+enum WiFiState { WIFI_DISCONNECTED, WIFI_CONNECTING, WIFI_CONNECTED, WIFI_NO_INTERNET };
+WiFiState wifiState = WIFI_DISCONNECTED;
+unsigned long lastWiFiReconnectAttempt = 0;
+const unsigned long WIFI_CONNECT_TIMEOUT = 30000;    // 30 sec initial connection timeout
+const unsigned long WIFI_RECONNECT_INTERVAL = 60000; // 60 sec between reconnect attempts
+const unsigned long WIFI_RECONNECT_TIMEOUT = 10000;  // 10 sec per reconnect attempt
+bool hasInternetAccess = false;
+bool ntpSynced = false;
+
+// ===========================
+// Offline Data Queue - Memory Safe Design
+// ===========================
+#define MAX_SENSOR_QUEUE 10  // 10 readings max (~240 bytes total)
+struct SensorReading {
+    uint32_t timestamp;       // 4 bytes - Unix timestamp
+    int16_t temperature;      // 2 bytes - temp * 10 (25.5°C = 255)
+    int16_t humidity;         // 2 bytes - humidity * 10
+    int16_t soilMoisture;     // 2 bytes - moisture * 10
+    int16_t soilTemp;         // 2 bytes - soil temp * 10
+    int16_t soilPH;           // 2 bytes - pH * 100 (6.5 = 650)
+    int16_t soilConductivity; // 2 bytes - µS/cm
+    uint8_t flags;            // 1 byte - bit 0: synced
+};  // ~17 bytes per reading, padded to ~20 bytes
+SensorReading sensorQueue[MAX_SENSOR_QUEUE];
+uint8_t sensorQueueHead = 0;
+uint8_t sensorQueueTail = 0;
+uint8_t sensorQueueCount = 0;
+
+#define MAX_DETECTION_QUEUE 10  // 10 events max (~80 bytes total)
+struct DetectionEvent {
+    uint32_t timestamp;       // 4 bytes
+    int16_t birdSize;         // 2 bytes
+    int8_t confidence;        // 1 byte (0-100)
+    uint8_t flags;            // 1 byte - bit 0: synced
+};  // 8 bytes per event
+DetectionEvent detectionQueue[MAX_DETECTION_QUEUE];
+uint8_t detectionQueueHead = 0;
+uint8_t detectionQueueTail = 0;
+uint8_t detectionQueueCount = 0;
+
+// ===========================
 // ImageBB Configuration (for Camera proxy)
 // ===========================
 const char *IMGBB_API_KEY = "3e8d9f103a965f49318d117decbedd77";
@@ -183,6 +226,294 @@ void initializeFirebase() {
   }
 }
 
+// ===========================
+// WiFi Connection Management (Offline/Online Mode)
+// ===========================
+
+// Non-blocking WiFi connection with timeout
+bool tryConnectWiFi(unsigned long timeout) {
+    Serial.println("📶 Attempting WiFi connection...");
+    wifiState = WIFI_CONNECTING;
+
+    // Clean disconnect first to avoid stuck states
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+    WiFi.mode(WIFI_STA);
+    delay(100);
+
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    unsigned long startTime = millis();
+
+    while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - startTime > timeout) {
+            Serial.println("\n⚠️ WiFi timeout - continuing in OFFLINE MODE");
+            WiFi.disconnect(true);
+            wifiState = WIFI_DISCONNECTED;
+            return false;
+        }
+
+        // Check for specific failure states
+        wl_status_t status = WiFi.status();
+        if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
+            Serial.printf("\n❌ WiFi failed (status: %d)\n", status);
+            wifiState = WIFI_DISCONNECTED;
+            return false;
+        }
+
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println("\n✅ WiFi connected!");
+    Serial.printf("📍 IP: %s, RSSI: %d dBm\n",
+                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
+    wifiState = WIFI_CONNECTED;
+    return true;
+}
+
+// Check if internet is available (quick HTTP test)
+bool checkInternetAccess() {
+    if (WiFi.status() != WL_CONNECTED) {
+        hasInternetAccess = false;
+        return false;
+    }
+
+    HTTPClient http;
+    http.begin("http://www.google.com");
+    http.setTimeout(5000);
+    int httpCode = http.GET();
+    http.end();
+
+    hasInternetAccess = (httpCode > 0);
+
+    if (hasInternetAccess) {
+        Serial.println("🌐 Internet access confirmed");
+        wifiState = WIFI_CONNECTED;
+    } else {
+        Serial.println("⚠️ No internet - local network only");
+        wifiState = WIFI_NO_INTERNET;
+    }
+
+    return hasInternetAccess;
+}
+
+// NTP time sync with fallback
+void syncNTP() {
+    Serial.println("🕐 Syncing time with NTP server...");
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+    struct tm timeinfo;
+    int retries = 0;
+    while (!getLocalTime(&timeinfo) && retries < 10) {
+        delay(500);
+        retries++;
+    }
+
+    if (retries < 10) {
+        ntpSynced = true;
+        char timeStr[50];
+        strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
+        Serial.printf("✅ Time synced: %s\n", timeStr);
+    } else {
+        ntpSynced = false;
+        Serial.println("⚠️ NTP sync failed, using millis() fallback");
+    }
+}
+
+// Get timestamp (NTP time if synced, else millis-based)
+uint32_t getCurrentTimestamp() {
+    if (ntpSynced) {
+        return (uint32_t)time(nullptr);
+    } else {
+        // Return millis/1000 as a pseudo-timestamp (seconds since boot)
+        return (uint32_t)(millis() / 1000);
+    }
+}
+
+// Queue sensor reading when offline
+bool queueSensorReading(float temp, float hum, float soilM, float soilT, float pH, float cond) {
+    if (sensorQueueCount >= MAX_SENSOR_QUEUE) {
+        // Queue full - overwrite oldest (circular buffer)
+        sensorQueueTail = (sensorQueueTail + 1) % MAX_SENSOR_QUEUE;
+        sensorQueueCount--;
+        Serial.println("📊 Sensor queue full - dropping oldest");
+    }
+
+    SensorReading* reading = &sensorQueue[sensorQueueHead];
+    reading->timestamp = getCurrentTimestamp();
+    reading->temperature = (int16_t)(temp * 10);      // 25.5 -> 255
+    reading->humidity = (int16_t)(hum * 10);
+    reading->soilMoisture = (int16_t)(soilM * 10);
+    reading->soilTemp = (int16_t)(soilT * 10);
+    reading->soilPH = (int16_t)(pH * 100);            // 6.5 -> 650
+    reading->soilConductivity = (int16_t)cond;
+    reading->flags = 0;  // Not synced
+
+    sensorQueueHead = (sensorQueueHead + 1) % MAX_SENSOR_QUEUE;
+    sensorQueueCount++;
+
+    Serial.printf("📊 Sensor queued (%d/%d)\n", sensorQueueCount, MAX_SENSOR_QUEUE);
+    return true;
+}
+
+// Queue detection event when offline
+bool queueDetectionEvent(int birdSize, int confidence) {
+    if (detectionQueueCount >= MAX_DETECTION_QUEUE) {
+        // Queue full - overwrite oldest
+        detectionQueueTail = (detectionQueueTail + 1) % MAX_DETECTION_QUEUE;
+        detectionQueueCount--;
+        Serial.println("🐦 Detection queue full - dropping oldest");
+    }
+
+    DetectionEvent* event = &detectionQueue[detectionQueueHead];
+    event->timestamp = getCurrentTimestamp();
+    event->birdSize = (int16_t)birdSize;
+    event->confidence = (int8_t)confidence;
+    event->flags = 0;  // Not synced
+
+    detectionQueueHead = (detectionQueueHead + 1) % MAX_DETECTION_QUEUE;
+    detectionQueueCount++;
+
+    Serial.printf("🐦 Detection queued (%d/%d)\n", detectionQueueCount, MAX_DETECTION_QUEUE);
+    return true;
+}
+
+// Sync queued sensor data to Firebase
+bool syncQueuedSensorData() {
+    if (!firebaseConnected || sensorQueueCount == 0) return false;
+
+    Serial.printf("📤 Syncing %d queued sensor readings...\n", sensorQueueCount);
+    int synced = 0;
+
+    while (sensorQueueCount > 0) {
+        // Check memory before operation
+        if (ESP.getFreeHeap() < 15000) {
+            Serial.println("⚠️ Low memory - pausing sync");
+            break;
+        }
+
+        SensorReading* reading = &sensorQueue[sensorQueueTail];
+
+        FirebaseJson json;
+        json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
+        json.set("fields/timestamp/integerValue", String((uint64_t)reading->timestamp * 1000LL));
+        json.set("fields/temperature/doubleValue", reading->temperature / 10.0);
+        json.set("fields/humidity/doubleValue", reading->humidity / 10.0);
+        json.set("fields/soilMoisture/doubleValue", reading->soilMoisture / 10.0);
+        json.set("fields/soilTemp/doubleValue", reading->soilTemp / 10.0);
+        json.set("fields/soilPH/doubleValue", reading->soilPH / 100.0);
+        json.set("fields/soilConductivity/doubleValue", (double)reading->soilConductivity);
+        json.set("fields/queued/booleanValue", true);  // Mark as queued data
+
+        String path = "sensor_history";
+        if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+            synced++;
+            sensorQueueTail = (sensorQueueTail + 1) % MAX_SENSOR_QUEUE;
+            sensorQueueCount--;
+        } else {
+            Serial.printf("❌ Sync failed: %s\n", fbdo.errorReason().c_str());
+            break;  // Stop on failure, retry next cycle
+        }
+
+        delay(100);  // Rate limit Firebase calls
+    }
+
+    Serial.printf("✅ Synced %d sensor readings, %d remaining\n", synced, sensorQueueCount);
+    return synced > 0;
+}
+
+// Sync queued detection events to Firebase
+bool syncQueuedDetections() {
+    if (!firebaseConnected || detectionQueueCount == 0) return false;
+
+    Serial.printf("📤 Syncing %d queued detections...\n", detectionQueueCount);
+    int synced = 0;
+
+    while (detectionQueueCount > 0) {
+        if (ESP.getFreeHeap() < 15000) {
+            Serial.println("⚠️ Low memory - pausing sync");
+            break;
+        }
+
+        DetectionEvent* event = &detectionQueue[detectionQueueTail];
+
+        FirebaseJson json;
+        json.set("fields/deviceId/stringValue", CAMERA_DEVICE_ID);
+        json.set("fields/timestamp/integerValue", String((uint64_t)event->timestamp * 1000LL));
+        json.set("fields/birdSize/integerValue", String(event->birdSize));
+        json.set("fields/confidence/integerValue", String(event->confidence));
+        json.set("fields/imageUrl/stringValue", "");  // No image for queued detections
+        json.set("fields/triggered/booleanValue", true);
+        json.set("fields/queued/booleanValue", true);  // Mark as queued data
+
+        String path = "detection_history";
+        if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+            synced++;
+            detectionQueueTail = (detectionQueueTail + 1) % MAX_DETECTION_QUEUE;
+            detectionQueueCount--;
+        } else {
+            Serial.printf("❌ Sync failed: %s\n", fbdo.errorReason().c_str());
+            break;
+        }
+
+        delay(100);
+    }
+
+    Serial.printf("✅ Synced %d detections, %d remaining\n", synced, detectionQueueCount);
+    return synced > 0;
+}
+
+// Background WiFi reconnection handler (call from loop)
+void handleWiFiReconnection() {
+    unsigned long now = millis();
+
+    // If connected, periodically verify connection
+    if (wifiState == WIFI_CONNECTED || wifiState == WIFI_NO_INTERNET) {
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("📶 WiFi connection lost!");
+            wifiState = WIFI_DISCONNECTED;
+            firebaseConnected = false;
+            hasInternetAccess = false;
+        }
+        return;
+    }
+
+    // If disconnected, try to reconnect periodically
+    if (wifiState == WIFI_DISCONNECTED) {
+        if (now - lastWiFiReconnectAttempt > WIFI_RECONNECT_INTERVAL) {
+            lastWiFiReconnectAttempt = now;
+
+            Serial.println("📶 Attempting WiFi reconnection...");
+            if (tryConnectWiFi(WIFI_RECONNECT_TIMEOUT)) {
+                // WiFi connected, check internet and reinitialize
+                if (checkInternetAccess()) {
+                    // Re-sync NTP if not synced
+                    if (!ntpSynced) {
+                        syncNTP();
+                    }
+                    // Re-initialize Firebase
+                    initializeFirebase();
+
+                    // Sync any queued data
+                    if (firebaseConnected) {
+                        syncQueuedSensorData();
+                        syncQueuedDetections();
+                    }
+                } else {
+                    Serial.println("📶 Local network only - Firebase disabled");
+                }
+            }
+        }
+    }
+}
+
+// Log memory status for debugging
+void logMemoryStatus() {
+    Serial.printf("💾 Memory: %d free, %d min\n",
+                  ESP.getFreeHeap(), ESP.getMinFreeHeap());
+}
+
 void updateDeviceStatus() {
   if (!firebaseConnected) return;
 
@@ -303,7 +634,15 @@ void saveSensorHistory() {
 }
 
 void logBirdDetection(String imageUrl, int birdSize, int confidence, String detectionZone) {
-  if (!firebaseConnected) return;
+  // Always count detection locally
+  birdsDetectedToday++;
+
+  // If offline, queue the detection for later sync
+  if (!firebaseConnected || !hasInternetAccess) {
+    Serial.println("📦 Offline - queuing bird detection...");
+    queueDetectionEvent(birdSize, confidence);
+    return;
+  }
 
   Serial.println("📝 Logging bird detection to Firestore...");
 
@@ -320,9 +659,10 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
 
   if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
     Serial.println("✅ Detection logged to Firestore!");
-    birdsDetectedToday++;
   } else {
     Serial.println("❌ Failed to log detection: " + fbdo.errorReason());
+    // Queue it if logging failed
+    queueDetectionEvent(birdSize, confidence);
   }
 }
 
@@ -916,39 +1256,29 @@ void setup() {
   stepper.setAcceleration(1000);  // Increased from 500
   Serial.println("⚙️  Stepper motor configured: 2000 steps/sec, 1000 accel");
 
-  // Connect to WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("📶 Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.print(".");
-  }
-  Serial.println("\n✅ WiFi connected!");
-  Serial.println("📍 IP address: " + WiFi.localIP().toString());
+  // Connect to WiFi (non-blocking with timeout)
+  Serial.println("📶 Attempting initial WiFi connection (30s timeout)...");
+  bool wifiConnected = tryConnectWiFi(WIFI_CONNECT_TIMEOUT);
 
-  // Initialize NTP time sync
-  Serial.println("🕐 Syncing time with NTP server...");
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-  // Wait for time to sync
-  struct tm timeinfo;
-  int retries = 0;
-  while (!getLocalTime(&timeinfo) && retries < 10) {
-    Serial.print(".");
-    delay(500);
-    retries++;
-  }
-  if (retries < 10) {
-    Serial.println("\n✅ Time synced!");
-    char timeStr[50];
-    strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
-    Serial.printf("📅 Current time: %s\n", timeStr);
+  if (wifiConnected) {
+    // Check internet access
+    if (checkInternetAccess()) {
+      // Sync NTP time
+      syncNTP();
+      // Initialize Firebase
+      initializeFirebase();
+    } else {
+      Serial.println("📶 Local network only - Firebase disabled");
+    }
   } else {
-    Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+    Serial.println("═══════════════════════════════════════════");
+    Serial.println("⚠️  OFFLINE MODE ACTIVE");
+    Serial.println("═══════════════════════════════════════════");
+    Serial.println("📊 Sensors, audio, motors will work locally");
+    Serial.println("🔄 WiFi reconnection every 60 seconds");
+    Serial.println("📦 Data will be queued and synced when online");
+    Serial.println("═══════════════════════════════════════════");
   }
-
-  // Initialize Firebase
-  initializeFirebase();
 
   // Setup HTTP endpoints
   setupHTTPEndpoints();
@@ -1146,6 +1476,19 @@ void checkFirebaseCommands() {
 void loop() {
   unsigned long currentTime = millis();
 
+  // Handle WiFi reconnection in background (non-blocking)
+  handleWiFiReconnection();
+
+  // Periodic memory check (every 60 seconds)
+  static unsigned long lastMemCheck = 0;
+  if (currentTime - lastMemCheck > 60000) {
+    lastMemCheck = currentTime;
+    logMemoryStatus();
+    if (ESP.getFreeHeap() < 20000) {
+      Serial.println("⚠️ WARNING: Low memory!");
+    }
+  }
+
   // Read sensors periodically
   static unsigned long lastSensorRead = 0;
   if (currentTime - lastSensorRead >= SENSOR_READ_INTERVAL) {
@@ -1174,8 +1517,8 @@ void loop() {
     stepper.run();
   }
 
-  // Firebase operations
-  if (firebaseConnected) {
+  // Firebase operations (online mode)
+  if (firebaseConnected && hasInternetAccess) {
     // Check for Firebase commands
     checkFirebaseCommands();
 
@@ -1189,6 +1532,17 @@ void loop() {
     // History snapshot - every 15 min, always saves
     if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
       saveSensorHistory();
+      lastHistoryUpdate = currentTime;
+    }
+  } else {
+    // Offline mode - queue sensor data periodically
+    if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
+      // Read DHT sensor for temperature/humidity
+      float h = dht.readHumidity();
+      float t = dht.readTemperature();
+      if (!isnan(h) && !isnan(t)) {
+        queueSensorReading(t, h, soilHumidity, soilTemperature, soilPH, soilConductivity);
+      }
       lastHistoryUpdate = currentTime;
     }
   }
