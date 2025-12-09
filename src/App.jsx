@@ -14,6 +14,8 @@ import Reports from './pages/Reports';
 import { translations } from './i18n/translations';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { VolumeProvider } from './contexts/VolumeContext';
+import { TourProvider } from './contexts/TourContext';
+import GuidedTour from './components/ui/GuidedTour';
 import { Home, Gamepad2, BarChart3, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 
 // Navigation Icon Components Map
@@ -92,7 +94,7 @@ function Navigation({ language }) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-primary border-t border-primary shadow-xl z-50 backdrop-blur-lg">
+    <nav data-tour="nav-bar" className="fixed bottom-0 left-0 right-0 bg-primary border-t border-primary shadow-xl z-50 backdrop-blur-lg">
       <div className="flex justify-around items-center h-16 max-w-md mx-auto">
         {navItems.map(item => {
           const isActive = location.pathname === item.path;
@@ -141,30 +143,33 @@ function AppContent() {
   }, [language]);
 
   return (
-    <Router>
-      <ScrollToTop />
-      <div className="min-h-screen bg-secondary pb-16 transition-colors duration-300">
-        {/* <ThemeToggle /> */}
-        <main className="animate-fade-in">
-          <Routes>
-            <Route path="/" element={<Dashboard language={language} />} />
-            <Route path="/controls" element={<Controls language={language} />} />
-            <Route path="/analytics" element={<Analytics language={language} />} />
-            <Route path="/history" element={<History language={language} />} />
-            <Route path="/settings" element={<Settings language={language} onLanguageChange={handleLanguageChange} />} />
+    <TourProvider>
+      <Router>
+        <ScrollToTop />
+        <div className="min-h-screen bg-secondary pb-16 transition-colors duration-300">
+          {/* <ThemeToggle /> */}
+          <main className="animate-fade-in">
+            <Routes>
+              <Route path="/" element={<Dashboard language={language} />} />
+              <Route path="/controls" element={<Controls language={language} />} />
+              <Route path="/analytics" element={<Analytics language={language} />} />
+              <Route path="/history" element={<History language={language} />} />
+              <Route path="/settings" element={<Settings language={language} onLanguageChange={handleLanguageChange} />} />
 
-            {/* Analytics Sub-pages */}
-            <Route path="/harvest-planner" element={<HarvestPlanner language={language} />} />
-            <Route path="/add-harvest" element={<AddHarvest language={language} />} />
-            <Route path="/rainfall-tracker" element={<RainfallTracker language={language} />} />
-            <Route path="/crop-health-monitor" element={<CropHealthMonitor language={language} />} />
-            <Route path="/bird-analytics" element={<BirdAnalytics language={language} />} />
-            <Route path="/reports" element={<Reports language={language} />} />
-          </Routes>
-        </main>
-        <Navigation language={language} />
-      </div>
-    </Router>
+              {/* Analytics Sub-pages */}
+              <Route path="/harvest-planner" element={<HarvestPlanner language={language} />} />
+              <Route path="/add-harvest" element={<AddHarvest language={language} />} />
+              <Route path="/rainfall-tracker" element={<RainfallTracker language={language} />} />
+              <Route path="/crop-health-monitor" element={<CropHealthMonitor language={language} />} />
+              <Route path="/bird-analytics" element={<BirdAnalytics language={language} />} />
+              <Route path="/reports" element={<Reports language={language} />} />
+            </Routes>
+          </main>
+          <Navigation language={language} />
+          <GuidedTour language={language} />
+        </div>
+      </Router>
+    </TourProvider>
   );
 }
 

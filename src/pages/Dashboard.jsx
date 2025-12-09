@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTour } from '../contexts/TourContext';
 import {
   SoilSensorCard,
   SoilHealthCard,
   SmartRecommendations,
 } from '../components/ui';
-import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2 } from 'lucide-react';
+import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2, HelpCircle } from 'lucide-react';
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
 import FirebaseService from '../services/FirebaseService';
 import DeviceService from '../services/DeviceService';
 import { CONFIG } from '../config/config';
+import { dashboardTourSteps } from '../config/tourSteps';
 
 export default function Dashboard({ language }) {
   const { currentTheme } = useTheme();
+  const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const [refreshing, setRefreshing] = useState(false);
   const fadeOpacity = useRef(1);
 
@@ -180,6 +183,16 @@ export default function Dashboard({ language }) {
     };
   }, [language]);
 
+  // Auto-start tour for first-time users
+  useEffect(() => {
+    if (isFirstTimeUser && !isTourCompleted('dashboard')) {
+      const timer = setTimeout(() => {
+        startTour('dashboard', dashboardTourSteps);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstTimeUser, isTourCompleted, startTour]);
+
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
       hour12: true,
@@ -267,7 +280,7 @@ export default function Dashboard({ language }) {
     <div className="min-h-screen bg-secondary">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 bg-secondary">
+        <div data-tour="dashboard-header" className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 bg-secondary">
           <div className="flex justify-between items-start mb-4 sm:mb-6">
             <div className="flex-1">
               <div className="flex items-center mb-1 sm:mb-2">
@@ -280,26 +293,37 @@ export default function Dashboard({ language }) {
                 </div>
               </div>
             </div>
-            <div className={`flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-sm border ${
-              isConnected
-                ? 'bg-success/10 border-success/30'
-                : 'bg-error/10 border-error/30'
-            }`}>
-              <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mr-1.5 sm:mr-2 ${
-                isConnected ? 'bg-success animate-pulse' : 'bg-error'
-              }`} />
-              <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
-                isConnected ? 'text-success' : 'text-error'
+            <div className="flex items-center gap-2">
+              {/* Info Button for Tour */}
+              <button
+                onClick={() => startTour('dashboard', dashboardTourSteps)}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+                aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+              >
+                <HelpCircle size={20} className="text-info" />
+              </button>
+              {/* Connection Status */}
+              <div data-tour="dashboard-connection-status" className={`flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-sm border ${
+                isConnected
+                  ? 'bg-success/10 border-success/30'
+                  : 'bg-error/10 border-error/30'
               }`}>
-                {isConnected ? t.connected : t.offline}
-              </span>
+                <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mr-1.5 sm:mr-2 ${
+                  isConnected ? 'bg-success animate-pulse' : 'bg-error'
+                }`} />
+                <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
+                  isConnected ? 'text-success' : 'text-error'
+                }`}>
+                  {isConnected ? t.connected : t.offline}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Status Cards Row */}
           <div className="grid grid-cols-2 gap-2 sm:gap-3">
             {/* Birds Detected Today */}
-            <div className="surface-primary rounded-xl p-3 sm:p-4 shadow-sm border border-primary">
+            <div data-tour="dashboard-bird-count" className="surface-primary rounded-xl p-3 sm:p-4 shadow-sm border border-primary">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-warning/20 flex items-center justify-center">
                   <Bird size={22} className="text-warning" />
@@ -312,7 +336,7 @@ export default function Dashboard({ language }) {
             </div>
 
             {/* Last Updated */}
-            <div className="surface-primary rounded-xl p-3 sm:p-4 shadow-sm border border-primary">
+            <div data-tour="dashboard-last-update" className="surface-primary rounded-xl p-3 sm:p-4 shadow-sm border border-primary">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-info/20 flex items-center justify-center">
                   <Clock size={22} className="text-info" />
@@ -329,7 +353,7 @@ export default function Dashboard({ language }) {
         <div className="px-3 sm:px-4 pb-10">
           {/* Soil Sensor Section */}
           {sensorData.hasRS485Sensor && (
-            <div className="mb-4 sm:mb-6">
+            <div data-tour="dashboard-soil-sensors" className="mb-4 sm:mb-6">
               <SectionHeader icon={Sprout} title={t.soilConditions} />
               <SoilSensorCard
                 humidity={sensorData.soilHumidity}
@@ -342,7 +366,7 @@ export default function Dashboard({ language }) {
           )}
 
           {/* Quick Controls Section */}
-          <div className="mb-4 sm:mb-6">
+          <div data-tour="dashboard-quick-controls" className="mb-4 sm:mb-6">
             <SectionHeader icon={Zap} title={t.quickControls} />
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <QuickActionButton
@@ -373,12 +397,12 @@ export default function Dashboard({ language }) {
           </div>
 
           {/* Soil Health Score Card */}
-          <div className="mb-4 sm:mb-6">
+          <div data-tour="dashboard-soil-health" className="mb-4 sm:mb-6">
             <SoilHealthCard sensorData={sensorData} language={language} />
           </div>
 
           {/* Smart Recommendations Card */}
-          <div className="mb-4 sm:mb-6">
+          <div data-tour="dashboard-recommendations" className="mb-4 sm:mb-6">
             <SmartRecommendations sensorData={sensorData} language={language} />
           </div>
         </div>
