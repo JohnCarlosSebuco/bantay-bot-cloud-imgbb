@@ -29,6 +29,9 @@
 #include <ESPAsyncWebServer.h>
 #include "board_config.h"
 
+// === AI BIRD DETECTION (Optional Add-on) ===
+#include "bird_detect_ai.h"
+
 // ===========================
 // Feature Flags
 // ===========================
@@ -459,8 +462,29 @@ bool detectBirdMotion() {
         birdDetected = true;
         lastDetectionTime = now;
 
-        int confidence = map(changedPixels, minBirdSize, maxBirdSize, 50, 95);
-        Serial.printf("🐦 BIRD DETECTED! Size: %d pixels, Confidence: %d%%\n", changedPixels, confidence);
+        // Get confidence - AI if available, otherwise motion-based estimate
+        int confidence;
+        float aiConfidence = runBirdAI(currGrayBuffer, 320, 240);
+
+        if (aiConfidence >= 0) {
+          // AI available - use AI confidence
+          confidence = (int)(aiConfidence * 100);
+          Serial.printf("🐦 BIRD DETECTED! Motion: %d px, AI: %d%%\n", changedPixels, confidence);
+
+          // Reject if AI confidence too low
+          if (!isAIBird(aiConfidence)) {
+            Serial.printf("🤖 AI rejected (%.0f%% < %.0f%% threshold)\n",
+                          aiConfidence * 100, AI_CONFIDENCE_THRESHOLD * 100);
+            esp_camera_fb_return(currentFrame);
+            currentFrame = NULL;
+            memcpy(prevGrayBuffer, currGrayBuffer, GRAY_BUFFER_SIZE);
+            return false;  // Skip this detection
+          }
+        } else {
+          // AI not available - use motion-based estimate (existing behavior)
+          confidence = map(changedPixels, minBirdSize, maxBirdSize, 50, 95);
+          Serial.printf("🐦 BIRD DETECTED! Size: %d pixels, Confidence: %d%%\n", changedPixels, confidence);
+        }
 
         // Check if we can upload (rate limit check)
         String imageUrl = "";
@@ -533,6 +557,9 @@ void setup() {
 
   // Setup bird detection
   setupBirdDetection();
+
+  // Initialize AI detection (optional - disabled by default)
+  initBirdAI();
 
   // Connect to WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
