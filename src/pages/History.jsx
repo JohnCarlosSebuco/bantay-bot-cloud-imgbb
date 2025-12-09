@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { ClipboardList, BarChart3, Bird, Droplets, Thermometer, Zap, FlaskConical, Calendar, Circle, ArrowUpDown, Search, HelpCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTour } from '../contexts/TourContext';
 import DeviceService from '../services/DeviceService';
+import { historyTourSteps } from '../config/tourSteps';
 
 // Utility functions
 const formatTime = (ts) => {
@@ -79,6 +82,7 @@ const getOverallStatus = (item) => {
 
 export default function History({ language }) {
   const { currentTheme } = useTheme();
+  const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const [sensorHistory, setSensorHistory] = useState([]);
   const [detectionHistory, setDetectionHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('sensor');
@@ -148,15 +152,15 @@ export default function History({ language }) {
       clearFilters: 'Clear Filters',
     },
     tl: {
-      title: 'Kasaysayan',
-      subtitle: 'Mga log at rekord',
+      title: 'Talaan',
+      subtitle: 'Listahan ng nangyari',
       sensorHistory: 'Sensor',
-      detectionHistory: 'Deteksyon',
+      detectionHistory: 'Nakitang Ibon',
       refresh: 'I-refresh',
       clearAll: 'Burahin Lahat',
-      noEvents: 'Walang records',
-      noFilterResults: 'Walang tugmang records',
-      events: 'records',
+      noEvents: 'Walang talaan',
+      noFilterResults: 'Walang nakita',
+      events: 'talaan',
       // Filters
       dateFilter: 'Petsa',
       statusFilter: 'Status',
@@ -168,40 +172,50 @@ export default function History({ language }) {
       allTime: 'Lahat',
       // Status options
       all: 'Lahat',
-      critical: 'Kritikal',
-      warning: 'Babala',
-      optimal: 'Optimal',
+      critical: 'Delikado',
+      warning: 'Mag-ingat',
+      optimal: 'Ayos',
       // Sort options
       newest: 'Pinakabago',
       oldest: 'Pinakaluma',
-      severity: 'Ayon sa severity',
+      severity: 'Pinakadelikado',
       // Sensor labels
-      humidity: 'Halumigmig',
-      temperature: 'Temperatura',
+      humidity: 'Basa ng Lupa',
+      temperature: 'Init',
       nutrients: 'Sustansya',
-      phLevel: 'pH Level',
+      phLevel: 'pH ng Lupa',
       // Detection labels
-      birdDetected: 'Ibon Nakita',
+      birdDetected: 'May Ibon',
       size: 'Laki',
-      confidence: 'Kumpiyansa',
-      zone: 'Lokasyon',
-      triggered: 'Na-trigger',
+      confidence: 'Katiyakan',
+      zone: 'Lugar',
+      triggered: 'Umaksyon',
       // Modal
-      confirmClearTitle: 'Burahin Lahat ng History?',
-      confirmClearMessage: 'Hindi na maibabalik. Lahat ng history records ay permanenteng mabubura.',
-      cancel: 'Kanselahin',
+      confirmClearTitle: 'Burahin Lahat ng Talaan?',
+      confirmClearMessage: 'Hindi na maibabalik. Lahat ng talaan ay permanenteng mabubura.',
+      cancel: 'Huwag',
       clearConfirm: 'Burahin Lahat',
       // Empty states
-      noSensorData: 'Walang sensor data',
-      noSensorDataDesc: 'Lalabas dito ang mga reading kapag nagsimulang mangolekta ng data ang device.',
-      noDetectionData: 'Walang detection records',
-      noDetectionDataDesc: 'Lalabas dito ang mga bird detection kapag may nakita ang device.',
-      refreshNow: 'I-refresh Ngayon',
-      clearFilters: 'Alisin ang Filters',
+      noSensorData: 'Walang datos ng sensor',
+      noSensorDataDesc: 'Lalabas dito ang mga reading kapag nagsimula na ang device.',
+      noDetectionData: 'Walang nakitang ibon',
+      noDetectionDataDesc: 'Lalabas dito kapag may nakitang ibon ang device.',
+      refreshNow: 'I-refresh',
+      clearFilters: 'Alisin Filter',
     }
   };
 
   const t = texts[language] || texts.en;
+
+  // Auto-start tour for first-time users on this page
+  useEffect(() => {
+    if (isFirstTimeUser && !isTourCompleted('history')) {
+      const timer = setTimeout(() => {
+        startTour('history', historyTourSteps);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstTimeUser, isTourCompleted, startTour]);
 
   // Filter data based on current filters
   const filterData = (data) => {
@@ -308,7 +322,7 @@ export default function History({ language }) {
         }
       `}
     >
-      <span className="text-sm">{icon}</span>
+      {icon}
       <span>{label}</span>
       {count > 0 && (
         <span className={`min-w-[18px] px-1 py-0.5 rounded-full text-[9px] font-bold text-center ${
@@ -344,7 +358,7 @@ export default function History({ language }) {
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
           className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-tertiary hover:bg-tertiary/80 text-[10px] font-medium text-primary transition-all cursor-pointer"
         >
-          {icon && <span className="text-[10px] opacity-60">{icon}</span>}
+          {icon && <span className="opacity-60">{icon}</span>}
           <span className="truncate max-w-[60px]">{value}</span>
           <svg className={`w-3 h-3 text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -443,19 +457,19 @@ export default function History({ language }) {
           {/* Sensor Values - Compact Grid */}
           <div className="flex-1 grid grid-cols-4 gap-1">
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">💧</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><Droplets size={12} className="text-blue-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[humidityStatus]}`}>{item.soilHumidity?.toFixed(0)}%</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">🌡️</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><Thermometer size={12} className="text-orange-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[tempStatus]}`}>{item.soilTemperature?.toFixed(1)}°</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">⚡</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><Zap size={12} className="text-yellow-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[ecStatus]}`}>{item.soilConductivity?.toFixed(0)}</div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none">🧪</div>
+              <div className="text-[10px] text-secondary leading-none flex justify-center"><FlaskConical size={12} className="text-purple-500" /></div>
               <div className={`text-xs font-bold leading-tight ${statusColors[phStatus]}`}>{item.ph?.toFixed(1)}</div>
             </div>
           </div>
@@ -481,7 +495,7 @@ export default function History({ language }) {
         )}
         {!item.imageUrl && (
           <div className="w-10 h-10 rounded-lg bg-tertiary flex items-center justify-center flex-shrink-0">
-            <span className="text-sm opacity-50">🐦</span>
+            <Bird size={16} className="text-secondary opacity-50" />
           </div>
         )}
 
@@ -516,10 +530,10 @@ export default function History({ language }) {
   );
 
   // Empty State Component - Compact
-  const EmptyState = ({ icon, title, description, showClearFilters = false }) => (
+  const EmptyState = ({ icon: IconComponent, title, description, showClearFilters = false }) => (
     <div className="surface-primary rounded-xl p-6 text-center border border-primary">
       <div className="w-12 h-12 rounded-xl bg-tertiary flex items-center justify-center mx-auto mb-3">
-        <span className="text-2xl opacity-50">{icon}</span>
+        <IconComponent size={24} className="text-secondary opacity-50" />
       </div>
       <h3 className="text-sm font-bold text-primary mb-1">{title}</h3>
       <p className="text-[10px] text-secondary max-w-[200px] mx-auto">{description}</p>
@@ -569,29 +583,39 @@ export default function History({ language }) {
     <div className="bg-secondary flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 64px)' }}>
       <div className="max-w-lg mx-auto w-full flex flex-col flex-1 overflow-hidden min-h-0">
         {/* Header - Consistent with Dashboard/Controls */}
-        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
-          <div className="flex items-center mb-1 sm:mb-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-              <span className="text-xl sm:text-2xl">📋</span>
+        <div data-tour="history-header" className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <div className="flex items-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
+                <ClipboardList size={24} className="text-brand" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
-              <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
-            </div>
+            {/* Info Button for Tour */}
+            <button
+              onClick={() => startTour('history', historyTourSteps)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+              aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+            >
+              <HelpCircle size={20} className="text-info" />
+            </button>
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex gap-1.5 surface-primary p-1 rounded-xl border border-primary mb-2">
+          <div data-tour="history-tabs" className="flex gap-1.5 surface-primary p-1 rounded-xl border border-primary mb-2">
             <TabButton
               label={t.sensorHistory}
-              icon="📊"
+              icon={<BarChart3 size={14} />}
               count={sensorHistory.length}
               isActive={activeTab === 'sensor'}
               onClick={() => setActiveTab('sensor')}
             />
             <TabButton
               label={t.detectionHistory}
-              icon="🐦"
+              icon={<Bird size={14} />}
               count={detectionHistory.length}
               isActive={activeTab === 'detection'}
               onClick={() => setActiveTab('detection')}
@@ -599,7 +623,7 @@ export default function History({ language }) {
           </div>
 
           {/* Filter Bar - Single Line */}
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div data-tour="history-filters" className="flex items-center gap-1 overflow-x-auto">
             <Dropdown
               label={t.dateFilter}
               value={getDateLabel()}
@@ -607,7 +631,7 @@ export default function History({ language }) {
               isOpen={showDateDropdown}
               onToggle={() => { setShowDateDropdown(!showDateDropdown); setShowStatusDropdown(false); setShowSortDropdown(false); }}
               onChange={setDateFilter}
-              icon="📅"
+              icon={<Calendar size={10} />}
             />
             {activeTab === 'sensor' && (
               <Dropdown
@@ -617,7 +641,7 @@ export default function History({ language }) {
                 isOpen={showStatusDropdown}
                 onToggle={() => { setShowStatusDropdown(!showStatusDropdown); setShowDateDropdown(false); setShowSortDropdown(false); }}
                 onChange={setStatusFilter}
-                icon="🔘"
+                icon={<Circle size={10} />}
               />
             )}
             <Dropdown
@@ -627,7 +651,7 @@ export default function History({ language }) {
               isOpen={showSortDropdown}
               onToggle={() => { setShowSortDropdown(!showSortDropdown); setShowDateDropdown(false); setShowStatusDropdown(false); }}
               onChange={setSortOrder}
-              icon="↕️"
+              icon={<ArrowUpDown size={10} />}
             />
             <div className="flex-1 min-w-0" />
             {hasActiveFilters && (
@@ -639,7 +663,7 @@ export default function History({ language }) {
               </button>
             )}
             {/* Live indicator */}
-            <div className="flex items-center gap-0.5 shrink-0">
+            <div data-tour="history-live-indicator" className="flex items-center gap-0.5 shrink-0">
               <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
               <span className="text-[9px] text-secondary">Live</span>
             </div>
@@ -650,13 +674,13 @@ export default function History({ language }) {
         <div className="px-3 sm:px-4 flex-1 overflow-hidden flex flex-col min-h-0 relative z-10">
           {rawData.length === 0 ? (
             <EmptyState
-              icon={activeTab === 'sensor' ? '📊' : '🐦'}
+              icon={activeTab === 'sensor' ? BarChart3 : Bird}
               title={activeTab === 'sensor' ? t.noSensorData : t.noDetectionData}
               description={activeTab === 'sensor' ? t.noSensorDataDesc : t.noDetectionDataDesc}
             />
           ) : isFiltered ? (
             <EmptyState
-              icon="🔍"
+              icon={Search}
               title={t.noFilterResults}
               description={language === 'tl' ? 'Subukang baguhin ang iyong mga filter.' : 'Try adjusting your filter criteria.'}
               showClearFilters
@@ -664,6 +688,7 @@ export default function History({ language }) {
           ) : (
             <div
               ref={listRef}
+              data-tour="history-list"
               className="surface-primary rounded-xl border border-primary overflow-hidden flex-1 overflow-y-auto scroll-smooth"
             >
               {activeTab === 'sensor' ? (

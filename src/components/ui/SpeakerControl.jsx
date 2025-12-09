@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const SpeakerControl = ({
-  volume = 0.7,
+  volume = 70,  // 0-100 range
   onVolumeChange,
   isMuted = false,
   onMuteToggle,
@@ -32,7 +32,7 @@ const SpeakerControl = ({
       gainNode.connect(audioContext.destination);
 
       oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800 Hz tone
-      gainNode.gain.setValueAtTime(isMuted ? 0 : volume * 0.3, audioContext.currentTime);
+      gainNode.gain.setValueAtTime(isMuted ? 0 : (volume / 100) * 0.3, audioContext.currentTime);
 
       oscillator.start();
       oscillator.stop(audioContext.currentTime + 0.5); // Play for 0.5 seconds
@@ -48,8 +48,8 @@ const SpeakerControl = ({
 
   const getVolumeIcon = () => {
     if (isMuted) return '🔇';
-    if (volume < 0.3) return '🔈';
-    if (volume < 0.7) return '🔉';
+    if (volume < 30) return '🔈';
+    if (volume < 70) return '🔉';
     return '🔊';
   };
 
@@ -85,15 +85,15 @@ const SpeakerControl = ({
             {/* Filled track */}
             <div
               className="absolute h-2 top-1/2 -translate-y-1/2 rounded-full bg-brand left-0"
-              style={{ width: isMuted ? '0%' : `${volume * 100}%` }}
+              style={{ width: isMuted ? '0%' : `${volume}%` }}
             />
             <input
               type="range"
               min="0"
-              max="1"
-              step="0.01"
+              max="100"
+              step="1"
               value={volume}
-              onChange={(e) => onVolumeChange?.(parseFloat(e.target.value))}
+              onChange={(e) => onVolumeChange?.(parseInt(e.target.value, 10))}
               disabled={isMuted}
               className="volume-slider relative w-full h-2 bg-transparent appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed z-10"
             />
@@ -101,7 +101,7 @@ const SpeakerControl = ({
           <span className="text-[10px] sm:text-xs text-secondary w-6 sm:w-8 text-center">100%</span>
         </div>
         <div className="text-sm sm:text-base font-bold text-brand text-center">
-          {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}
+          {isMuted ? 'Muted' : `${Math.round(volume)}%`}
         </div>
       </div>
 
