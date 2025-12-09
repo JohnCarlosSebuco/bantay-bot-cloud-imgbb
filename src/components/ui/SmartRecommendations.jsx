@@ -23,7 +23,7 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'droplets',
         iconColor: 'text-blue-500',
-        action: language === 'tl' ? 'Diligan ang bukid' : 'Irrigate field',
+        action: language === 'tl' ? 'Magdilig' : 'Irrigate field',
         reason: language === 'tl' ? 'Tuyo ang lupa' : 'Soil is dry',
         priority: 'high',
         color: 'error'
@@ -32,7 +32,7 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'droplets',
         iconColor: 'text-blue-500',
-        action: language === 'tl' ? 'Patubigan ang bukid' : 'Drain excess water',
+        action: language === 'tl' ? 'Magdrain ng tubig' : 'Drain excess water',
         reason: language === 'tl' ? 'Sobrang basa' : 'Too wet',
         priority: 'medium',
         color: 'warning'
@@ -44,7 +44,7 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'thermometer',
         iconColor: 'text-orange-500',
-        action: language === 'tl' ? 'Maglagay ng pantakip' : 'Add mulch/shade',
+        action: language === 'tl' ? 'Takpan ng dayami' : 'Add mulch/shade',
         reason: language === 'tl' ? 'Mainit ang lupa' : 'Soil too hot',
         priority: 'medium',
         color: 'warning'
@@ -53,7 +53,7 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'snowflake',
         iconColor: 'text-sky-400',
-        action: language === 'tl' ? 'Protektahan sa lamig' : 'Protect from cold',
+        action: language === 'tl' ? 'Protektahan sa ginaw' : 'Protect from cold',
         reason: language === 'tl' ? 'Malamig ang lupa' : 'Soil too cold',
         priority: 'low',
         color: 'info'
@@ -65,8 +65,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'leaf',
         iconColor: 'text-green-500',
-        action: language === 'tl' ? 'Maglagay ng pataba' : 'Apply fertilizer',
-        reason: language === 'tl' ? 'Kulang sa sustansya' : 'Low nutrients',
+        action: language === 'tl' ? 'Magpataba' : 'Apply fertilizer',
+        reason: language === 'tl' ? 'Kulang sa pataba' : 'Low nutrients',
         priority: 'medium',
         color: 'warning'
       });
@@ -75,7 +75,7 @@ export default function SmartRecommendations({ sensorData, language }) {
         icon: 'zap',
         iconColor: 'text-yellow-500',
         action: language === 'tl' ? 'Bawasan ang pataba' : 'Reduce fertilizer',
-        reason: language === 'tl' ? 'Sobrang sustansya' : 'High salinity',
+        reason: language === 'tl' ? 'Sobra sa pataba' : 'High salinity',
         priority: 'medium',
         color: 'warning'
       });
@@ -86,8 +86,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'flask',
         iconColor: 'text-purple-500',
-        action: language === 'tl' ? 'Dagdagan ng calcium' : 'Add lime/calcium',
-        reason: language === 'tl' ? 'Masyado asido' : 'Too acidic',
+        action: language === 'tl' ? 'Maglagay ng apog' : 'Add lime/calcium',
+        reason: language === 'tl' ? 'Maasim ang lupa' : 'Too acidic',
         priority: 'high',
         color: 'error'
       });
@@ -95,8 +95,8 @@ export default function SmartRecommendations({ sensorData, language }) {
       recommendations.push({
         icon: 'flask',
         iconColor: 'text-purple-500',
-        action: language === 'tl' ? 'Maglagay ng sulfur' : 'Apply sulfur',
-        reason: language === 'tl' ? 'Masyado alkaline' : 'Too alkaline',
+        action: language === 'tl' ? 'Maglagay ng asupre' : 'Apply sulfur',
+        reason: language === 'tl' ? 'Matabang ang lupa' : 'Too alkaline',
         priority: 'medium',
         color: 'warning'
       });
@@ -291,8 +291,8 @@ export default function SmartRecommendations({ sensorData, language }) {
         }
       },
       tl: {
-        'Diligan ang bukid': {
-          title: 'Diligan ang Bukid',
+        'Magdilig': {
+          title: 'Magdilig',
           whatIsIt: 'Kulang sa tubig ang lupa. Hindi makakuha ng sustansya ang halaman kapag tuyo ang lupa.',
           whyNeeded: 'Kapag kulang sa tubig, malalanta ang halaman, titigil ang paglaki, at bababa ang ani.',
           howToDo: [
@@ -302,7 +302,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             'Dahan-dahang diligan para masipsip ng lupa'
           ],
           tips: 'Suriin ang lupa - itusok ang daliri 2 pulgada. Kung tuyo, kailangan nang diligan.',
-          currentLabel: 'Kasalukuyang Halumigmig',
+          currentLabel: 'Basa ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '40-70%',
           reference: {
@@ -313,18 +313,18 @@ export default function SmartRecommendations({ sensorData, language }) {
             url: 'https://www.fao.org/3/x0490e/x0490e00.htm'
           }
         },
-        'Patubigan ang bukid': {
-          title: 'Patubigan ang Bukid',
+        'Magdrain ng tubig': {
+          title: 'Magdrain ng Tubig',
           whatIsIt: 'Sobrang tubig sa lupa. Hindi makahinga ang ugat at maaaring mabulok.',
           whyNeeded: 'Ang sobrang tubig ay nagdudulot ng bulok sa ugat at sakit ng halaman.',
           howToDo: [
-            'Gumawa ng drainage sa pagitan ng mga hanay',
+            'Gumawa ng kanal sa pagitan ng mga hanay',
             'Bawasan ang pagdidilig',
             'Magdagdag ng compost para bumuti ang drainage',
             'Gumamit ng raised beds sa susunod na pagtatanim'
           ],
           tips: 'Ang raised beds (6-12 pulgada ang taas) ay nakakatulong sa panahon ng ulan.',
-          currentLabel: 'Kasalukuyang Halumigmig',
+          currentLabel: 'Basa ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '40-70%',
           reference: {
@@ -335,8 +335,8 @@ export default function SmartRecommendations({ sensorData, language }) {
             url: 'https://pubmed.ncbi.nlm.nih.gov/16217870/'
           }
         },
-        'Maglagay ng pantakip': {
-          title: 'Maglagay ng Pantakip o Lilim',
+        'Takpan ng dayami': {
+          title: 'Takpan ng Dayami',
           whatIsIt: 'Sobrang init ang lupa. Nasasira ang ugat at hindi nakakakuha ng sustansya.',
           whyNeeded: 'Ang sobrang init ay nagpapabagal ng paglaki at nagpapababa ng kalidad ng bunga.',
           howToDo: [
@@ -346,7 +346,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             'Iwasan ang pagdidilig sa tanghali'
           ],
           tips: 'Ang dayami ay nagdadagdag din ng sustansya sa lupa habang nabubulok.',
-          currentLabel: 'Kasalukuyang Temperatura',
+          currentLabel: 'Init ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '20-30°C',
           reference: {
@@ -357,8 +357,8 @@ export default function SmartRecommendations({ sensorData, language }) {
             url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9791825/'
           }
         },
-        'Protektahan sa lamig': {
-          title: 'Protektahan sa Lamig',
+        'Protektahan sa ginaw': {
+          title: 'Protektahan sa Ginaw',
           whatIsIt: 'Malamig ang lupa. Mabagal ang pagsipsip ng sustansya at paglaki ng halaman.',
           whyNeeded: 'Ang lamig ay nagpapabagal ng paglaki at maaaring makapinsala sa mga halaman.',
           howToDo: [
@@ -368,7 +368,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             'Pagsama-samahin ang mga paso para magbigayan ng init'
           ],
           tips: 'Ang itim na plastic mulch ay nakakapag-init ng lupa ng 5-10°F.',
-          currentLabel: 'Kasalukuyang Temperatura',
+          currentLabel: 'Init ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '20-30°C',
           reference: {
@@ -379,8 +379,8 @@ export default function SmartRecommendations({ sensorData, language }) {
             url: 'https://pubmed.ncbi.nlm.nih.gov/15519993/'
           }
         },
-        'Maglagay ng pataba': {
-          title: 'Maglagay ng Pataba',
+        'Magpataba': {
+          title: 'Magpataba',
           whatIsIt: 'Kulang sa sustansya (nitrogen, phosphorus, potassium) ang lupa para sa paglaki ng halaman.',
           whyNeeded: 'Ang kakulangan sa sustansya ay nagdudulot ng dilaw na dahon, maliit na halaman, at mababang ani.',
           howToDo: [
@@ -390,7 +390,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             'Magpataba kada 2-3 linggo habang lumalaki'
           ],
           tips: 'Ang compost at dumi ng hayop ay magandang natural na pataba.',
-          currentLabel: 'Kasalukuyang Sustansya',
+          currentLabel: 'Sustansya Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '200-2000 µS/cm',
           reference: {
@@ -412,7 +412,7 @@ export default function SmartRecommendations({ sensorData, language }) {
             'Suriin ang lupa bago magpataba ulit'
           ],
           tips: 'Sundin ang tagubilin sa pakete ng pataba. Ang sobra ay hindi mabuti!',
-          currentLabel: 'Kasalukuyang Sustansya',
+          currentLabel: 'Sustansya Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '200-2000 µS/cm',
           reference: {
@@ -423,18 +423,18 @@ export default function SmartRecommendations({ sensorData, language }) {
             url: 'https://pubmed.ncbi.nlm.nih.gov/18444910/'
           }
         },
-        'Dagdagan ng calcium': {
-          title: 'Maglagay ng Apog (Calcium)',
+        'Maglagay ng apog': {
+          title: 'Maglagay ng Apog',
           whatIsIt: 'Masyadong maasim ang lupa (mababang pH). Naka-lock ang mga sustansya at hindi makuha ng halaman.',
           whyNeeded: 'Ang maasim na lupa ay pumipigil sa halaman na kumuha ng sustansya kahit mayroon.',
           howToDo: [
-            'Maglagay ng agricultural lime (apog) - 1 kilo kada 10 metro kwadrado',
+            'Maglagay ng apog - 1 kilo kada 10 metro kwadrado',
             'Haluin sa ibabaw na 6 pulgada ng lupa',
             'Diligan ng mabuti pagkatapos',
             'Maghintay ng 2-3 linggo bago magtanim'
           ],
           tips: 'Maglagay ng apog 2-3 linggo bago magtanim. Ang abo ng kahoy ay natural na alternatibo.',
-          currentLabel: 'Kasalukuyang pH',
+          currentLabel: 'pH ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '5.5-7.5',
           reference: {
@@ -445,18 +445,18 @@ export default function SmartRecommendations({ sensorData, language }) {
             url: 'https://pubmed.ncbi.nlm.nih.gov/15377228/'
           }
         },
-        'Maglagay ng sulfur': {
-          title: 'Maglagay ng Sulfur',
-          whatIsIt: 'Masyadong alkaline ang lupa (mataas na pH). Naka-lock ang iron at zinc.',
-          whyNeeded: 'Ang alkaline na lupa ay nagdudulot ng dilaw na dahon na may berdeng ugat, mahinang paglaki.',
+        'Maglagay ng asupre': {
+          title: 'Maglagay ng Asupre',
+          whatIsIt: 'Masyadong matabang ang lupa (mataas na pH). Naka-lock ang iron at zinc.',
+          whyNeeded: 'Ang matabang na lupa ay nagdudulot ng dilaw na dahon na may berdeng ugat, mahinang paglaki.',
           howToDo: [
-            'Maglagay ng agricultural sulfur - 0.5 kilo kada 10 metro kwadrado',
+            'Maglagay ng asupre - 0.5 kilo kada 10 metro kwadrado',
             'Haluin sa lupa at diligan ng mabuti',
             'Magdagdag ng organic matter tulad ng compost',
             'Gumamit ng acidifying fertilizers (ammonium sulfate)'
           ],
           tips: 'Ang regular na pagdadagdag ng organic matter ay tumutulong sa tamang pH ng lupa.',
-          currentLabel: 'Kasalukuyang pH',
+          currentLabel: 'pH ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
           optimal: '5.5-7.5',
           reference: {
@@ -483,19 +483,21 @@ export default function SmartRecommendations({ sensorData, language }) {
 
     // Get current sensor value based on recommendation type
     const getCurrentValue = () => {
-      if (recommendation.action.includes('Irrigate') || recommendation.action.includes('Diligan') ||
-          recommendation.action.includes('Drain') || recommendation.action.includes('Patubigan')) {
+      if (recommendation.action.includes('Irrigate') || recommendation.action.includes('Magdilig') ||
+          recommendation.action.includes('Drain') || recommendation.action.includes('Magdrain')) {
         return `${sensorData.soilHumidity}%`;
       }
-      if (recommendation.action.includes('mulch') || recommendation.action.includes('pantakip') ||
-          recommendation.action.includes('cold') || recommendation.action.includes('lamig') ||
-          recommendation.action.includes('Protect') || recommendation.action.includes('shade')) {
+      if (recommendation.action.includes('mulch') || recommendation.action.includes('dayami') ||
+          recommendation.action.includes('cold') || recommendation.action.includes('ginaw') ||
+          recommendation.action.includes('Protect') || recommendation.action.includes('shade') ||
+          recommendation.action.includes('Takpan') || recommendation.action.includes('Protektahan')) {
         return `${sensorData.soilTemperature}°C`;
       }
-      if (recommendation.action.includes('fertilizer') || recommendation.action.includes('pataba')) {
+      if (recommendation.action.includes('fertilizer') || recommendation.action.includes('pataba') ||
+          recommendation.action.includes('Magpataba')) {
         return `${sensorData.soilConductivity} µS/cm`;
       }
-      if (recommendation.action.includes('calcium') || recommendation.action.includes('apog') ||
+      if (recommendation.action.includes('apog') || recommendation.action.includes('asupre') ||
           recommendation.action.includes('sulfur') || recommendation.action.includes('Sulfur') ||
           recommendation.action.includes('lime')) {
         return sensorData.ph.toFixed(1);
@@ -530,9 +532,9 @@ export default function SmartRecommendations({ sensorData, language }) {
                 <span className={`text-xs font-semibold uppercase ${
                   recommendation.priority === 'high' ? 'text-error/70' : recommendation.priority === 'medium' ? 'text-warning/70' : 'text-info/70'
                 }`}>
-                  {recommendation.priority === 'high' ? (language === 'tl' ? 'Mataas na Prioridad' : 'High Priority')
-                    : recommendation.priority === 'medium' ? (language === 'tl' ? 'Katamtamang Prioridad' : 'Medium Priority')
-                    : (language === 'tl' ? 'Mababang Prioridad' : 'Low Priority')}
+                  {recommendation.priority === 'high' ? (language === 'tl' ? 'Importante' : 'High Priority')
+                    : recommendation.priority === 'medium' ? (language === 'tl' ? 'Katamtaman' : 'Medium Priority')
+                    : (language === 'tl' ? 'Hindi Gaanong Importante' : 'Low Priority')}
                 </span>
               </div>
             </div>

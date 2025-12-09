@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ClipboardList, BarChart3, Bird, Droplets, Thermometer, Zap, FlaskConical, Calendar, Circle, ArrowUpDown, Search } from 'lucide-react';
+import { ClipboardList, BarChart3, Bird, Droplets, Thermometer, Zap, FlaskConical, Calendar, Circle, ArrowUpDown, Search, HelpCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTour } from '../contexts/TourContext';
 import DeviceService from '../services/DeviceService';
+import { historyTourSteps } from '../config/tourSteps';
 
 // Utility functions
 const formatTime = (ts) => {
@@ -80,6 +82,7 @@ const getOverallStatus = (item) => {
 
 export default function History({ language }) {
   const { currentTheme } = useTheme();
+  const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const [sensorHistory, setSensorHistory] = useState([]);
   const [detectionHistory, setDetectionHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('sensor');
@@ -149,15 +152,15 @@ export default function History({ language }) {
       clearFilters: 'Clear Filters',
     },
     tl: {
-      title: 'Kasaysayan',
-      subtitle: 'Mga log at rekord',
+      title: 'Talaan',
+      subtitle: 'Listahan ng nangyari',
       sensorHistory: 'Sensor',
-      detectionHistory: 'Deteksyon',
+      detectionHistory: 'Nakitang Ibon',
       refresh: 'I-refresh',
       clearAll: 'Burahin Lahat',
-      noEvents: 'Walang records',
-      noFilterResults: 'Walang tugmang records',
-      events: 'records',
+      noEvents: 'Walang talaan',
+      noFilterResults: 'Walang nakita',
+      events: 'talaan',
       // Filters
       dateFilter: 'Petsa',
       statusFilter: 'Status',
@@ -169,40 +172,50 @@ export default function History({ language }) {
       allTime: 'Lahat',
       // Status options
       all: 'Lahat',
-      critical: 'Kritikal',
-      warning: 'Babala',
-      optimal: 'Optimal',
+      critical: 'Delikado',
+      warning: 'Mag-ingat',
+      optimal: 'Ayos',
       // Sort options
       newest: 'Pinakabago',
       oldest: 'Pinakaluma',
-      severity: 'Ayon sa severity',
+      severity: 'Pinakadelikado',
       // Sensor labels
-      humidity: 'Halumigmig',
-      temperature: 'Temperatura',
+      humidity: 'Basa ng Lupa',
+      temperature: 'Init',
       nutrients: 'Sustansya',
-      phLevel: 'pH Level',
+      phLevel: 'pH ng Lupa',
       // Detection labels
-      birdDetected: 'Ibon Nakita',
+      birdDetected: 'May Ibon',
       size: 'Laki',
-      confidence: 'Kumpiyansa',
-      zone: 'Lokasyon',
-      triggered: 'Na-trigger',
+      confidence: 'Katiyakan',
+      zone: 'Lugar',
+      triggered: 'Umaksyon',
       // Modal
-      confirmClearTitle: 'Burahin Lahat ng History?',
-      confirmClearMessage: 'Hindi na maibabalik. Lahat ng history records ay permanenteng mabubura.',
-      cancel: 'Kanselahin',
+      confirmClearTitle: 'Burahin Lahat ng Talaan?',
+      confirmClearMessage: 'Hindi na maibabalik. Lahat ng talaan ay permanenteng mabubura.',
+      cancel: 'Huwag',
       clearConfirm: 'Burahin Lahat',
       // Empty states
-      noSensorData: 'Walang sensor data',
-      noSensorDataDesc: 'Lalabas dito ang mga reading kapag nagsimulang mangolekta ng data ang device.',
-      noDetectionData: 'Walang detection records',
-      noDetectionDataDesc: 'Lalabas dito ang mga bird detection kapag may nakita ang device.',
-      refreshNow: 'I-refresh Ngayon',
-      clearFilters: 'Alisin ang Filters',
+      noSensorData: 'Walang datos ng sensor',
+      noSensorDataDesc: 'Lalabas dito ang mga reading kapag nagsimula na ang device.',
+      noDetectionData: 'Walang nakitang ibon',
+      noDetectionDataDesc: 'Lalabas dito kapag may nakitang ibon ang device.',
+      refreshNow: 'I-refresh',
+      clearFilters: 'Alisin Filter',
     }
   };
 
   const t = texts[language] || texts.en;
+
+  // Auto-start tour for first-time users on this page
+  useEffect(() => {
+    if (isFirstTimeUser && !isTourCompleted('history')) {
+      const timer = setTimeout(() => {
+        startTour('history', historyTourSteps);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstTimeUser, isTourCompleted, startTour]);
 
   // Filter data based on current filters
   const filterData = (data) => {
@@ -570,19 +583,29 @@ export default function History({ language }) {
     <div className="bg-secondary flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 64px)' }}>
       <div className="max-w-lg mx-auto w-full flex flex-col flex-1 overflow-hidden min-h-0">
         {/* Header - Consistent with Dashboard/Controls */}
-        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
-          <div className="flex items-center mb-1 sm:mb-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-              <ClipboardList size={24} className="text-brand" />
+        <div data-tour="history-header" className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 flex-shrink-0 relative z-20 overflow-visible">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <div className="flex items-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
+                <ClipboardList size={24} className="text-brand" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
-              <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
-            </div>
+            {/* Info Button for Tour */}
+            <button
+              onClick={() => startTour('history', historyTourSteps)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+              aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+            >
+              <HelpCircle size={20} className="text-info" />
+            </button>
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex gap-1.5 surface-primary p-1 rounded-xl border border-primary mb-2">
+          <div data-tour="history-tabs" className="flex gap-1.5 surface-primary p-1 rounded-xl border border-primary mb-2">
             <TabButton
               label={t.sensorHistory}
               icon={<BarChart3 size={14} />}
@@ -600,7 +623,7 @@ export default function History({ language }) {
           </div>
 
           {/* Filter Bar - Single Line */}
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div data-tour="history-filters" className="flex items-center gap-1 overflow-x-auto">
             <Dropdown
               label={t.dateFilter}
               value={getDateLabel()}
@@ -640,7 +663,7 @@ export default function History({ language }) {
               </button>
             )}
             {/* Live indicator */}
-            <div className="flex items-center gap-0.5 shrink-0">
+            <div data-tour="history-live-indicator" className="flex items-center gap-0.5 shrink-0">
               <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
               <span className="text-[9px] text-secondary">Live</span>
             </div>
@@ -665,6 +688,7 @@ export default function History({ language }) {
           ) : (
             <div
               ref={listRef}
+              data-tour="history-list"
               className="surface-primary rounded-xl border border-primary overflow-hidden flex-1 overflow-y-auto scroll-smooth"
             >
               {activeTab === 'sensor' ? (

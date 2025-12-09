@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, RefreshCw, Bot, Calendar, TrendingUp, Lightbulb } from 'lucide-react';
+import { BarChart3, RefreshCw, Bot, Calendar, TrendingUp, Lightbulb, HelpCircle } from 'lucide-react';
 import PredictionService from '../services/PredictionService';
 import CropDataService from '../services/CropDataService';
 import ConnectionManager from '../services/ConnectionManager';
@@ -7,8 +7,11 @@ import FirebaseService from '../services/FirebaseService';
 import DeviceService from '../services/DeviceService';
 import { CONFIG } from '../config/config';
 import { SoilHealthCard, SmartRecommendations } from '../components/ui';
+import { useTour } from '../contexts/TourContext';
+import { analyticsTourSteps } from '../config/tourSteps';
 
 export default function Analytics({ language }) {
+  const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const [refreshing, setRefreshing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [insights, setInsights] = useState([]);
@@ -66,6 +69,16 @@ export default function Analytics({ language }) {
   };
 
   const t = texts[language] || texts.en;
+
+  // Auto-start tour for first-time users on this page
+  useEffect(() => {
+    if (isFirstTimeUser && !isTourCompleted('analytics')) {
+      const timer = setTimeout(() => {
+        startTour('analytics', analyticsTourSteps);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstTimeUser, isTourCompleted, startTour]);
 
   useEffect(() => {
     loadData();
@@ -184,28 +197,43 @@ export default function Analytics({ language }) {
         <div className="max-w-lg mx-auto">
           <div className="px-3 sm:px-4">
             <div
+              data-tour="analytics-header"
               className={`sticky top-0 z-20 -mx-3 sm:-mx-4 px-3 sm:px-4 pt-4 sm:pt-5 pb-2 sm:pb-3
                 backdrop-blur-sm border-b transition-colors
                 ${scrolled ? 'bg-secondary/95 border-secondary/40 shadow-sm' : 'bg-secondary/90 border-transparent'}
               `}
             >
-              <div className="flex items-center mb-1 sm:mb-2">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-info/20 flex items-center justify-center mr-2 sm:mr-3">
-                  <BarChart3 size={24} className="text-info" />
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-info/20 flex items-center justify-center mr-2 sm:mr-3">
+                    <BarChart3 size={24} className="text-info" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                    <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
-                  <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
-                </div>
+                {/* Info Button for Tour */}
+                <button
+                  onClick={() => startTour('analytics', analyticsTourSteps)}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+                  aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+                >
+                  <HelpCircle size={20} className="text-info" />
+                </button>
               </div>
             </div>
           </div>
           <div className="px-3 sm:px-4 pb-10 space-y-3 sm:space-y-4">
             {/* Soil Health Score Card */}
-            <SoilHealthCard sensorData={sensorData} language={language} />
+            <div data-tour="analytics-soil-health">
+              <SoilHealthCard sensorData={sensorData} language={language} />
+            </div>
 
             {/* Smart Recommendations Card */}
-            <SmartRecommendations sensorData={sensorData} language={language} />
+            <div data-tour="analytics-recommendations">
+              <SmartRecommendations sensorData={sensorData} language={language} />
+            </div>
           </div>
         </div>
       </div>
@@ -218,6 +246,7 @@ export default function Analytics({ language }) {
         {/* Header */}
         <div className="px-3 sm:px-4">
           <div
+            data-tour="analytics-header"
             className={`sticky top-0 z-20 -mx-3 sm:-mx-4 px-3 sm:px-4 pt-4 sm:pt-5 pb-2 sm:pb-3
               backdrop-blur-sm border-b transition-colors
               ${scrolled ? 'bg-secondary/95 border-secondary/40 shadow-sm' : 'bg-secondary/90 border-transparent'}
@@ -233,26 +262,40 @@ export default function Analytics({ language }) {
                   <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
                 </div>
               </div>
-              <button
-                onClick={onRefresh}
-                disabled={refreshing}
-                className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-2
-                  ${refreshing ? 'bg-tertiary text-secondary cursor-wait' : 'bg-brand text-white hover:bg-brand/90 cursor-pointer'}
-                `}
-              >
-                <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">{refreshing ? t.loading : t.refresh}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Info Button for Tour */}
+                <button
+                  onClick={() => startTour('analytics', analyticsTourSteps)}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+                  aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+                >
+                  <HelpCircle size={20} className="text-info" />
+                </button>
+                <button
+                  onClick={onRefresh}
+                  disabled={refreshing}
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-2
+                    ${refreshing ? 'bg-tertiary text-secondary cursor-wait' : 'bg-brand text-white hover:bg-brand/90 cursor-pointer'}
+                  `}
+                >
+                  <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                  <span className="hidden sm:inline">{refreshing ? t.loading : t.refresh}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="px-3 sm:px-4 pb-10 space-y-3 sm:space-y-4">
           {/* Soil Health Score Card */}
-          <SoilHealthCard sensorData={sensorData} language={language} />
+          <div data-tour="analytics-soil-health">
+            <SoilHealthCard sensorData={sensorData} language={language} />
+          </div>
 
           {/* Smart Recommendations Card */}
-          <SmartRecommendations sensorData={sensorData} language={language} />
+          <div data-tour="analytics-recommendations">
+            <SmartRecommendations sensorData={sensorData} language={language} />
+          </div>
 
           {/* Prediction Status Card */}
           <div className="surface-primary rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">

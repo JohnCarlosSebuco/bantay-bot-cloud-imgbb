@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon } from 'lucide-react';
+import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useVolume } from '../contexts/VolumeContext';
+import { useTour } from '../contexts/TourContext';
 import { translations } from '../i18n/translations';
 import {
   InputCard,
@@ -12,10 +13,12 @@ import {
 import ConfigService from '../services/ConfigService';
 import ConnectionManager from '../services/ConnectionManager';
 import NetworkDiscoveryService from '../services/NetworkDiscoveryService';
+import { settingsTourSteps } from '../config/tourSteps';
 
 export default function Settings({ language, onLanguageChange }) {
   const { currentTheme, isDark, toggleTheme } = useTheme();
   const { volume, setVolume, isMuted, setIsMuted } = useVolume();
+  const { startTour, isFirstTimeUser, isTourCompleted, resetAllTours } = useTour();
   const t = translations[language];
 
   // Configuration state (volume is now managed by VolumeContext)
@@ -91,63 +94,81 @@ export default function Settings({ language, onLanguageChange }) {
       noDevicesMsg: 'No devices found. Check ESP32 power.',
       scanError: 'Scan Error',
       languageUpdated: 'Language Updated',
-      resetConfirm: 'Reset all settings?'
+      resetConfirm: 'Reset all settings?',
+      resetTour: 'Reset App Guide',
+      resetTourDesc: 'Show guided tour again',
+      tourReset: 'Guide Reset',
+      tourResetMsg: 'The app guide will show again on all pages.'
     },
     tl: {
       title: 'Settings',
-      subtitle: 'I-configure ang BantayBot',
-      connectionSettings: 'Koneksyon',
+      subtitle: 'Ayusin ang BantayBot',
+      connectionSettings: 'Koneksyon sa Internet',
       cameraIP: 'Camera IP',
-      cameraIPDesc: 'Camera ESP32-CAM IP',
-      cameraPort: 'Camera Port',
+      cameraIPDesc: 'IP ng Camera',
+      cameraPort: 'Port ng Camera',
       cameraPortDesc: 'Port ng Camera',
       mainIP: 'Main Board IP',
-      mainIPDesc: 'Main Control ESP32 IP',
-      mainPort: 'Main Port',
+      mainIPDesc: 'IP ng Main Board',
+      mainPort: 'Port ng Main',
       mainPortDesc: 'Port ng Main Board',
-      updateInterval: 'Update Interval',
-      updateIntervalDesc: 'Sensor update (ms)',
-      autoDiscovery: 'Auto-Discovery',
-      autoDiscoveryDesc: 'I-scan ang network',
-      scanNetwork: 'Scan',
-      connectionTest: 'Test Koneksyon',
-      connectionTestDesc: 'Test ESP32 connection',
-      testConnections: 'Test',
-      speakerAudio: 'Audio',
-      appPreferences: 'Preferences',
+      updateInterval: 'Bilis ng Update',
+      updateIntervalDesc: 'Gaano kadalas mag-update (ms)',
+      autoDiscovery: 'Hanapin Devices',
+      autoDiscoveryDesc: 'Hanapin sa network',
+      scanNetwork: 'Hanapin',
+      connectionTest: 'Subukan Koneksyon',
+      connectionTestDesc: 'Subukan kung nakakonekta',
+      testConnections: 'Subukan',
+      speakerAudio: 'Tunog',
+      appPreferences: 'Mga Kagustuhan',
       language: 'Wika',
       switchToTagalog: 'Tagalog',
       switchToEnglish: 'English',
-      notifications: 'Notifications',
-      notificationsDesc: 'Motion alerts',
-      darkMode: 'Dark Mode',
+      notifications: 'Abiso',
+      notificationsDesc: 'Babala sa galaw',
+      darkMode: 'Madilim na Kulay',
       darkModeDesc: 'Madilim na tema',
       autoReconnect: 'Auto Reconnect',
-      autoReconnectDesc: 'Auto reconnect',
-      systemInfo: 'Tungkol',
+      autoReconnectDesc: 'Kusang kumonekta muli',
+      systemInfo: 'Tungkol Dito',
       aboutBantayBot: 'BantayBot',
-      aboutDesc: 'Solar-powered scarecrow na may sensors at mobile monitoring.',
+      aboutDesc: 'Panakot na de-araw na may sensor at cellphone monitoring.',
       developedBy: 'PUP-Lopez BSIT',
       saveSettings: 'I-save',
-      saving: 'Sine-save...',
-      resetDefaults: 'Reset',
-      success: 'Saved',
-      successMsg: 'Na-save!',
-      failed: 'Nabigo',
-      failedMsg: 'Nabigo. Subukan muli.',
-      connectionSuccess: 'Konektado',
-      connectionSuccessMsg: 'Nakakonekta!',
-      connectionFailed: 'Nabigo',
+      saving: 'Sandali lang...',
+      resetDefaults: 'Ibalik sa Dati',
+      success: 'Na-save',
+      successMsg: 'Na-save na!',
+      failed: 'Hindi Nagawa',
+      failedMsg: 'Hindi nagawa. Subukan muli.',
+      connectionSuccess: 'Nakakonekta',
+      connectionSuccessMsg: 'Nakakonekta na!',
+      connectionFailed: 'Hindi Nakakonekta',
       devicesFound: 'Nakita!',
       noDevicesFound: 'Walang Nakita',
-      noDevicesMsg: 'Walang devices. Check ESP32.',
-      scanError: 'Error',
-      languageUpdated: 'Na-update',
-      resetConfirm: 'Reset lahat?'
+      noDevicesMsg: 'Walang nakitang device. Tingnan ang ESP32.',
+      scanError: 'May Problema',
+      languageUpdated: 'Na-update na',
+      resetConfirm: 'Ibalik sa dati ang lahat?',
+      resetTour: 'Ulitin ang Gabay',
+      resetTourDesc: 'Ipakita muli ang gabay',
+      tourReset: 'Na-reset na',
+      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.'
     }
   };
 
   const txt = texts[language] || texts.en;
+
+  // Auto-start tour for first-time users on this page
+  useEffect(() => {
+    if (isFirstTimeUser && !isTourCompleted('settings')) {
+      const timer = setTimeout(() => {
+        startTour('settings', settingsTourSteps);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstTimeUser, isTourCompleted, startTour]);
 
   useEffect(() => {
     loadSettings();
@@ -331,21 +352,33 @@ export default function Settings({ language, onLanguageChange }) {
     <div className="min-h-screen bg-secondary pb-10">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
-          <div className="flex items-center mb-1 sm:mb-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-              <SettingsIcon size={24} className="text-brand" />
+        <div data-tour="settings-header" className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <div className="flex items-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
+                <SettingsIcon size={24} className="text-brand" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{txt.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{txt.subtitle}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-primary">{txt.title}</h1>
-              <p className="text-xs sm:text-sm text-secondary">{txt.subtitle}</p>
-            </div>
+            {/* Info Button for Tour */}
+            <button
+              onClick={() => startTour('settings', settingsTourSteps)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+              aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+            >
+              <HelpCircle size={20} className="text-info" />
+            </button>
           </div>
         </div>
 
         <div className="px-3 sm:px-4">
           {/* Connection Settings Section */}
-          <SectionHeader icon={Wifi} title={txt.connectionSettings} color="info" first={true} />
+          <div data-tour="settings-connection">
+            <SectionHeader icon={Wifi} title={txt.connectionSettings} color="info" first={true} />
+          </div>
 
           <div className="space-y-2 sm:space-y-3">
             <InputCard
@@ -404,13 +437,15 @@ export default function Settings({ language, onLanguageChange }) {
             />
 
             {/* Network Discovery */}
-            <ConnectionTestCard
-              title={txt.autoDiscovery}
-              description={txt.autoDiscoveryDesc}
-              buttonText={txt.scanNetwork}
-              onTest={scanNetwork}
-              isLoading={isScanning}
-            />
+            <div data-tour="settings-auto-discovery">
+              <ConnectionTestCard
+                title={txt.autoDiscovery}
+                description={txt.autoDiscoveryDesc}
+                buttonText={txt.scanNetwork}
+                onTest={scanNetwork}
+                isLoading={isScanning}
+              />
+            </div>
 
             {/* Connection Test */}
             <ConnectionTestCard
@@ -424,20 +459,22 @@ export default function Settings({ language, onLanguageChange }) {
           </div>
 
           {/* Speaker & Audio Section */}
-          <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" />
-          <SpeakerControl
-            volume={volume}
-            onVolumeChange={setVolume}
-            isMuted={isMuted}
-            onMuteToggle={() => setIsMuted(!isMuted)}
-          />
+          <div data-tour="settings-audio">
+            <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" />
+            <SpeakerControl
+              volume={volume}
+              onVolumeChange={setVolume}
+              isMuted={isMuted}
+              onMuteToggle={() => setIsMuted(!isMuted)}
+            />
+          </div>
 
           {/* App Preferences Section */}
           <SectionHeader icon={Smartphone} title={txt.appPreferences} color="brand" />
 
           <div className="space-y-2 sm:space-y-3">
             {/* Language Toggle */}
-            <div className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
+            <div data-tour="settings-language" className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
               <div className="flex justify-between items-center mb-2 sm:mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-base sm:text-lg">🌐</span>
@@ -463,13 +500,15 @@ export default function Settings({ language, onLanguageChange }) {
               icon="🔔"
             />
 
-            <ToggleCard
-              title={txt.darkMode}
-              value={isDark}
-              onValueChange={toggleTheme}
-              description={txt.darkModeDesc}
-              icon="🌙"
-            />
+            <div data-tour="settings-dark-mode">
+              <ToggleCard
+                title={txt.darkMode}
+                value={isDark}
+                onValueChange={toggleTheme}
+                description={txt.darkModeDesc}
+                icon="🌙"
+              />
+            </div>
 
             <ToggleCard
               title={txt.autoReconnect}
@@ -495,28 +534,30 @@ export default function Settings({ language, onLanguageChange }) {
             </p>
             <div className="pt-3 sm:pt-4 border-t border-primary text-center">
               <div className="text-xs sm:text-sm font-semibold text-brand">{txt.developedBy}</div>
-              <div className="text-[10px] sm:text-xs text-secondary mt-1">Version 1.0.0</div>
+              <div className="text-[10px] sm:text-xs text-secondary mt-1">Version 1.2.1</div>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="space-y-2 sm:space-y-3 pb-4 sm:pb-6">
-            <button
-              onClick={saveSettings}
-              disabled={isLoading}
-              className={`
-                w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg text-white transition-all shadow-md
-                ${isLoading
-                  ? 'bg-tertiary text-secondary cursor-not-allowed opacity-60'
-                  : 'bg-success hover:bg-success/90 cursor-pointer hover:shadow-lg active:scale-[0.98]'
-                }
-              `}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <CheckCircle size={20} />
-                <span>{isLoading ? txt.saving : txt.saveSettings}</span>
-              </span>
-            </button>
+            <div data-tour="settings-save">
+              <button
+                onClick={saveSettings}
+                disabled={isLoading}
+                className={`
+                  w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg text-white transition-all shadow-md
+                  ${isLoading
+                    ? 'bg-tertiary text-secondary cursor-not-allowed opacity-60'
+                    : 'bg-success hover:bg-success/90 cursor-pointer hover:shadow-lg active:scale-[0.98]'
+                  }
+                `}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <CheckCircle size={20} />
+                  <span>{isLoading ? txt.saving : txt.saveSettings}</span>
+                </span>
+              </button>
+            </div>
 
             <button
               onClick={resetToDefaults}
@@ -527,6 +568,23 @@ export default function Settings({ language, onLanguageChange }) {
                 <span>{txt.resetDefaults}</span>
               </span>
             </button>
+
+            {/* Reset Tour Button */}
+            <div data-tour="settings-reset-tour">
+              <button
+                onClick={() => {
+                  resetAllTours();
+                  showAlert(txt.tourReset, txt.tourResetMsg);
+                }}
+                className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-semibold text-sm sm:text-base surface-primary border-2 border-info/30 text-info hover:bg-info/10 transition-all cursor-pointer"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <HelpCircle size={18} />
+                  <span>{txt.resetTour}</span>
+                </span>
+              </button>
+              <p className="text-[10px] sm:text-xs text-secondary text-center mt-1">{txt.resetTourDesc}</p>
+            </div>
           </div>
         </div>
       </div>

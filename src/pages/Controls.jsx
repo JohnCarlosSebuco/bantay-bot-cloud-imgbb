@@ -1,17 +1,20 @@
-import React, { useState, useCallback } from 'react';
-import { Gamepad2, Check, Cog, Square, Volume2, Megaphone, Music, Settings, Wrench, RefreshCw, AlertTriangle, OctagonX, Loader2, ChevronRight } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Gamepad2, Check, Cog, Square, Volume2, Megaphone, Music, Settings, Wrench, RefreshCw, AlertTriangle, OctagonX, Loader2, ChevronRight, HelpCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useVolume } from '../contexts/VolumeContext';
+import { useTour } from '../contexts/TourContext';
 import {
   AudioPlayerControl,
   HeadControlPanel
 } from '../components/ui';
 import CommandService from '../services/CommandService';
 import { CONFIG } from '../config/config';
+import { controlsTourSteps } from '../config/tourSteps';
 
 export default function Controls({ language }) {
   const { currentTheme } = useTheme();
   const { volume, setVolume } = useVolume();
+  const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const [loadingStates, setLoadingStates] = useState({});
   const [lastCommand, setLastCommand] = useState(null);
 
@@ -50,34 +53,44 @@ export default function Controls({ language }) {
     },
     tl: {
       title: 'Mga Kontrol',
-      subtitle: 'Kontrolin ang BantayBot',
-      lastCommand: 'Huling Utos',
+      subtitle: 'Paandarin ang BantayBot',
+      lastCommand: 'Huling Ginawa',
       executedAt: 'noong',
       movementControls: 'Galaw',
       alertControls: 'Alarma',
       systemControls: 'Sistema',
-      moveArms: 'Galaw Braso',
-      moveArmsDesc: 'I-activate ang braso',
-      stopMovement: 'Ihinto',
-      stopMovementDesc: 'Ihinto ang motors',
+      moveArms: 'Igalaw Braso',
+      moveArmsDesc: 'Igalaw ang braso',
+      stopMovement: 'Itigil',
+      stopMovementDesc: 'Itigil ang makina',
       soundAlarm: 'Alarma',
-      soundAlarmDesc: 'I-trigger ang tunog',
-      calibrateSensors: 'Calibrate',
-      calibrateSensorsDesc: 'I-calibrate sensors',
-      resetSystem: 'Reset',
-      resetSystemDesc: 'I-restart ang BantayBot',
-      emergencyStop: 'EMERGENCY STOP',
-      emergencyStopDesc: 'Ihinto kaagad ang lahat',
-      confirmReset: 'Ire-restart nito ang buong sistema. Magpatuloy?',
-      confirmEmergencyStop: 'Ihihinto nito ang lahat ng operasyon. Magpatuloy?',
-      success: 'Tagumpay',
-      failed: 'Nabigo',
-      successMessage: 'matagumpay!',
+      soundAlarmDesc: 'Patunugin ang alarma',
+      calibrateSensors: 'Ayusin',
+      calibrateSensorsDesc: 'Ayusin ang sensor',
+      resetSystem: 'Ulitin',
+      resetSystemDesc: 'Simulan muli',
+      emergencyStop: 'ITIGIL LAHAT',
+      emergencyStopDesc: 'Itigil kaagad ang lahat',
+      confirmReset: 'Uulitin nito ang sistema. Ituloy?',
+      confirmEmergencyStop: 'Ititigil nito ang lahat. Ituloy?',
+      success: 'Tapos na',
+      failed: 'Hindi nagawa',
+      successMessage: 'ay tapos na!',
       failedMessage: 'Subukan muli.'
     }
   };
 
   const t = texts[language] || texts.en;
+
+  // Auto-start tour for first-time users on this page
+  useEffect(() => {
+    if (isFirstTimeUser && !isTourCompleted('controls')) {
+      const timer = setTimeout(() => {
+        startTour('controls', controlsTourSteps);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstTimeUser, isTourCompleted, startTour]);
 
   const setLoading = (command, isLoading) => {
     setLoadingStates(prev => ({ ...prev, [command]: isLoading }));
@@ -222,22 +235,32 @@ export default function Controls({ language }) {
     <div className="min-h-screen bg-secondary">
       <div className="max-w-lg mx-auto">
         {/* Header */}
-        <div className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 bg-secondary">
-          <div className="flex items-center mb-1 sm:mb-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
-              <Gamepad2 size={24} className="text-brand" />
+        <div data-tour="controls-header" className="pt-4 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-4 bg-secondary">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <div className="flex items-center">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-brand/20 flex items-center justify-center mr-2 sm:mr-3">
+                <Gamepad2 size={24} className="text-brand" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
+                <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.title}</h1>
-              <p className="text-xs sm:text-sm text-secondary">{t.subtitle}</p>
-            </div>
+            {/* Info Button for Tour */}
+            <button
+              onClick={() => startTour('controls', controlsTourSteps)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-info/20 flex items-center justify-center hover:bg-info/30 transition-colors"
+              aria-label={language === 'tl' ? 'Gabay sa paggamit' : 'Help guide'}
+            >
+              <HelpCircle size={20} className="text-info" />
+            </button>
           </div>
         </div>
 
         <div className="px-3 sm:px-4 pb-10">
           {/* Last Command Status */}
           {lastCommand && (
-            <div className="surface-primary rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border-l-4 border-success shadow-sm">
+            <div data-tour="controls-last-command" className="surface-primary rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border-l-4 border-success shadow-sm">
               <div className="flex items-center gap-2 mb-1">
                 <Check size={14} className="text-success" />
                 <span className="text-[10px] sm:text-xs font-semibold text-secondary uppercase tracking-wide">{t.lastCommand}</span>
@@ -248,30 +271,34 @@ export default function Controls({ language }) {
           )}
 
           {/* Movement Controls */}
-          <SectionHeader icon={Cog} title={t.movementControls} color="brand" first={!lastCommand} />
-          <div className="space-y-2 sm:space-y-3">
-            <ControlBtn
-              icon={Cog}
-              title={t.moveArms}
-              desc={t.moveArmsDesc}
-              onClick={() => executeCommand('MOVE_ARMS')}
-              loading={loadingStates.MOVE_ARMS}
-              color="brand"
-            />
-            <HeadControlPanel
-              language={language}
-              currentAngle={headTargetAngle}
-              loadingAngle={headLoadingAngle}
-              onAngleSelect={handleHeadAngleSelect}
-            />
-            <ControlBtn
-              icon={Square}
-              title={t.stopMovement}
-              desc={t.stopMovementDesc}
-              onClick={() => executeCommand('STOP_MOVEMENT')}
-              loading={loadingStates.STOP_MOVEMENT}
-              color="warning"
-            />
+          <div data-tour="controls-movement">
+            <SectionHeader icon={Cog} title={t.movementControls} color="brand" first={!lastCommand} />
+            <div className="space-y-2 sm:space-y-3">
+              <ControlBtn
+                icon={Cog}
+                title={t.moveArms}
+                desc={t.moveArmsDesc}
+                onClick={() => executeCommand('MOVE_ARMS')}
+                loading={loadingStates.MOVE_ARMS}
+                color="brand"
+              />
+              <div data-tour="controls-head-position">
+                <HeadControlPanel
+                  language={language}
+                  currentAngle={headTargetAngle}
+                  loadingAngle={headLoadingAngle}
+                  onAngleSelect={handleHeadAngleSelect}
+                />
+              </div>
+              <ControlBtn
+                icon={Square}
+                title={t.stopMovement}
+                desc={t.stopMovementDesc}
+                onClick={() => executeCommand('STOP_MOVEMENT')}
+                loading={loadingStates.STOP_MOVEMENT}
+                color="warning"
+              />
+            </div>
           </div>
 
           {/* Alert Controls */}
@@ -288,16 +315,18 @@ export default function Controls({ language }) {
           </div>
 
           {/* Audio Controls */}
-          <SectionHeader icon={Music} title="Audio" color="info" />
-          <AudioPlayerControl
-            isPlaying={audioPlaying}
-            isLoading={loadingStates.audio}
-            onPlay={handleAudioPlay}
-            onStop={handleAudioStop}
-            currentVolume={volume}
-            onVolumeChange={handleVolumeChange}
-            language={language}
-          />
+          <div data-tour="controls-audio">
+            <SectionHeader icon={Music} title="Audio" color="info" />
+            <AudioPlayerControl
+              isPlaying={audioPlaying}
+              isLoading={loadingStates.audio}
+              onPlay={handleAudioPlay}
+              onStop={handleAudioStop}
+              currentVolume={volume}
+              onVolumeChange={handleVolumeChange}
+              language={language}
+            />
+          </div>
 
           {/* System Controls */}
           <SectionHeader icon={Settings} title={t.systemControls} color="success" />
@@ -321,7 +350,7 @@ export default function Controls({ language }) {
           </div>
 
           {/* Emergency Stop */}
-          <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-error/5 border-2 border-error/30">
+          <div data-tour="controls-emergency-stop" className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-error/5 border-2 border-error/30">
             <div className="flex items-center gap-2 mb-2 sm:mb-3">
               <AlertTriangle size={22} className="text-error" />
               <span className="font-bold text-error text-sm sm:text-base">Emergency</span>
