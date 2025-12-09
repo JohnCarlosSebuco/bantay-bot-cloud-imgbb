@@ -4,6 +4,8 @@
  * This is an ADD-ON to existing motion detection.
  * Set AI_ENABLED to false to completely disable AI features.
  *
+ * LIBRARY REQUIRED: EloquentTinyML (install via Arduino Library Manager)
+ *
  * Models available:
  * - bird_model_small.h (16.8KB) - Faster, less memory, good accuracy
  * - bird_model.h (49.7KB) - More accurate, requires more memory
@@ -33,41 +35,35 @@
 
 #if AI_ENABLED
 
-#include <TensorFlowLite_ESP32.h>
-#include "tensorflow/lite/micro/all_ops_resolver.h"
-#include "tensorflow/lite/micro/micro_error_reporter.h"
-#include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/schema/schema_generated.h"
+// Use EloquentTinyML - more compatible with newer compilers
+#include <EloquentTinyML.h>
 
 // Load only ONE model based on selection
 #if USE_SMALL_MODEL
-  #include "bird_model_small.h"  // 16.8KB TFLite model
+  #include "bird_model_small.h"
   #define MODEL_DATA bird_model_small_tflite
   #define MODEL_DATA_LEN bird_model_small_tflite_len
   #define MODEL_NAME "small (16.8KB)"
-  constexpr int kTensorArenaSize = 40 * 1024;  // 40KB for small model
+  #define TENSOR_ARENA_SIZE (40 * 1024)
 #else
-  #include "bird_model.h"  // 49.7KB TFLite model
+  #include "bird_model.h"
   #define MODEL_DATA bird_model_tflite
   #define MODEL_DATA_LEN bird_model_tflite_len
   #define MODEL_NAME "normal (49.7KB)"
-  constexpr int kTensorArenaSize = 60 * 1024;  // 60KB for normal model
+  #define TENSOR_ARENA_SIZE (60 * 1024)
 #endif
 
-// Model input dimensions (adjust based on your trained model)
+// Model input/output dimensions
 #define AI_INPUT_WIDTH  64
 #define AI_INPUT_HEIGHT 64
+#define AI_INPUT_SIZE   (AI_INPUT_WIDTH * AI_INPUT_HEIGHT)
+#define AI_OUTPUT_SIZE  2  // [not_bird, bird]
 
-alignas(16) uint8_t tensor_arena[kTensorArenaSize];
+// Create TinyML model instance
+Eloquent::TinyML::TfLite<AI_INPUT_SIZE, AI_OUTPUT_SIZE, TENSOR_ARENA_SIZE> ml;
 
-// TFLite objects (static to persist across calls)
-static tflite::MicroErrorReporter micro_error_reporter;
-static tflite::ErrorReporter* error_reporter = &micro_error_reporter;
-static const tflite::Model* model = nullptr;
-static tflite::MicroInterpreter* interpreter = nullptr;
-static TfLiteTensor* input = nullptr;
-static TfLiteTensor* output = nullptr;
 static bool ai_initialized = false;
+static float input_buffer[AI_INPUT_SIZE];
 
 /**
  * Initialize the TFLite model
@@ -77,53 +73,19 @@ static bool ai_initialized = false;
 bool initBirdAI() {
   Serial.println("=== Initializing Bird AI ===");
   Serial.printf("Model: %s (%d bytes)\n", MODEL_NAME, MODEL_DATA_LEN);
+  Serial.printf("Arena size: %d bytes\n", TENSOR_ARENA_SIZE);
+  Serial.printf("Free heap before: %d bytes\n", ESP.getFreeHeap());
 
-  // Load model from flash
-  model = tflite::GetModel(MODEL_DATA);
-  if (model->version() != TFLITE_SCHEMA_VERSION) {
-    Serial.printf("Model version mismatch! Expected %d, got %d\n",
-                  TFLITE_SCHEMA_VERSION, model->version());
+  // Load the model
+  if (!ml.begin(MODEL_DATA)) {
+    Serial.println("Failed to initialize TinyML model!");
+    Serial.println(ml.errorMessage());
     return false;
   }
-  Serial.println("Model loaded successfully");
-
-  // Set up resolver with all ops (simpler, slightly more memory)
-  static tflite::AllOpsResolver resolver;
-
-  // Create interpreter (API requires: model, resolver, arena, arena_size, error_reporter)
-  static tflite::MicroInterpreter static_interpreter(
-      model, resolver, tensor_arena, kTensorArenaSize, error_reporter);
-  interpreter = &static_interpreter;
-
-  // Allocate tensors
-  TfLiteStatus allocate_status = interpreter->AllocateTensors();
-  if (allocate_status != kTfLiteOk) {
-    Serial.println("Failed to allocate tensors!");
-    return false;
-  }
-
-  // Get input/output tensor pointers
-  input = interpreter->input(0);
-  output = interpreter->output(0);
-
-  // Print tensor info for debugging
-  Serial.printf("Input tensor: %d dims\n", input->dims->size);
-  for (int i = 0; i < input->dims->size; i++) {
-    Serial.printf("  dim[%d] = %d\n", i, input->dims->data[i]);
-  }
-  Serial.printf("Input type: %d (1=float, 2=int32, 3=uint8, 9=int8)\n", input->type);
-
-  Serial.printf("Output tensor: %d dims\n", output->dims->size);
-  for (int i = 0; i < output->dims->size; i++) {
-    Serial.printf("  dim[%d] = %d\n", i, output->dims->data[i]);
-  }
-
-  Serial.printf("Tensor arena used: %d / %d bytes\n",
-                interpreter->arena_used_bytes(), kTensorArenaSize);
 
   ai_initialized = true;
   Serial.println("Bird AI initialized successfully!");
-  Serial.printf("Free heap after AI init: %d bytes\n", ESP.getFreeHeap());
+  Serial.printf("Free heap after: %d bytes\n", ESP.getFreeHeap());
 
   return true;
 }
@@ -137,109 +99,46 @@ bool initBirdAI() {
  * @return            Bird confidence (0.0-1.0), or -1.0 if AI unavailable
  */
 float runBirdAI(uint8_t* grayBuffer, int width, int height) {
-  if (!ai_initialized || !interpreter) {
+  if (!ai_initialized) {
     return -1.0f;  // AI not available
   }
 
-  // Get model's expected input dimensions
-  int model_height = input->dims->data[1];
-  int model_width = input->dims->data[2];
-
-  // Resize/sample input image to model size
+  // Resize/sample input image to model size (64x64)
   // Uses simple nearest-neighbor sampling for speed
-  if (input->type == kTfLiteFloat32) {
-    // Float input: normalize to 0.0-1.0
-    float* input_data = input->data.f;
-    for (int y = 0; y < model_height; y++) {
-      for (int x = 0; x < model_width; x++) {
-        // Map model coordinates to source image coordinates
-        int src_x = x * width / model_width;
-        int src_y = y * height / model_height;
-        int src_idx = src_y * width + src_x;
-        int dst_idx = y * model_width + x;
+  for (int y = 0; y < AI_INPUT_HEIGHT; y++) {
+    for (int x = 0; x < AI_INPUT_WIDTH; x++) {
+      // Map model coordinates to source image coordinates
+      int src_x = x * width / AI_INPUT_WIDTH;
+      int src_y = y * height / AI_INPUT_HEIGHT;
+      int src_idx = src_y * width + src_x;
+      int dst_idx = y * AI_INPUT_WIDTH + x;
 
-        // Normalize pixel value to 0.0-1.0
-        input_data[dst_idx] = grayBuffer[src_idx] / 255.0f;
-      }
+      // Normalize pixel value to 0.0-1.0
+      input_buffer[dst_idx] = grayBuffer[src_idx] / 255.0f;
     }
-  } else if (input->type == kTfLiteUInt8) {
-    // Quantized uint8 input: use raw pixel values
-    uint8_t* input_data = input->data.uint8;
-    for (int y = 0; y < model_height; y++) {
-      for (int x = 0; x < model_width; x++) {
-        int src_x = x * width / model_width;
-        int src_y = y * height / model_height;
-        int src_idx = src_y * width + src_x;
-        int dst_idx = y * model_width + x;
-
-        input_data[dst_idx] = grayBuffer[src_idx];
-      }
-    }
-  } else if (input->type == kTfLiteInt8) {
-    // Quantized int8 input: shift from 0-255 to -128-127
-    int8_t* input_data = input->data.int8;
-    for (int y = 0; y < model_height; y++) {
-      for (int x = 0; x < model_width; x++) {
-        int src_x = x * width / model_width;
-        int src_y = y * height / model_height;
-        int src_idx = src_y * width + src_x;
-        int dst_idx = y * model_width + x;
-
-        input_data[dst_idx] = (int8_t)(grayBuffer[src_idx] - 128);
-      }
-    }
-  } else {
-    Serial.printf("Unsupported input type: %d\n", input->type);
-    return -1.0f;
   }
 
   // Run inference
   unsigned long start_time = millis();
-  TfLiteStatus invoke_status = interpreter->Invoke();
-  unsigned long inference_time = millis() - start_time;
+  float output[AI_OUTPUT_SIZE];
 
-  if (invoke_status != kTfLiteOk) {
+  if (!ml.predict(input_buffer, output)) {
     Serial.println("AI inference failed!");
+    Serial.println(ml.errorMessage());
     return -1.0f;
   }
 
-  // Get bird confidence from output
-  // Assumes binary classifier with output [not_bird, bird]
-  float bird_confidence = 0.0f;
+  unsigned long inference_time = millis() - start_time;
 
-  if (output->type == kTfLiteFloat32) {
-    // Float output
-    if (output->dims->data[output->dims->size - 1] >= 2) {
-      // Two-class output: [not_bird, bird]
-      bird_confidence = output->data.f[1];
-    } else {
-      // Single output (sigmoid): direct confidence
-      bird_confidence = output->data.f[0];
-    }
-  } else if (output->type == kTfLiteUInt8) {
-    // Quantized uint8 output: dequantize
-    float scale = output->params.scale;
-    int zero_point = output->params.zero_point;
-    if (output->dims->data[output->dims->size - 1] >= 2) {
-      bird_confidence = (output->data.uint8[1] - zero_point) * scale;
-    } else {
-      bird_confidence = (output->data.uint8[0] - zero_point) * scale;
-    }
-  } else if (output->type == kTfLiteInt8) {
-    // Quantized int8 output: dequantize
-    float scale = output->params.scale;
-    int zero_point = output->params.zero_point;
-    if (output->dims->data[output->dims->size - 1] >= 2) {
-      bird_confidence = (output->data.int8[1] - zero_point) * scale;
-    } else {
-      bird_confidence = (output->data.int8[0] - zero_point) * scale;
-    }
-  }
+  // output[0] = not_bird confidence
+  // output[1] = bird confidence
+  float bird_confidence = output[1];
 
   // Clamp to valid range
   bird_confidence = constrain(bird_confidence, 0.0f, 1.0f);
 
-  Serial.printf("AI: %.1f%% bird (%dms)\n", bird_confidence * 100, inference_time);
+  Serial.printf("AI: %.1f%% bird (%.1f%% not) [%dms]\n",
+                bird_confidence * 100, output[0] * 100, inference_time);
 
   return bird_confidence;
 }
