@@ -164,18 +164,59 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
   }
   unsigned long inference_time = millis() - start_time;
 
-  // Get bird confidence from output
+  // Get output size to determine model type
+  int output_size = output_tensor->dims->data[output_tensor->dims->size - 1];
+
+  // Debug: print raw output values
+  Serial.printf("Output size: %d, type: %d\n", output_size, output_tensor->type);
+
   float bird_confidence = 0.0f;
+
   if (output_tensor->type == kTfLiteFloat32) {
-    bird_confidence = output_tensor->data.f[1];  // [not_bird, bird]
+    // Debug: print all output values
+    for (int i = 0; i < output_size; i++) {
+      Serial.printf("  output[%d] = %.4f\n", i, output_tensor->data.f[i]);
+    }
+
+    if (output_size >= 2) {
+      // Two outputs: [not_bird, bird]
+      bird_confidence = output_tensor->data.f[1];
+    } else {
+      // Single output (sigmoid): direct bird confidence
+      bird_confidence = output_tensor->data.f[0];
+    }
   } else if (output_tensor->type == kTfLiteUInt8) {
     float scale = output_tensor->params.scale;
     int zero_point = output_tensor->params.zero_point;
-    bird_confidence = (output_tensor->data.uint8[1] - zero_point) * scale;
+    Serial.printf("  scale=%.6f, zero_point=%d\n", scale, zero_point);
+
+    for (int i = 0; i < output_size; i++) {
+      float val = (output_tensor->data.uint8[i] - zero_point) * scale;
+      Serial.printf("  output[%d] = %d -> %.4f\n", i, output_tensor->data.uint8[i], val);
+    }
+
+    if (output_size >= 2) {
+      bird_confidence = (output_tensor->data.uint8[1] - zero_point) * scale;
+    } else {
+      bird_confidence = (output_tensor->data.uint8[0] - zero_point) * scale;
+    }
   } else if (output_tensor->type == kTfLiteInt8) {
     float scale = output_tensor->params.scale;
     int zero_point = output_tensor->params.zero_point;
-    bird_confidence = (output_tensor->data.int8[1] - zero_point) * scale;
+    Serial.printf("  scale=%.6f, zero_point=%d\n", scale, zero_point);
+
+    for (int i = 0; i < output_size; i++) {
+      float val = (output_tensor->data.int8[i] - zero_point) * scale;
+      Serial.printf("  output[%d] = %d -> %.4f\n", i, output_tensor->data.int8[i], val);
+    }
+
+    if (output_size >= 2) {
+      bird_confidence = (output_tensor->data.int8[1] - zero_point) * scale;
+    } else {
+      bird_confidence = (output_tensor->data.int8[0] - zero_point) * scale;
+    }
+  } else {
+    Serial.printf("Unknown output type: %d\n", output_tensor->type);
   }
 
   bird_confidence = constrain(bird_confidence, 0.0f, 1.0f);
