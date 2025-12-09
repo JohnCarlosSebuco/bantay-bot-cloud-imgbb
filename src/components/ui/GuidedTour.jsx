@@ -32,11 +32,28 @@ const GuidedTour = ({ language = 'tl' }) => {
     if (targetElement) {
       const rect = targetElement.getBoundingClientRect();
       const padding = 8; // Add some padding around the element
+      const viewportWidth = window.innerWidth;
+
+      // Use exact component width but ensure it fits in viewport
+      let width = rect.width + (padding * 2);
+      let left = rect.left - padding;
+
+      // If element is wider than viewport, constrain to viewport with margins
+      if (width > viewportWidth - 16) {
+        width = viewportWidth - 16;
+        left = 8;
+      } else {
+        // Keep highlight within viewport bounds
+        if (left < 8) left = 8;
+        if (left + width > viewportWidth - 8) {
+          left = viewportWidth - width - 8;
+        }
+      }
 
       setTargetRect({
         top: rect.top - padding,
-        left: rect.left - padding,
-        width: rect.width + (padding * 2),
+        left: left,
+        width: width,
         height: rect.height + (padding * 2),
         originalRect: rect
       });
