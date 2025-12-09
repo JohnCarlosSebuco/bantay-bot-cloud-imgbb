@@ -35,6 +35,7 @@
 
 #include <TensorFlowLite_ESP32.h>
 #include "tensorflow/lite/micro/all_ops_resolver.h"
+#include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
@@ -60,6 +61,8 @@
 alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 
 // TFLite objects (static to persist across calls)
+static tflite::MicroErrorReporter micro_error_reporter;
+static tflite::ErrorReporter* error_reporter = &micro_error_reporter;
 static const tflite::Model* model = nullptr;
 static tflite::MicroInterpreter* interpreter = nullptr;
 static TfLiteTensor* input = nullptr;
@@ -87,9 +90,9 @@ bool initBirdAI() {
   // Set up resolver with all ops (simpler, slightly more memory)
   static tflite::AllOpsResolver resolver;
 
-  // Create interpreter
+  // Create interpreter (API requires: model, resolver, arena, arena_size, error_reporter)
   static tflite::MicroInterpreter static_interpreter(
-      model, resolver, tensor_arena, kTensorArenaSize);
+      model, resolver, tensor_arena, kTensorArenaSize, error_reporter);
   interpreter = &static_interpreter;
 
   // Allocate tensors
