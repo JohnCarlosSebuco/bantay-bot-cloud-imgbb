@@ -67,19 +67,19 @@ export default function Dashboard({ language }) {
     },
     tl: {
       title: 'BantayBot',
-      subtitle: 'Pangbantay ng Pananim',
-      connected: 'Konektado',
-      offline: 'Offline',
-      quickControls: 'Mabilis na Kontrol',
+      subtitle: 'Tagabantay ng Tanim',
+      connected: 'Nakakonekta',
+      offline: 'Wala sa Linya',
+      quickControls: 'Mabilisang Kontrol',
       moveArms: 'Braso',
-      moveArmsDesc: 'Galaw braso',
+      moveArmsDesc: 'Igalaw braso',
       moveHead: 'Ulo',
-      moveHeadDesc: 'Ikot ulo',
+      moveHeadDesc: 'Ikutin ulo',
       soundAlarm: 'Alarma',
-      soundAlarmDesc: 'Tunog',
+      soundAlarmDesc: 'Patunugin',
       lastUpdated: 'Huling update',
-      birdsToday: 'ibon ngayon',
-      soilConditions: 'Kondisyon ng Lupa',
+      birdsToday: 'ibon ngayong araw',
+      soilConditions: 'Kalagayan ng Lupa',
     }
   };
 

@@ -18,7 +18,7 @@ const SoilSensorCard = ({
       textColor: 'text-error'
     };
     if (val <= 70) return {
-      status: language === 'tl' ? 'Sakto' : 'Optimal',
+      status: language === 'tl' ? 'Tama lang' : 'Optimal',
       color: 'success',
       icon: '🌱',
       bgColor: 'bg-success/10',
@@ -41,7 +41,7 @@ const SoilSensorCard = ({
       textColor: 'text-info'
     };
     if (val <= 30) return {
-      status: language === 'tl' ? 'Mabuti' : 'Good',
+      status: language === 'tl' ? 'Ayos' : 'Good',
       color: 'success',
       bgColor: 'bg-success/10',
       textColor: 'text-success'
@@ -56,19 +56,19 @@ const SoilSensorCard = ({
 
   const getConductivityStatus = (val) => {
     if (val < 200) return {
-      status: language === 'tl' ? 'Kulang sustansya' : 'Low nutrients',
+      status: language === 'tl' ? 'Kulang sa pataba' : 'Low nutrients',
       color: 'error',
       bgColor: 'bg-error/10',
       textColor: 'text-error'
     };
     if (val <= 2000) return {
-      status: language === 'tl' ? 'Sakto' : 'Optimal',
+      status: language === 'tl' ? 'Tama lang' : 'Optimal',
       color: 'success',
       bgColor: 'bg-success/10',
       textColor: 'text-success'
     };
     return {
-      status: language === 'tl' ? 'Sobra sustansya' : 'High nutrients',
+      status: language === 'tl' ? 'Sobra sa pataba' : 'High nutrients',
       color: 'warning',
       bgColor: 'bg-warning/10',
       textColor: 'text-warning'
@@ -77,19 +77,19 @@ const SoilSensorCard = ({
 
   const getPHStatus = (val) => {
     if (val < 5.5) return {
-      status: language === 'tl' ? 'Masyado asido' : 'Too acidic',
+      status: language === 'tl' ? 'Maasim ang lupa' : 'Too acidic',
       color: 'error',
       bgColor: 'bg-error/10',
       textColor: 'text-error'
     };
     if (val <= 7.5) return {
-      status: language === 'tl' ? 'Balanse' : 'Balanced',
+      status: language === 'tl' ? 'Tama lang' : 'Balanced',
       color: 'success',
       bgColor: 'bg-success/10',
       textColor: 'text-success'
     };
     return {
-      status: language === 'tl' ? 'Masyado alkaline' : 'Too alkaline',
+      status: language === 'tl' ? 'Matabang ang lupa' : 'Too alkaline',
       color: 'warning',
       bgColor: 'bg-warning/10',
       textColor: 'text-warning'
@@ -113,7 +113,7 @@ const SoilSensorCard = ({
             {language === 'tl' ? 'KALAGAYAN NG LUPA' : 'SOIL STATUS'}
           </h3>
           <p className="text-sm text-secondary">
-            {language === 'tl' ? 'Real-time na pagsubaybay' : 'Real-time monitoring'}
+            {language === 'tl' ? 'Live na datos' : 'Real-time monitoring'}
           </p>
         </div>
       </div>
@@ -124,7 +124,7 @@ const SoilSensorCard = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-secondary">
-              {language === 'tl' ? 'Halumigmig' : 'Humidity'}
+              {language === 'tl' ? 'Basa ng Lupa' : 'Humidity'}
             </span>
             <span className="text-xs text-tertiary">%</span>
           </div>
@@ -147,7 +147,7 @@ const SoilSensorCard = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-secondary">
-              {language === 'tl' ? 'Temperatura' : 'Temperature'}
+              {language === 'tl' ? 'Init ng Lupa' : 'Temperature'}
             </span>
             <span className="text-xs text-tertiary">°C</span>
           </div>
@@ -170,7 +170,7 @@ const SoilSensorCard = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-secondary">
-              {language === 'tl' ? 'Conductivity' : 'Conductivity'}
+              {language === 'tl' ? 'Sustansya' : 'Conductivity'}
             </span>
             <span className="text-xs text-tertiary">µS/cm</span>
           </div>
@@ -193,7 +193,7 @@ const SoilSensorCard = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-secondary">
-              {language === 'tl' ? 'pH Level' : 'pH Level'}
+              {language === 'tl' ? 'pH ng Lupa' : 'pH Level'}
             </span>
             <span className="text-xs text-tertiary">pH</span>
           </div>
