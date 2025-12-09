@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle, Clock } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useVolume } from '../contexts/VolumeContext';
 import { useTour } from '../contexts/TourContext';
+import { useSilentTime } from '../contexts/SilentTimeContext';
 import { translations } from '../i18n/translations';
 import {
   InputCard,
   ToggleCard,
   ConnectionTestCard,
-  SpeakerControl
+  SpeakerControl,
+  TimeInputCard
 } from '../components/ui';
 import ConfigService from '../services/ConfigService';
 import ConnectionManager from '../services/ConnectionManager';
@@ -19,6 +21,7 @@ export default function Settings({ language, onLanguageChange }) {
   const { currentTheme, isDark, toggleTheme } = useTheme();
   const { volume, setVolume, isMuted, setIsMuted } = useVolume();
   const { startTour, isFirstTimeUser, isTourCompleted, resetAllTours } = useTour();
+  const { isSilentTimeActive, settings: silentTimeSettings, updateSettings: updateSilentTimeSettings } = useSilentTime();
   const t = translations[language];
 
   // Configuration state (volume is now managed by VolumeContext)
@@ -98,7 +101,16 @@ export default function Settings({ language, onLanguageChange }) {
       resetTour: 'Reset App Guide',
       resetTourDesc: 'Show guided tour again',
       tourReset: 'Guide Reset',
-      tourResetMsg: 'The app guide will show again on all pages.'
+      tourResetMsg: 'The app guide will show again on all pages.',
+      silentTime: 'Silent Time',
+      silentTimeDesc: 'Disable detection at night to save battery',
+      enableSilentTime: 'Enable Silent Time',
+      enableSilentTimeDesc: 'Automatically disable detection during set hours',
+      startTime: 'Start Time',
+      startTimeDesc: 'When to start silent mode',
+      endTime: 'End Time',
+      endTimeDesc: 'When to end silent mode',
+      silentTimeActive: 'Silent Time Active'
     },
     tl: {
       title: 'Settings',
@@ -154,7 +166,16 @@ export default function Settings({ language, onLanguageChange }) {
       resetTour: 'Ulitin ang Gabay',
       resetTourDesc: 'Ipakita muli ang gabay',
       tourReset: 'Na-reset na',
-      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.'
+      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.',
+      silentTime: 'Oras ng Katahimikan',
+      silentTimeDesc: 'I-disable ang detection sa gabi para makatipid ng battery',
+      enableSilentTime: 'I-enable ang Silent Time',
+      enableSilentTimeDesc: 'Kusang i-disable ang detection sa itinakdang oras',
+      startTime: 'Oras ng Simula',
+      startTimeDesc: 'Kailan magsisimula ang silent mode',
+      endTime: 'Oras ng Pagtapos',
+      endTimeDesc: 'Kailan matatapos ang silent mode',
+      silentTimeActive: 'Aktibo ang Silent Time'
     }
   };
 
@@ -469,6 +490,44 @@ export default function Settings({ language, onLanguageChange }) {
             />
           </div>
 
+          {/* Silent Time Section */}
+          <SectionHeader icon={Clock} title={txt.silentTime} color="info" />
+          <div className="space-y-2 sm:space-y-3">
+            {/* Status indicator when active */}
+            {isSilentTimeActive && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-info/20 rounded-lg border border-info/30">
+                <Moon size={16} className="text-info" />
+                <span className="text-xs sm:text-sm text-info font-medium">{txt.silentTimeActive}</span>
+              </div>
+            )}
+
+            <ToggleCard
+              title={txt.enableSilentTime}
+              value={silentTimeSettings.enabled}
+              onValueChange={(value) => updateSilentTimeSettings({ enabled: value })}
+              description={txt.enableSilentTimeDesc}
+              icon="🌙"
+            />
+
+            <TimeInputCard
+              title={txt.startTime}
+              value={silentTimeSettings.startTime}
+              onChange={(value) => updateSilentTimeSettings({ startTime: value })}
+              description={txt.startTimeDesc}
+              icon="🌅"
+              disabled={!silentTimeSettings.enabled}
+            />
+
+            <TimeInputCard
+              title={txt.endTime}
+              value={silentTimeSettings.endTime}
+              onChange={(value) => updateSilentTimeSettings({ endTime: value })}
+              description={txt.endTimeDesc}
+              icon="🌄"
+              disabled={!silentTimeSettings.enabled}
+            />
+          </div>
+
           {/* App Preferences Section */}
           <SectionHeader icon={Smartphone} title={txt.appPreferences} color="brand" />
 
@@ -534,7 +593,7 @@ export default function Settings({ language, onLanguageChange }) {
             </p>
             <div className="pt-3 sm:pt-4 border-t border-primary text-center">
               <div className="text-xs sm:text-sm font-semibold text-brand">{txt.developedBy}</div>
-              <div className="text-[10px] sm:text-xs text-secondary mt-1">Version 1.2.1</div>
+              <div className="text-[10px] sm:text-xs text-secondary mt-1">Version 1.3.0</div>
             </div>
           </div>
 

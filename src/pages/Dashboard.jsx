@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTour } from '../contexts/TourContext';
+import { useSilentTime } from '../contexts/SilentTimeContext';
 import {
   SoilSensorCard,
   SoilHealthCard,
   SmartRecommendations,
 } from '../components/ui';
-import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2, HelpCircle } from 'lucide-react';
+import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2, HelpCircle, Moon } from 'lucide-react';
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
 import FirebaseService from '../services/FirebaseService';
@@ -17,6 +18,7 @@ import { dashboardTourSteps } from '../config/tourSteps';
 export default function Dashboard({ language }) {
   const { currentTheme } = useTheme();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
+  const { isSilentTimeActive } = useSilentTime();
   const [refreshing, setRefreshing] = useState(false);
   const fadeOpacity = useRef(1);
 
@@ -67,6 +69,7 @@ export default function Dashboard({ language }) {
       lastUpdated: 'Last updated',
       birdsToday: 'birds today',
       soilConditions: 'Soil Conditions',
+      silentMode: 'Silent',
     },
     tl: {
       title: 'BantayBot',
@@ -83,6 +86,7 @@ export default function Dashboard({ language }) {
       lastUpdated: 'Huling update',
       birdsToday: 'ibon ngayong araw',
       soilConditions: 'Kalagayan ng Lupa',
+      silentMode: 'Tahimik',
     }
   };
 
@@ -302,6 +306,15 @@ export default function Dashboard({ language }) {
               >
                 <HelpCircle size={20} className="text-info" />
               </button>
+              {/* Silent Time Indicator */}
+              {isSilentTimeActive && (
+                <div className="flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-sm border bg-info/10 border-info/30">
+                  <Moon size={14} className="text-info mr-1.5 sm:mr-2" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-info">
+                    {t.silentMode}
+                  </span>
+                </div>
+              )}
               {/* Connection Status */}
               <div data-tour="dashboard-connection-status" className={`flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-sm border ${
                 isConnected

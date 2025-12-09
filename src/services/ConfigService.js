@@ -28,7 +28,12 @@ class ConfigService {
 
       // System Settings
       debugMode: false,
-      logLevel: 'info'
+      logLevel: 'info',
+
+      // Silent Time Settings
+      silentTimeEnabled: false,
+      silentTimeStart: '19:00',  // 7 PM
+      silentTimeEnd: '05:00'     // 5 AM
     };
 
     this.config = null;
