@@ -4,9 +4,8 @@
  * This is an ADD-ON to existing motion detection.
  * Set AI_ENABLED to false to completely disable AI features.
  *
- * LIBRARIES REQUIRED (install via Arduino Library Manager):
- * - EloquentTinyML
- * - tflm_esp32
+ * LIBRARY REQUIRED: Adafruit TensorFlow Lite (install via Arduino Library Manager)
+ * Search for "Adafruit TensorFlow Lite"
  *
  * Models available:
  * - bird_model_small.h (16.8KB) - Faster, less memory, good accuracy
@@ -37,7 +36,10 @@
 
 #if AI_ENABLED
 
-// Load model FIRST (required before eloquent_tinyml.h)
+// Adafruit TensorFlow Lite library
+#include <Adafruit_TFLite.h>
+
+// Load only ONE model based on selection
 #if USE_SMALL_MODEL
   #include "bird_model_small.h"
   #define MODEL_DATA bird_model_small_tflite
@@ -52,24 +54,16 @@
   #define TENSOR_ARENA_SIZE (60 * 1024)
 #endif
 
-// Include ESP32 TFLite runtime, then EloquentTinyML wrapper
-#include <tflm_esp32.h>
-#include <eloquent_tinyml.h>
-
 // Model input/output dimensions
 #define AI_INPUT_WIDTH  64
 #define AI_INPUT_HEIGHT 64
 #define AI_INPUT_SIZE   (AI_INPUT_WIDTH * AI_INPUT_HEIGHT)
 #define AI_OUTPUT_SIZE  2  // [not_bird, bird]
 
-// Number of TFLite ops needed (adjust if model fails to load)
-#define TF_NUM_OPS 10
-
-// Create TensorFlow model instance
-Eloquent::TF::Sequential<TF_NUM_OPS, TENSOR_ARENA_SIZE> tf;
+// Create Adafruit TFLite instance
+Adafruit_TFLite ada_tflite(TENSOR_ARENA_SIZE);
 
 static bool ai_initialized = false;
-static float input_buffer[AI_INPUT_SIZE];
 
 /**
  * Initialize the TFLite model
@@ -82,25 +76,15 @@ bool initBirdAI() {
   Serial.printf("Arena size: %d bytes\n", TENSOR_ARENA_SIZE);
   Serial.printf("Free heap before: %d bytes\n", ESP.getFreeHeap());
 
-  // Configure which ops are needed (add more if model fails)
-  tf.setNumInputs(AI_INPUT_SIZE);
-  tf.setNumOutputs(AI_OUTPUT_SIZE);
-
-  // Register ops commonly used in image classification
-  tf.resolver.AddFullyConnected();
-  tf.resolver.AddSoftmax();
-  tf.resolver.AddRelu();
-  tf.resolver.AddReshape();
-  tf.resolver.AddConv2D();
-  tf.resolver.AddMaxPool2D();
-  tf.resolver.AddMean();
-
   // Load the model
-  if (!tf.begin(MODEL_DATA).isOk()) {
-    Serial.println("Failed to initialize TinyML model!");
-    Serial.println(tf.exception.toString());
+  if (!ada_tflite.begin(MODEL_DATA, MODEL_DATA_LEN)) {
+    Serial.println("Failed to initialize TFLite model!");
     return false;
   }
+
+  // Print model info
+  Serial.printf("Input size: %d\n", ada_tflite.inputSize());
+  Serial.printf("Output size: %d\n", ada_tflite.outputSize());
 
   ai_initialized = true;
   Serial.println("Bird AI initialized successfully!");
@@ -122,6 +106,13 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
     return -1.0f;  // AI not available
   }
 
+  // Get input buffer from TFLite
+  float* input = ada_tflite.input();
+  if (!input) {
+    Serial.println("Failed to get input buffer!");
+    return -1.0f;
+  }
+
   // Resize/sample input image to model size (64x64)
   // Uses simple nearest-neighbor sampling for speed
   for (int y = 0; y < AI_INPUT_HEIGHT; y++) {
@@ -133,29 +124,35 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
       int dst_idx = y * AI_INPUT_WIDTH + x;
 
       // Normalize pixel value to 0.0-1.0
-      input_buffer[dst_idx] = grayBuffer[src_idx] / 255.0f;
+      input[dst_idx] = grayBuffer[src_idx] / 255.0f;
     }
   }
 
   // Run inference
   unsigned long start_time = millis();
 
-  if (!tf.predict(input_buffer).isOk()) {
+  if (!ada_tflite.invoke()) {
     Serial.println("AI inference failed!");
-    Serial.println(tf.exception.toString());
     return -1.0f;
   }
 
   unsigned long inference_time = millis() - start_time;
 
-  // Get output: output[0] = not_bird, output[1] = bird
-  float bird_confidence = tf.output(1);
+  // Get output buffer
+  float* output = ada_tflite.output();
+  if (!output) {
+    Serial.println("Failed to get output buffer!");
+    return -1.0f;
+  }
+
+  // output[0] = not_bird, output[1] = bird
+  float bird_confidence = output[1];
 
   // Clamp to valid range
   bird_confidence = constrain(bird_confidence, 0.0f, 1.0f);
 
   Serial.printf("AI: %.1f%% bird (%.1f%% not) [%dms]\n",
-                bird_confidence * 100, tf.output(0) * 100, inference_time);
+                bird_confidence * 100, output[0] * 100, inference_time);
 
   return bird_confidence;
 }
