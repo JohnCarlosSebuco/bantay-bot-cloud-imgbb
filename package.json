@@ -1,6 +1,6 @@
 {
   "name": "bantaybot-pwa",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "type": "module",
   "description": "BantayBot PWA - Smart Crop Protection System with Firebase",
   "scripts": {
