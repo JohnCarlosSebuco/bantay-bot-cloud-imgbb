@@ -230,7 +230,7 @@ void updateSensorDataSmart() {
   json.set("fields/volume/integerValue", String(volumeLevel));
   json.set("fields/servoActive/booleanValue", armSteppersActive);
   json.set("fields/headPosition/integerValue", String(currentHeadPosition));
-  json.set("fields/timestamp/integerValue", String(millis()));
+  json.set("fields/timestamp/integerValue", String(time(nullptr) * 1000LL));
 
   String path = "sensor_data/" + String(MAIN_DEVICE_ID);
 
@@ -309,7 +309,7 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
 
   FirebaseJson json;
   json.set("fields/deviceId/stringValue", CAMERA_DEVICE_ID);
-  json.set("fields/timestamp/integerValue", String(millis()));
+  json.set("fields/timestamp/integerValue", String(time(nullptr) * 1000LL));
   json.set("fields/imageUrl/stringValue", imageUrl);
   json.set("fields/birdSize/integerValue", String(birdSize));
   json.set("fields/confidence/integerValue", String(confidence));
