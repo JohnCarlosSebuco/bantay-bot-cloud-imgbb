@@ -4,7 +4,9 @@
  * This is an ADD-ON to existing motion detection.
  * Set AI_ENABLED to false to completely disable AI features.
  *
- * LIBRARY REQUIRED: EloquentTinyML (install via Arduino Library Manager)
+ * LIBRARIES REQUIRED (install via Arduino Library Manager):
+ * - EloquentTinyML
+ * - tflm_esp32
  *
  * Models available:
  * - bird_model_small.h (16.8KB) - Faster, less memory, good accuracy
@@ -35,10 +37,7 @@
 
 #if AI_ENABLED
 
-// Use EloquentTinyML - more compatible with newer compilers
-#include <EloquentTinyML.h>
-
-// Load only ONE model based on selection
+// Load model FIRST (required before eloquent_tinyml.h)
 #if USE_SMALL_MODEL
   #include "bird_model_small.h"
   #define MODEL_DATA bird_model_small_tflite
@@ -53,14 +52,21 @@
   #define TENSOR_ARENA_SIZE (60 * 1024)
 #endif
 
+// Include ESP32 TFLite runtime, then EloquentTinyML wrapper
+#include <tflm_esp32.h>
+#include <eloquent_tinyml.h>
+
 // Model input/output dimensions
 #define AI_INPUT_WIDTH  64
 #define AI_INPUT_HEIGHT 64
 #define AI_INPUT_SIZE   (AI_INPUT_WIDTH * AI_INPUT_HEIGHT)
 #define AI_OUTPUT_SIZE  2  // [not_bird, bird]
 
-// Create TinyML model instance
-Eloquent::TinyML::TfLite<AI_INPUT_SIZE, AI_OUTPUT_SIZE, TENSOR_ARENA_SIZE> ml;
+// Number of TFLite ops needed (adjust if model fails to load)
+#define TF_NUM_OPS 10
+
+// Create TensorFlow model instance
+Eloquent::TF::Sequential<TF_NUM_OPS, TENSOR_ARENA_SIZE> tf;
 
 static bool ai_initialized = false;
 static float input_buffer[AI_INPUT_SIZE];
@@ -76,10 +82,23 @@ bool initBirdAI() {
   Serial.printf("Arena size: %d bytes\n", TENSOR_ARENA_SIZE);
   Serial.printf("Free heap before: %d bytes\n", ESP.getFreeHeap());
 
+  // Configure which ops are needed (add more if model fails)
+  tf.setNumInputs(AI_INPUT_SIZE);
+  tf.setNumOutputs(AI_OUTPUT_SIZE);
+
+  // Register ops commonly used in image classification
+  tf.resolver.AddFullyConnected();
+  tf.resolver.AddSoftmax();
+  tf.resolver.AddRelu();
+  tf.resolver.AddReshape();
+  tf.resolver.AddConv2D();
+  tf.resolver.AddMaxPool2D();
+  tf.resolver.AddMean();
+
   // Load the model
-  if (!ml.begin(MODEL_DATA)) {
+  if (!tf.begin(MODEL_DATA).isOk()) {
     Serial.println("Failed to initialize TinyML model!");
-    Serial.println(ml.errorMessage());
+    Serial.println(tf.exception.toString());
     return false;
   }
 
@@ -120,25 +139,23 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
 
   // Run inference
   unsigned long start_time = millis();
-  float output[AI_OUTPUT_SIZE];
 
-  if (!ml.predict(input_buffer, output)) {
+  if (!tf.predict(input_buffer).isOk()) {
     Serial.println("AI inference failed!");
-    Serial.println(ml.errorMessage());
+    Serial.println(tf.exception.toString());
     return -1.0f;
   }
 
   unsigned long inference_time = millis() - start_time;
 
-  // output[0] = not_bird confidence
-  // output[1] = bird confidence
-  float bird_confidence = output[1];
+  // Get output: output[0] = not_bird, output[1] = bird
+  float bird_confidence = tf.output(1);
 
   // Clamp to valid range
   bird_confidence = constrain(bird_confidence, 0.0f, 1.0f);
 
   Serial.printf("AI: %.1f%% bird (%.1f%% not) [%dms]\n",
-                bird_confidence * 100, output[0] * 100, inference_time);
+                bird_confidence * 100, tf.output(0) * 100, inference_time);
 
   return bird_confidence;
 }
