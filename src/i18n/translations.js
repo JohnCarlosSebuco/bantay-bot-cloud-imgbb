@@ -65,47 +65,47 @@ export const translations = {
   },
 
   tl: {
-    // Navigation
+    // Navigation - Keep English words farmers know from phones
     dashboard: 'Dashboard',
     controls: 'Kontrol',
-    analytics: 'Analytics',
+    analytics: 'Ulat',
     history: 'History',
     settings: 'Settings',
 
     // Dashboard
-    cameraStream: 'Camera Stream',
-    soilSensors: 'Soil Sensors',
-    deviceStatus: 'Kalagayan ng Device',
-    online: 'Online',
-    offline: 'Offline',
+    cameraStream: 'Camera',
+    soilSensors: 'Sensor ng Lupa',
+    deviceStatus: 'Status ng Makina',
+    online: 'Nakakonekta',
+    offline: 'Hindi Nakakonekta',
 
-    // Soil Sensors
-    humidity: 'Halumigmig',
-    temperature: 'Temperatura',
-    conductivity: 'Konduktibidad',
-    ph: 'pH Level',
+    // Soil Sensors - Simple Tagalog for farmers
+    humidity: 'Basa ng Lupa',
+    temperature: 'Init',
+    conductivity: 'Sustansya',
+    ph: 'pH ng Lupa',
 
     // Controls
-    audioControls: 'Kontrol ng Tunog',
-    motorControls: 'Kontrol ng Motor',
+    audioControls: 'Tunog',
+    motorControls: 'Motor',
     servoControls: 'Mga Braso',
-    play: 'Tumugtog',
-    stop: 'Ihinto',
+    play: 'Patugtugin',
+    stop: 'Itigil',
     next: 'Susunod',
     previous: 'Nakaraan',
-    volume: 'Lakas ng Tunog',
+    volume: 'Lakas',
     track: 'Track',
 
     // Motor
-    rotateLeft: 'Ikot Kaliwa',
+    rotateLeft: 'Kaliwa',
     rotateCenter: 'Gitna',
-    rotateRight: 'Ikot Kanan',
-    headPosition: 'Posisyon ng Ulo',
+    rotateRight: 'Kanan',
+    headPosition: 'Ulo',
 
     // Servos
     leftArm: 'Kaliwang Braso',
     rightArm: 'Kanang Braso',
-    oscillate: 'Gumalaw',
+    oscillate: 'Kumaway',
     stopOscillate: 'Tigil',
     rest: 'Pahinga',
     alert: 'Alerto',
@@ -113,19 +113,19 @@ export const translations = {
 
     // Settings
     language: 'Wika',
-    theme: 'Tema',
+    theme: 'Kulay',
     light: 'Maliwanag',
     dark: 'Madilim',
-    deviceSettings: 'Settings ng Device',
-    cameraDevice: 'Camera Device',
+    deviceSettings: 'Settings ng Makina',
+    cameraDevice: 'Camera',
     mainDevice: 'Main Board',
 
     // Common
     save: 'I-save',
     cancel: 'Kanselahin',
     refresh: 'I-refresh',
-    loading: 'Nag-lo-load...',
-    error: 'May Mali',
-    success: 'Tagumpay',
+    loading: 'Sandali lang...',
+    error: 'May problema',
+    success: 'Tapos na',
   }
 };
