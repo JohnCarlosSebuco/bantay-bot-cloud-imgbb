@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Gamepad2, Check, Cog, Square, Volume2, Megaphone, Music, Settings, Wrench, RefreshCw, AlertTriangle, OctagonX, Loader2, ChevronRight } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useVolume } from '../contexts/VolumeContext';
 import {
   AudioPlayerControl,
   HeadControlPanel
@@ -10,12 +11,12 @@ import { CONFIG } from '../config/config';
 
 export default function Controls({ language }) {
   const { currentTheme } = useTheme();
+  const { volume, setVolume } = useVolume();
   const [loadingStates, setLoadingStates] = useState({});
   const [lastCommand, setLastCommand] = useState(null);
 
   // Audio controls state
   const [audioPlaying, setAudioPlaying] = useState(false);
-  const [volume, setVolume] = useState(20);
   const [headTargetAngle, setHeadTargetAngle] = useState(0);
   const [headLoadingAngle, setHeadLoadingAngle] = useState(null);
 
@@ -155,13 +156,9 @@ export default function Controls({ language }) {
     }
   };
 
-  const handleVolumeChange = async (newVolume) => {
-    try {
-      await CommandService.setVolume(CONFIG.DEVICE_ID, newVolume);
-      setVolume(newVolume);
-    } catch (error) {
-      console.error('Volume change failed:', error);
-    }
+  const handleVolumeChange = (newVolume) => {
+    // VolumeContext handles debounce and sending to device
+    setVolume(newVolume);
   };
 
   const handleHeadAngleSelect = async (angle) => {

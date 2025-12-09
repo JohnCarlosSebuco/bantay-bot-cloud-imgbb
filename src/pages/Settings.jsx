@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useVolume } from '../contexts/VolumeContext';
 import { translations } from '../i18n/translations';
 import {
   InputCard,
@@ -14,9 +15,10 @@ import NetworkDiscoveryService from '../services/NetworkDiscoveryService';
 
 export default function Settings({ language, onLanguageChange }) {
   const { currentTheme, isDark, toggleTheme } = useTheme();
+  const { volume, setVolume, isMuted, setIsMuted } = useVolume();
   const t = translations[language];
 
-  // Configuration state
+  // Configuration state (volume is now managed by VolumeContext)
   const [config, setConfig] = useState({
     cameraIP: '',
     cameraPort: '',
@@ -24,9 +26,7 @@ export default function Settings({ language, onLanguageChange }) {
     mainBoardPort: '',
     updateInterval: '',
     notifications: true,
-    autoReconnect: true,
-    volume: 1.0,
-    isMuted: false
+    autoReconnect: true
   });
 
   // UI state
@@ -165,10 +165,9 @@ export default function Settings({ language, onLanguageChange }) {
         mainBoardPort: currentConfig.mainBoardPort.toString(),
         updateInterval: currentConfig.updateInterval.toString(),
         notifications: currentConfig.notifications,
-        autoReconnect: currentConfig.autoReconnect,
-        volume: currentConfig.volume,
-        isMuted: currentConfig.isMuted
+        autoReconnect: currentConfig.autoReconnect
       });
+      // Volume is now managed by VolumeContext and synced from device
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -184,9 +183,8 @@ export default function Settings({ language, onLanguageChange }) {
         mainBoardPort: parseInt(config.mainBoardPort),
         updateInterval: parseInt(config.updateInterval),
         notifications: config.notifications,
-        autoReconnect: config.autoReconnect,
-        volume: config.volume,
-        isMuted: config.isMuted
+        autoReconnect: config.autoReconnect
+        // Volume is managed by VolumeContext and sent directly to device
       };
 
       const validation = ConfigService.validate(updateConfig);
@@ -292,10 +290,11 @@ export default function Settings({ language, onLanguageChange }) {
           mainBoardPort: defaults.mainBoardPort.toString(),
           updateInterval: defaults.updateInterval.toString(),
           notifications: defaults.notifications,
-          autoReconnect: defaults.autoReconnect,
-          volume: defaults.volume,
-          isMuted: defaults.isMuted
+          autoReconnect: defaults.autoReconnect
         });
+        // Reset volume to default (70%) through context
+        setVolume(70);
+        setIsMuted(false);
         setConnectionStatus({ camera: 'Not tested', mainBoard: 'Not tested' });
         setErrors({});
       });
@@ -427,10 +426,10 @@ export default function Settings({ language, onLanguageChange }) {
           {/* Speaker & Audio Section */}
           <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" />
           <SpeakerControl
-            volume={config.volume}
-            onVolumeChange={(value) => updateConfig('volume', value)}
-            isMuted={config.isMuted}
-            onMuteToggle={() => updateConfig('isMuted', !config.isMuted)}
+            volume={volume}
+            onVolumeChange={setVolume}
+            isMuted={isMuted}
+            onMuteToggle={() => setIsMuted(!isMuted)}
           />
 
           {/* App Preferences Section */}
