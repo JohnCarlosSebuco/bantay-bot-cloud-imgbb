@@ -137,6 +137,16 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
     return -1.0f;
   }
 
+  // Debug: show input tensor info
+  Serial.printf("Input type: %d, scale: %.6f, zero_point: %d\n",
+                input_tensor->type,
+                input_tensor->params.scale,
+                input_tensor->params.zero_point);
+
+  // Get input quantization params
+  float input_scale = input_tensor->params.scale;
+  int input_zero_point = input_tensor->params.zero_point;
+
   // Fill input tensor - resize image to 64x64
   for (int y = 0; y < AI_INPUT_HEIGHT; y++) {
     for (int x = 0; x < AI_INPUT_WIDTH; x++) {
@@ -145,16 +155,29 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
       int src_idx = src_y * width + src_x;
       int dst_idx = y * AI_INPUT_WIDTH + x;
 
+      // Normalize pixel to 0.0-1.0 first
+      float normalized = grayBuffer[src_idx] / 255.0f;
+
       // Handle different input types
       if (input_tensor->type == kTfLiteFloat32) {
-        input_tensor->data.f[dst_idx] = grayBuffer[src_idx] / 255.0f;
+        input_tensor->data.f[dst_idx] = normalized;
       } else if (input_tensor->type == kTfLiteUInt8) {
-        input_tensor->data.uint8[dst_idx] = grayBuffer[src_idx];
+        // Quantize: q = (float_val / scale) + zero_point
+        int quantized = (int)(normalized / input_scale) + input_zero_point;
+        input_tensor->data.uint8[dst_idx] = (uint8_t)constrain(quantized, 0, 255);
       } else if (input_tensor->type == kTfLiteInt8) {
-        input_tensor->data.int8[dst_idx] = (int8_t)(grayBuffer[src_idx] - 128);
+        // Quantize: q = (float_val / scale) + zero_point
+        int quantized = (int)(normalized / input_scale) + input_zero_point;
+        input_tensor->data.int8[dst_idx] = (int8_t)constrain(quantized, -128, 127);
       }
     }
   }
+
+  // Debug: show sample input values
+  Serial.printf("Sample inputs: [0]=%d, [100]=%d, [2000]=%d\n",
+                input_tensor->data.int8[0],
+                input_tensor->data.int8[100],
+                input_tensor->data.int8[2000]);
 
   // Run inference
   unsigned long start_time = millis();
