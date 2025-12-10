@@ -60,7 +60,7 @@
 // ===========================
 
 // Stepper Motor
-#define STEPS_PER_REVOLUTION 400   // Calibrated: 800 was 2 rotations, so 400 = 1 rotation
+#define STEPS_PER_REVOLUTION 200   // Testing: 400 still too much
 
 // Audio
 #define TOTAL_TRACKS 7
