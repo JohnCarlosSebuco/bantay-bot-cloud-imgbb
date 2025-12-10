@@ -54,7 +54,7 @@ export default function SoilHealthCard({ sensorData, language }) {
                 <Droplets size={16} className="text-blue-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Halumigmig' : 'Humidity'}</div>
+                <div className="text-[10px] sm:text-xs text-secondary truncate">{language === 'tl' ? 'Basa ng Lupa' : 'Moisture'}</div>
                 <div className={`text-xs sm:text-sm font-semibold text-${getSensorStatus(humidityScore).color}`}>{getSensorStatus(humidityScore).label}</div>
               </div>
             </div>
