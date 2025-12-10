@@ -28,7 +28,7 @@
 // Model selection: true = small (16.8KB), false = normal (49.7KB)
 // Small model: faster inference, less memory (~40KB arena)
 // Normal model: better accuracy, more memory (~60KB arena)
-#define USE_SMALL_MODEL true
+#define USE_SMALL_MODEL false
 
 // AI confidence threshold (0.0 - 1.0)
 // Detections below this are considered "not a bird"
