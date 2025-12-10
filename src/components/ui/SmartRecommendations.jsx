@@ -14,93 +14,85 @@ const IconMap = {
 export default function SmartRecommendations({ sensorData, language }) {
   const [selectedRecommendation, setSelectedRecommendation] = useState(null);
 
-  // Generate recommendations based on sensor values
+  // Generate recommendations based on sensor values (Rice-specific for Lopez, Quezon)
   const getRecommendations = () => {
     const recommendations = [];
 
-    // Humidity recommendations
-    if (sensorData.soilHumidity < 40) {
+    // Humidity recommendations (Rice needs flooded paddies: 60-90% is normal)
+    if (sensorData.soilHumidity < 60) {
       recommendations.push({
         icon: 'droplets',
         iconColor: 'text-blue-500',
-        action: language === 'tl' ? 'Magdilig' : 'Irrigate field',
-        reason: language === 'tl' ? 'Tuyo ang lupa' : 'Soil is dry',
+        action: language === 'tl' ? 'Padaluyin ang Tubig' : 'Irrigate paddy',
+        reason: language === 'tl' ? 'Kulang ang tubig sa palayan' : 'Paddy needs water',
         priority: 'high',
         color: 'error'
       });
-    } else if (sensorData.soilHumidity > 70) {
+    } else if (sensorData.soilHumidity > 95) {
       recommendations.push({
         icon: 'droplets',
         iconColor: 'text-blue-500',
-        action: language === 'tl' ? 'Magdrain ng tubig' : 'Drain excess water',
-        reason: language === 'tl' ? 'Sobrang basa' : 'Too wet',
+        action: language === 'tl' ? 'Pagsasapaw' : 'Mid-season drainage',
+        reason: language === 'tl' ? 'Patuyuin ng 1 linggo' : 'Drain for 1 week',
         priority: 'medium',
         color: 'warning'
       });
     }
 
-    // Temperature recommendations
-    if (sensorData.soilTemperature > 30) {
+    // Temperature recommendations (Rice: water regulates temperature, not mulch)
+    if (sensorData.soilTemperature > 35) {
       recommendations.push({
         icon: 'thermometer',
         iconColor: 'text-orange-500',
-        action: language === 'tl' ? 'Takpan ng dayami' : 'Add mulch/shade',
-        reason: language === 'tl' ? 'Mainit ang lupa' : 'Soil too hot',
+        action: language === 'tl' ? 'Dagdagan ang Tubig' : 'Increase water depth',
+        reason: language === 'tl' ? 'Mainit ang lupa - tubig ang pampalamig' : 'Soil too hot - water cools it',
         priority: 'medium',
         color: 'warning'
       });
-    } else if (sensorData.soilTemperature < 20) {
+    } else if (sensorData.soilTemperature < 18) {
       recommendations.push({
         icon: 'snowflake',
         iconColor: 'text-sky-400',
-        action: language === 'tl' ? 'Protektahan sa ginaw' : 'Protect from cold',
-        reason: language === 'tl' ? 'Malamig ang lupa' : 'Soil too cold',
-        priority: 'low',
-        color: 'info'
+        action: language === 'tl' ? 'Palalimin ang Tubig' : 'Deepen water level',
+        reason: language === 'tl' ? 'Malamig - tubig ang kumot ng lupa' : 'Cold - water insulates soil',
+        priority: 'medium',
+        color: 'warning'
       });
     }
 
-    // Conductivity recommendations
-    if (sensorData.soilConductivity < 200) {
+    // Conductivity recommendations (Rice: fertilizer per hectare, not per plant)
+    if (sensorData.soilConductivity < 300) {
       recommendations.push({
         icon: 'leaf',
         iconColor: 'text-green-500',
         action: language === 'tl' ? 'Magpataba' : 'Apply fertilizer',
-        reason: language === 'tl' ? 'Kulang sa pataba' : 'Low nutrients',
+        reason: language === 'tl' ? 'Kulang sa sustansya' : 'Low nutrients',
         priority: 'medium',
         color: 'warning'
       });
-    } else if (sensorData.soilConductivity > 2000) {
+    } else if (sensorData.soilConductivity > 1500) {
       recommendations.push({
         icon: 'zap',
         iconColor: 'text-yellow-500',
-        action: language === 'tl' ? 'Bawasan ang pataba' : 'Reduce fertilizer',
-        reason: language === 'tl' ? 'Sobra sa pataba' : 'High salinity',
+        action: language === 'tl' ? 'Huwag Muna Magpataba' : 'Skip fertilizer application',
+        reason: language === 'tl' ? 'Sobra na ang sustansya' : 'Excess nutrients',
         priority: 'medium',
         color: 'warning'
       });
     }
 
-    // pH recommendations
+    // pH recommendations (Rice: use abo ng dayami, not commercial lime)
     if (sensorData.ph < 5.5) {
       recommendations.push({
         icon: 'flask',
         iconColor: 'text-purple-500',
-        action: language === 'tl' ? 'Maglagay ng apog' : 'Add lime/calcium',
+        action: language === 'tl' ? 'Maglagay ng Abo ng Dayami' : 'Apply rice straw ash',
         reason: language === 'tl' ? 'Maasim ang lupa' : 'Too acidic',
         priority: 'high',
         color: 'error'
       });
-    } else if (sensorData.ph > 7.5) {
-      recommendations.push({
-        icon: 'flask',
-        iconColor: 'text-purple-500',
-        action: language === 'tl' ? 'Maglagay ng asupre' : 'Apply sulfur',
-        reason: language === 'tl' ? 'Matabang ang lupa' : 'Too alkaline',
-        priority: 'medium',
-        color: 'warning'
-      });
     }
+    // Removed alkaline soil (>7.5) recommendation - rare in Quezon and impractical for farmers
 
     // Sort by priority
     const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -113,358 +105,314 @@ export default function SmartRecommendations({ sensorData, language }) {
   const getRecommendationDetails = (action) => {
     const details = {
       en: {
-        'Irrigate field': {
-          title: 'Irrigate Field',
-          whatIsIt: 'Your soil lacks sufficient water. Plants cannot absorb nutrients properly when the soil is too dry.',
-          whyNeeded: 'Without adequate water, plants will wilt, growth stops, and your harvest yield will significantly decrease.',
+        'Irrigate paddy': {
+          title: 'Irrigate Rice Paddy',
+          whatIsIt: 'Your rice paddy (palayan) needs more water. Rice grows best in flooded conditions with 3-5 cm standing water.',
+          whyNeeded: 'Without adequate water, rice cannot absorb nutrients, tillering stops, and yield will significantly decrease.',
           howToDo: [
-            'Water early morning (6-8 AM) or late afternoon (4-6 PM)',
-            'Apply 2-3 liters of water per square meter',
-            'Water at the base of plants, not on the leaves',
-            'Water slowly to allow soil to absorb'
+            'Open the irrigation canal to let water flow into the paddy',
+            'Maintain 3-5 cm water depth (ankle-deep/bukung-bukong)',
+            'Check water level at 3-4 spots across your field',
+            'During flowering stage, increase to 5-7 cm (knee-deep/tuhod)'
           ],
-          tips: 'Check soil moisture by pressing your finger 2 inches deep. If it feels dry, watering is needed.',
-          currentLabel: 'Current Humidity',
+          tips: 'For large fields (2+ hectares): Check water at the edges, middle, and far end to ensure even distribution.',
+          currentLabel: 'Current Moisture',
           optimalLabel: 'Optimal Range',
-          optimal: '40-70%',
+          optimal: '60-90%',
           reference: {
-            study: 'Soil water deficit causes plant water stress affecting crop development and yield.',
-            source: 'FAO Irrigation and Drainage Paper No. 56',
-            author: 'Allen, R.G., Pereira, L.S., Raes, D., Smith, M.',
-            year: '1998',
-            url: 'https://www.fao.org/3/x0490e/x0490e00.htm'
+            study: 'Water management significantly affects rice yield. Maintaining 3-5 cm water depth during vegetative stage is optimal for rice production.',
+            source: 'IRRI Rice Knowledge Bank - Water Management',
+            author: 'International Rice Research Institute (IRRI)',
+            year: '2023',
+            url: 'http://www.knowledgebank.irri.org/step-by-step-production/growth/water-management'
           }
         },
-        'Drain excess water': {
-          title: 'Drain Excess Water',
-          whatIsIt: 'Too much water in the soil. Plant roots cannot breathe and may start to rot.',
-          whyNeeded: 'Waterlogged soil causes root rot, fungal diseases, and can kill your plants.',
+        'Mid-season drainage': {
+          title: 'Mid-Season Drainage (Pagsasapaw)',
+          whatIsIt: 'Your rice paddy is oversaturated. Draining for 5-7 days strengthens rice roots and prevents lodging (falling over).',
+          whyNeeded: 'Mid-season drainage reduces weak stems, prevents rice from falling during storms, and can increase yield by 10-15%.',
           howToDo: [
-            'Create small drainage channels between plant rows',
-            'Reduce watering frequency immediately',
-            'Add organic matter (compost) to improve drainage',
-            'Consider raised beds for future planting'
+            'Open drainage canal to let water out of the paddy',
+            'Allow field to dry for 5-7 days until cracks appear on soil surface',
+            'Best timing: 45 days after transplanting (before panicle initiation)',
+            'Refill with water after drainage period'
           ],
-          tips: 'Raised beds (6-12 inches high) help prevent waterlogging during rainy season.',
-          currentLabel: 'Current Humidity',
+          tips: 'Pagsasapaw also reduces methane emissions by 30-50% - good for the environment!',
+          currentLabel: 'Current Moisture',
           optimalLabel: 'Optimal Range',
-          optimal: '40-70%',
+          optimal: '60-90%',
           reference: {
-            study: 'Flooding stress causes oxygen deficiency in roots, leading to 20-50% yield loss in most crops.',
-            source: 'Annals of Botany, Vol. 96, Issue 4, Pages 501-505',
-            author: 'Jackson, M.B., Colmer, T.D.',
-            year: '2005',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/16217870/'
-          }
-        },
-        'Add mulch/shade': {
-          title: 'Add Mulch or Shade',
-          whatIsIt: 'Your soil temperature is too high. Hot soil damages plant roots and reduces nutrient uptake.',
-          whyNeeded: 'Heat stress reduces plant growth, causes flower drop, and lowers fruit quality.',
-          howToDo: [
-            'Apply 2-3 inch layer of rice straw or dried leaves around plants',
-            'Use shade cloth (50% shade) during peak heat (10 AM - 3 PM)',
-            'Water in early morning to cool the soil',
-            'Avoid watering during midday heat'
-          ],
-          tips: 'Organic mulch like rice straw also adds nutrients to soil as it decomposes.',
-          currentLabel: 'Current Temperature',
-          optimalLabel: 'Optimal Range',
-          optimal: '20-30°C',
-          reference: {
-            study: 'Mulching significantly reduces soil surface temperature variation and improves plant production.',
-            source: 'Heliyon, Vol. 8, Issue 12, Article e12284',
-            author: 'Mangani, T., Mangani, R., Chirima, G., Khomo, L., Truter, W.',
+            study: 'Mid-season drainage (AWD) strengthens rice roots, reduces lodging by 20-30%, and decreases methane emissions by 30-50%.',
+            source: 'Alternate Wetting and Drying (AWD) Technology for Rice Production',
+            author: 'PhilRice (Philippine Rice Research Institute)',
             year: '2022',
-            url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9791825/'
+            url: 'https://www.philrice.gov.ph/wp-content/uploads/2022/10/RS4DM-Alternate-Wetting-Drying-Technology-Vol.-11.pdf'
           }
         },
-        'Protect from cold': {
-          title: 'Protect from Cold',
-          whatIsIt: 'Soil temperature is too low. Cold soil slows down nutrient absorption and plant growth.',
-          whyNeeded: 'Low temperatures slow plant metabolism, reduce growth, and can damage sensitive crops.',
+        'Increase water depth': {
+          title: 'Increase Water Depth',
+          whatIsIt: 'Your rice paddy soil is too hot. Deep water (10-15 cm) acts as a natural coolant for rice plants.',
+          whyNeeded: 'Extreme heat damages rice during flowering, causing empty grains (ipa) and reduced yield.',
           howToDo: [
-            'Cover plants with plastic sheet or cloth at night',
-            'Apply dark-colored mulch to absorb more heat',
-            'Water during warmer parts of the day (10 AM - 2 PM)',
-            'Group container plants together to share warmth'
+            'Increase water depth to 10-15 cm during extreme heat',
+            'Open irrigation canal to let more water in',
+            'Maintain deeper water during midday (10 AM - 3 PM)',
+            'Can reduce back to 5 cm after heat wave passes'
           ],
-          tips: 'Black plastic mulch can raise soil temperature by 5-10°F.',
+          tips: 'Water acts as a thermal buffer - it absorbs heat during the day and releases it slowly at night.',
           currentLabel: 'Current Temperature',
           optimalLabel: 'Optimal Range',
-          optimal: '20-30°C',
+          optimal: '20-35°C',
           reference: {
-            study: 'Root growth was lowest in the 9°C treatment. Low soil temperatures significantly reduce root growth and nutrient uptake.',
-            source: 'Tree Physiology, Vol. 25, Issue 1, Pages 115-122',
-            author: 'Lahti, M., Aphalo, P.J., Finér, L., Ryyppö, A., Lehto, T., Mannerkoski, H.',
-            year: '2005',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/15519993/'
+            study: 'Standing water acts as thermal buffer, reducing soil temperature by 5-8°C during extreme heat events.',
+            source: 'Climate-Smart Agriculture Sourcebook - Crop Production',
+            author: 'FAO (Food and Agriculture Organization)',
+            year: '2020',
+            url: 'https://www.fao.org/climate-smart-agriculture-sourcebook/production-resources/module-b1-crops/chapter-b1-3/en/'
+          }
+        },
+        'Deepen water level': {
+          title: 'Deepen Water for Cold Protection',
+          whatIsIt: 'Your rice paddy soil is too cold. Deep water (10-15 cm) insulates the soil and protects rice from cold damage.',
+          whyNeeded: 'Cold temperatures slow rice growth, cause yellowing, and can delay harvest by 2-3 weeks.',
+          howToDo: [
+            'Increase water depth to 10-15 cm immediately',
+            'Maintain deep water especially at night when temperatures drop',
+            'Keep water flowing slowly (fresh water brings warmth)',
+            'Reduce depth back to normal when cold spell ends'
+          ],
+          tips: 'Water acts like a blanket - it holds heat and protects rice roots from cold air temperatures.',
+          currentLabel: 'Current Temperature',
+          optimalLabel: 'Optimal Range',
+          optimal: '20-35°C',
+          reference: {
+            study: 'Deep water (10-15cm) protects rice from cold injury by maintaining stable soil temperature above 15°C.',
+            source: 'IRRI Rice Knowledge Bank - Good Water Management Practices',
+            author: 'International Rice Research Institute (IRRI)',
+            year: '2023',
+            url: 'http://www.knowledgebank.irri.org/training/fact-sheets/water-management/item/good-water-management-practices'
           }
         },
         'Apply fertilizer': {
           title: 'Apply Fertilizer',
-          whatIsIt: 'Your soil lacks essential nutrients (nitrogen, phosphorus, potassium) needed for plant growth.',
-          whyNeeded: 'Nutrient deficiency causes yellow leaves, stunted growth, and poor harvest.',
+          whatIsIt: 'Your rice paddy lacks essential nutrients (nitrogen, phosphorus, potassium) needed for healthy growth.',
+          whyNeeded: 'Nutrient deficiency causes yellow leaves, few tillers, and poor grain filling - reducing your harvest.',
           howToDo: [
-            'Use balanced NPK fertilizer (14-14-14)',
-            'Apply 1 tablespoon per plant, 3-4 inches away from stem',
-            'Water immediately after applying fertilizer',
-            'Apply every 2-3 weeks during growing season'
+            'Apply 4 sacks Complete (14-14-14) + 2 sacks Urea PER HECTARE',
+            'For 2 hectares: 8 sacks Complete + 4 sacks Urea total',
+            'Split into 3 applications: at planting, 21 days, and 45 days after transplanting',
+            'Broadcast method: walk through paddy and scatter fertilizer evenly'
           ],
-          tips: 'Compost and animal manure are excellent natural alternatives to chemical fertilizers.',
+          tips: 'Buy fertilizer from your local agri-supply store. Complete and Urea are available in most towns in Lopez, Quezon.',
           currentLabel: 'Current Nutrients',
           optimalLabel: 'Optimal Range',
-          optimal: '200-2000 µS/cm',
+          optimal: '300-1500 µS/cm',
           reference: {
-            study: 'Nonsaline soils with low EC values have fewer available nutrients. Low EC indicates nutrient deficiency affecting plant growth.',
-            source: 'USDA NRCS Soil Quality Technical Note',
-            author: 'USDA Natural Resources Conservation Service',
-            year: '2014',
-            url: 'https://www.nrcs.usda.gov/sites/default/files/2022-10/Soil%20Electrical%20Conductivity.pdf'
+            study: 'Split fertilizer application (basal, tillering, panicle initiation) increases nitrogen use efficiency by 20-30% compared to single application.',
+            source: 'PalayCheck System 2022 Revised Edition - Nutrient Management',
+            author: 'PhilRice (Philippine Rice Research Institute)',
+            year: '2022',
+            url: 'https://www.philrice.gov.ph/wp-content/uploads/2023/02/PalayCheck-System-2022-Revised-Edition.pdf'
           }
         },
-        'Reduce fertilizer': {
-          title: 'Reduce Fertilizer',
-          whatIsIt: 'Too many salts and nutrients in the soil. This burns plant roots and blocks water absorption.',
-          whyNeeded: 'Excess fertilizer causes leaf burn, wilting, and can kill plants.',
+        'Skip fertilizer application': {
+          title: 'Skip Fertilizer Application',
+          whatIsIt: 'Your rice paddy has excess nutrients. Too much fertilizer causes dark green leaves, weak stems, and attracts pests.',
+          whyNeeded: 'Over-fertilized rice is prone to lodging (falling over), pest attacks, and produces more leaves than grain.',
           howToDo: [
-            'Flush soil with plenty of clean water (deep watering)',
-            'Stop all fertilizer application for 2-3 weeks',
-            'Add organic matter (compost) to help balance soil',
-            'Test soil before resuming fertilization'
+            'Do NOT apply any fertilizer for the next 2-3 weeks',
+            'If leaves are very dark green, skip the next scheduled application',
+            'Resume normal fertilization only when leaves return to light green',
+            'Observe for signs of weak stems or pest increase'
           ],
-          tips: 'Always follow fertilizer package instructions. More is NOT better!',
+          tips: 'Signs of too much fertilizer: very dark green leaves, weak/soft stems, plants taller than usual, increased stem borers.',
           currentLabel: 'Current Nutrients',
           optimalLabel: 'Optimal Range',
-          optimal: '200-2000 µS/cm',
+          optimal: '300-1500 µS/cm',
           reference: {
-            study: 'High soil salinity reduces water uptake and causes osmotic stress, reducing crop growth by 15-20%.',
-            source: 'Annual Review of Plant Biology, Vol. 59, Pages 651-681',
-            author: 'Munns, R., Tester, M.',
-            year: '2008',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/18444910/'
+            study: 'Excess nitrogen causes dark green leaves, weak stems (lodging), and increases susceptibility to pests and diseases.',
+            source: 'IRRI Rice Knowledge Bank - Nitrogen Excess',
+            author: 'International Rice Research Institute (IRRI)',
+            year: '2023',
+            url: 'http://www.knowledgebank.irri.org/training/fact-sheets/nutrient-management/deficiencies-and-toxicities-fact-sheet/item/nitrogen-excess'
           }
         },
-        'Add lime/calcium': {
-          title: 'Add Lime (Calcium)',
-          whatIsIt: 'Your soil is too acidic (low pH). This locks up nutrients, making them unavailable to plants.',
-          whyNeeded: 'Acidic soil prevents plants from absorbing nutrients even when they are present.',
+        'Apply rice straw ash': {
+          title: 'Apply Rice Straw Ash (Abo ng Dayami)',
+          whatIsIt: 'Your rice paddy soil is too acidic. Rice straw ash is a FREE soil amendment that raises pH and adds potassium.',
+          whyNeeded: 'Acidic soil locks up nutrients, causing poor root growth and reduced yield even when fertilizer is applied.',
           howToDo: [
-            'Apply agricultural lime (apog) - 1 kg per 10 square meters',
-            'Mix lime into the top 6 inches of soil',
-            'Water thoroughly after application',
-            'Wait 2-3 weeks before planting'
+            'Collect ash after burning rice straw (dayami) from your last harvest',
+            'For small fields (<1 hectare): Use all the ash you can collect',
+            'For large fields (2+ hectares): If not enough ash, buy Dolomite (P150-200/sack) from agri-supply',
+            'Spread ash evenly 2 weeks before transplanting or planting'
           ],
-          tips: 'Apply lime 2-3 weeks before planting for best results. Wood ash is a natural alternative.',
+          tips: 'Rice straw ash is FREE! After harvest, burn the straw and collect the ash. This is a traditional practice that works.',
           currentLabel: 'Current pH',
           optimalLabel: 'Optimal Range',
-          optimal: '5.5-7.5',
+          optimal: '5.5-6.5',
           reference: {
-            study: 'Aluminum toxicity is the primary factor limiting crop production on acidic soils. About 50% of arable lands are acidic.',
-            source: 'Annual Review of Plant Biology, Vol. 55, Pages 459-493',
-            author: 'Kochian, L.V., Hoekenga, O.A., Piñeros, M.A.',
-            year: '2004',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/15377228/'
-          }
-        },
-        'Apply sulfur': {
-          title: 'Apply Sulfur',
-          whatIsIt: 'Your soil is too alkaline (high pH). Iron and zinc become locked up and unavailable to plants.',
-          whyNeeded: 'Alkaline soil causes iron deficiency - yellow leaves with green veins, poor growth.',
-          howToDo: [
-            'Apply agricultural sulfur - 0.5 kg per 10 square meters',
-            'Work sulfur into the soil and water well',
-            'Add organic matter like compost',
-            'Use acidifying fertilizers (ammonium sulfate)'
-          ],
-          tips: 'Adding organic matter regularly helps maintain proper soil pH over time.',
-          currentLabel: 'Current pH',
-          optimalLabel: 'Optimal Range',
-          optimal: '5.5-7.5',
-          reference: {
-            study: 'Iron chlorosis occurs in alkaline/calcareous soils (pH > 7.5) due to reduced iron solubility.',
-            source: 'Plant and Soil, Vol. 165, Pages 261-274',
-            author: 'Marschner, H., Römheld, V.',
-            year: '1994',
-            url: 'https://link.springer.com/article/10.1007/BF00008069'
+            study: 'Rice straw-derived biochar application raises soil pH by 3.29 units and increases cation exchange capacity, effectively reducing soil acidity.',
+            source: 'Long-Term Successive Seasonal Application of Rice Straw-Derived Biochar Improves the Acidity and Fertility of Red Soil',
+            author: 'MDPI Agronomy Journal',
+            year: '2023',
+            url: 'https://www.mdpi.com/2073-4395/13/2/505'
           }
         }
       },
       tl: {
-        'Magdilig': {
-          title: 'Magdilig',
-          whatIsIt: 'Kulang sa tubig ang lupa. Hindi makakuha ng sustansya ang halaman kapag tuyo ang lupa.',
-          whyNeeded: 'Kapag kulang sa tubig, malalanta ang halaman, titigil ang paglaki, at bababa ang ani.',
+        'Padaluyin ang Tubig': {
+          title: 'Padaluyin ang Tubig sa Palayan',
+          whatIsIt: 'Kulang ang tubig sa palayan. Ang palay ay kailangang may tubig na 3-5 cm (bukung-bukong) para lumaki ng maayos.',
+          whyNeeded: 'Kapag kulang ang tubig, hindi makakuha ng sustansya ang palay, titigil ang pagtitiller, at bababa ang ani.',
           howToDo: [
-            'Diligan ng maaga (6-8 AM) o hapon (4-6 PM)',
-            'Maglagay ng 2-3 litro ng tubig kada metro kwadrado',
-            'Diligan sa ugat, hindi sa dahon',
-            'Dahan-dahang diligan para masipsip ng lupa'
+            'Buksan ang irigasyon para dumaloy ang tubig sa palayan',
+            'Panatilihin ang 3-5 cm tubig (bukung-bukong ang lalim)',
+            'Tingnan ang tubig sa 3-4 na bahagi ng palayan - gilid, gitna, at dulo',
+            'Kapag namumulaklak na, dagdagan hanggang 5-7 cm (tuhod ang lalim)'
           ],
-          tips: 'Suriin ang lupa - itusok ang daliri 2 pulgada. Kung tuyo, kailangan nang diligan.',
+          tips: 'Para sa malaking palayan (2+ ektarya): Tingnan ang tubig sa gilid, gitna, at dulo para pantay ang distribusyon.',
           currentLabel: 'Basa ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
-          optimal: '40-70%',
+          optimal: '60-90%',
           reference: {
-            study: 'Ang kakulangan ng tubig sa lupa ay nagdudulot ng stress sa halaman na nakakaapekto sa paglaki at ani.',
-            source: 'FAO Irrigation and Drainage Paper No. 56',
-            author: 'Allen, R.G., Pereira, L.S., Raes, D., Smith, M.',
-            year: '1998',
-            url: 'https://www.fao.org/3/x0490e/x0490e00.htm'
+            study: 'Ang tamang pamamahala ng tubig ay lubos na nakakaapekto sa ani ng palay. Ang 3-5 cm na tubig ay optimal para sa vegetative stage.',
+            source: 'IRRI Rice Knowledge Bank - Water Management',
+            author: 'International Rice Research Institute (IRRI)',
+            year: '2023',
+            url: 'http://www.knowledgebank.irri.org/step-by-step-production/growth/water-management'
           }
         },
-        'Magdrain ng tubig': {
-          title: 'Magdrain ng Tubig',
-          whatIsIt: 'Sobrang tubig sa lupa. Hindi makahinga ang ugat at maaaring mabulok.',
-          whyNeeded: 'Ang sobrang tubig ay nagdudulot ng bulok sa ugat at sakit ng halaman.',
+        'Pagsasapaw': {
+          title: 'Pagsasapaw (Mid-Season Drainage)',
+          whatIsIt: 'Sobrang basa na ang palayan. Ang pagpapatuyo ng 5-7 araw ay nagpapatibay ng ugat at pumipigil sa pagdapa ng palay.',
+          whyNeeded: 'Ang pagsasapaw ay nagpapalakas ng tangkay, pumipigil sa pagdapa ng palay sa bagyo, at nakakapagdagdag ng 10-15% sa ani.',
           howToDo: [
-            'Gumawa ng kanal sa pagitan ng mga hanay',
-            'Bawasan ang pagdidilig',
-            'Magdagdag ng compost para bumuti ang drainage',
-            'Gumamit ng raised beds sa susunod na pagtatanim'
+            'Buksan ang drainage canal para lumabas ang tubig',
+            'Hayaang matuyo ang palayan ng 5-7 araw hanggang magka-crack ang lupa',
+            'Pinakamabuting timing: 45 araw pagkatapos magtanim (bago mag-panicle initiation)',
+            'Buhusan ulit ng tubig pagkatapos ng pagsasapaw'
           ],
-          tips: 'Ang raised beds (6-12 pulgada ang taas) ay nakakatulong sa panahon ng ulan.',
+          tips: 'Ang pagsasapaw ay nakakabawas din ng methane emissions ng 30-50% - mabuti para sa kalikasan!',
           currentLabel: 'Basa ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
-          optimal: '40-70%',
+          optimal: '60-90%',
           reference: {
-            study: 'Ang flooding stress ay nagdudulot ng kakulangan ng oxygen sa ugat, na nagdudulot ng 20-50% pagkawala ng ani.',
-            source: 'Annals of Botany, Vol. 96, Issue 4, Pages 501-505',
-            author: 'Jackson, M.B., Colmer, T.D.',
-            year: '2005',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/16217870/'
-          }
-        },
-        'Takpan ng dayami': {
-          title: 'Takpan ng Dayami',
-          whatIsIt: 'Sobrang init ang lupa. Nasasira ang ugat at hindi nakakakuha ng sustansya.',
-          whyNeeded: 'Ang sobrang init ay nagpapabagal ng paglaki at nagpapababa ng kalidad ng bunga.',
-          howToDo: [
-            'Maglagay ng 2-3 pulgada na dayami o tuyong dahon sa paligid ng halaman',
-            'Gumamit ng shade cloth (50%) sa tanghali (10 AM - 3 PM)',
-            'Diligan ng maaga para lumamig ang lupa',
-            'Iwasan ang pagdidilig sa tanghali'
-          ],
-          tips: 'Ang dayami ay nagdadagdag din ng sustansya sa lupa habang nabubulok.',
-          currentLabel: 'Init ng Lupa Ngayon',
-          optimalLabel: 'Tamang Antas',
-          optimal: '20-30°C',
-          reference: {
-            study: 'Ang mulching ay lubos na nagpapababa ng pagbabago ng temperatura ng lupa at nagpapabuti ng produksyon ng halaman.',
-            source: 'Heliyon, Vol. 8, Issue 12, Article e12284',
-            author: 'Mangani, T., Mangani, R., Chirima, G., Khomo, L., Truter, W.',
+            study: 'Ang mid-season drainage (AWD) ay nagpapatibay ng ugat ng palay, nagpapababa ng lodging ng 20-30%, at nagpapababa ng methane emissions ng 30-50%.',
+            source: 'Alternate Wetting and Drying (AWD) Technology for Rice Production',
+            author: 'PhilRice (Philippine Rice Research Institute)',
             year: '2022',
-            url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9791825/'
+            url: 'https://www.philrice.gov.ph/wp-content/uploads/2022/10/RS4DM-Alternate-Wetting-Drying-Technology-Vol.-11.pdf'
           }
         },
-        'Protektahan sa ginaw': {
-          title: 'Protektahan sa Ginaw',
-          whatIsIt: 'Malamig ang lupa. Mabagal ang pagsipsip ng sustansya at paglaki ng halaman.',
-          whyNeeded: 'Ang lamig ay nagpapabagal ng paglaki at maaaring makapinsala sa mga halaman.',
+        'Dagdagan ang Tubig': {
+          title: 'Dagdagan ang Tubig sa Palayan',
+          whatIsIt: 'Mainit ang lupa sa palayan. Ang malalim na tubig (10-15 cm) ay natural na pampalamig ng palay.',
+          whyNeeded: 'Ang sobrang init ay nakakasira sa palay kapag namumulaklak, na nagiging sanhi ng ipa (walang laman na butil) at mababang ani.',
           howToDo: [
-            'Takpan ang halaman ng plastic o tela sa gabi',
-            'Gumamit ng maitim na pantakip para sumipsip ng init',
-            'Diligan sa mainit na oras (10 AM - 2 PM)',
-            'Pagsama-samahin ang mga paso para magbigayan ng init'
+            'Dagdagan ang tubig hanggang 10-15 cm kapag sobrang init',
+            'Buksan ang irigasyon para mas maraming tubig ang pumasok',
+            'Panatilihin ang malalim na tubig sa tanghali (10 AM - 3 PM)',
+            'Pwedeng bawasan sa 5 cm pagkatapos ng heat wave'
           ],
-          tips: 'Ang itim na plastic mulch ay nakakapag-init ng lupa ng 5-10°F.',
+          tips: 'Ang tubig ay parang aircon ng palayan - sinisipsip nito ang init sa araw at dahan-dahang inilalabas sa gabi.',
           currentLabel: 'Init ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
-          optimal: '20-30°C',
+          optimal: '20-35°C',
           reference: {
-            study: 'Ang paglaki ng ugat ay pinakamababa sa 9°C treatment. Ang mababang temperatura ng lupa ay lubos na nagpapababa ng paglaki ng ugat at pagsipsip ng sustansya.',
-            source: 'Tree Physiology, Vol. 25, Issue 1, Pages 115-122',
-            author: 'Lahti, M., Aphalo, P.J., Finér, L., Ryyppö, A., Lehto, T., Mannerkoski, H.',
-            year: '2005',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/15519993/'
+            study: 'Ang tubig ay nagsisilbing thermal buffer, na nagpapababa ng temperatura ng lupa ng 5-8°C sa panahon ng matinding init.',
+            source: 'Climate-Smart Agriculture Sourcebook - Crop Production',
+            author: 'FAO (Food and Agriculture Organization)',
+            year: '2020',
+            url: 'https://www.fao.org/climate-smart-agriculture-sourcebook/production-resources/module-b1-crops/chapter-b1-3/en/'
+          }
+        },
+        'Palalimin ang Tubig': {
+          title: 'Palalimin ang Tubig para sa Lamig',
+          whatIsIt: 'Malamig ang lupa sa palayan. Ang malalim na tubig (10-15 cm) ay nagsisilbing kumot ng lupa at pinoprotektahan ang palay sa lamig.',
+          whyNeeded: 'Ang malamig na temperatura ay nagpapabagal ng paglaki ng palay, nagiging dilaw ang dahon, at maaaring ma-delay ang ani ng 2-3 linggo.',
+          howToDo: [
+            'Dagdagan ang tubig hanggang 10-15 cm kaagad',
+            'Panatilihin ang malalim na tubig lalo na sa gabi kapag bumababa ang temperatura',
+            'Panatilihing dumadaloy ang tubig (ang sariwang tubig ay may dalang init)',
+            'Bawasan ang lalim pabalik sa normal kapag tapos na ang lamig'
+          ],
+          tips: 'Ang tubig ay parang kumot - pinapanatili nito ang init at pinoprotektahan ang ugat ng palay sa malamig na hangin.',
+          currentLabel: 'Init ng Lupa Ngayon',
+          optimalLabel: 'Tamang Antas',
+          optimal: '20-35°C',
+          reference: {
+            study: 'Ang malalim na tubig (10-15cm) ay nagpoprotekta sa palay mula sa pinsala ng lamig sa pamamagitan ng pagpapanatili ng stable na temperatura ng lupa na higit sa 15°C.',
+            source: 'IRRI Rice Knowledge Bank - Good Water Management Practices',
+            author: 'International Rice Research Institute (IRRI)',
+            year: '2023',
+            url: 'http://www.knowledgebank.irri.org/training/fact-sheets/water-management/item/good-water-management-practices'
           }
         },
         'Magpataba': {
           title: 'Magpataba',
-          whatIsIt: 'Kulang sa sustansya (nitrogen, phosphorus, potassium) ang lupa para sa paglaki ng halaman.',
-          whyNeeded: 'Ang kakulangan sa sustansya ay nagdudulot ng dilaw na dahon, maliit na halaman, at mababang ani.',
+          whatIsIt: 'Kulang sa sustansya (nitrogen, phosphorus, potassium) ang palayan para sa malusog na paglaki ng palay.',
+          whyNeeded: 'Ang kakulangan sa sustansya ay nagdudulot ng dilaw na dahon, kaunting tiller, at hindi magandang pagpuno ng butil - bumababa ang ani.',
           howToDo: [
-            'Gumamit ng balanced NPK fertilizer (14-14-14)',
-            'Maglagay ng 1 kutsara kada halaman, 3-4 pulgada mula sa tangkay',
-            'Diligan kaagad pagkatapos magpataba',
-            'Magpataba kada 2-3 linggo habang lumalaki'
+            'Maglagay ng 4 sako Complete (14-14-14) + 2 sako Urea KADA EKTARYA',
+            'Para sa 2 ektarya: 8 sako Complete + 4 sako Urea ang kabuuan',
+            'Hatiin sa 3 application: sa pagtatanim, 21 araw, at 45 araw pagkatapos magtanim',
+            'Broadcast method: maglakad sa palayan at ikalat ang pataba ng pantay'
           ],
-          tips: 'Ang compost at dumi ng hayop ay magandang natural na pataba.',
+          tips: 'Bumili ng pataba sa pinakamalapit na agri-supply store. Ang Complete at Urea ay available sa karamihan ng bayan sa Lopez, Quezon.',
           currentLabel: 'Sustansya Ngayon',
           optimalLabel: 'Tamang Antas',
-          optimal: '200-2000 µS/cm',
+          optimal: '300-1500 µS/cm',
           reference: {
-            study: 'Ang mga lupa na may mababang EC ay may mas kaunting sustansya. Ang mababang EC ay nagpapahiwatig ng kakulangan sa sustansya na nakakaapekto sa paglaki ng halaman.',
-            source: 'USDA NRCS Soil Quality Technical Note',
-            author: 'USDA Natural Resources Conservation Service',
-            year: '2014',
-            url: 'https://www.nrcs.usda.gov/sites/default/files/2022-10/Soil%20Electrical%20Conductivity.pdf'
+            study: 'Ang split fertilizer application (basal, tillering, panicle initiation) ay nakakapagdagdag ng 20-30% sa efficiency ng nitrogen kumpara sa isang beses na application.',
+            source: 'PalayCheck System 2022 Revised Edition - Nutrient Management',
+            author: 'PhilRice (Philippine Rice Research Institute)',
+            year: '2022',
+            url: 'https://www.philrice.gov.ph/wp-content/uploads/2023/02/PalayCheck-System-2022-Revised-Edition.pdf'
           }
         },
-        'Bawasan ang pataba': {
-          title: 'Bawasan ang Pataba',
-          whatIsIt: 'Sobrang asin at sustansya sa lupa. Nasusunog ang ugat at hindi nakakasipsip ng tubig.',
-          whyNeeded: 'Ang sobrang pataba ay nakakapinsala sa dahon at maaaring makamatay ng halaman.',
+        'Huwag Muna Magpataba': {
+          title: 'Huwag Muna Magpataba',
+          whatIsIt: 'Sobra na ang sustansya sa palayan. Ang sobrang pataba ay nagdudulot ng maitim na berdeng dahon, mahinang tangkay, at umakit ng peste.',
+          whyNeeded: 'Ang sobrang pataba ay nagpapahina ng tangkay (madaling madapa), dumarami ang peste, at mas maraming dahon kaysa butil ang lumalabas.',
           howToDo: [
-            'Hugasan ang lupa ng maraming tubig (deep watering)',
-            'Itigil ang pagpapataba ng 2-3 linggo',
-            'Magdagdag ng compost para mabalanse ang lupa',
-            'Suriin ang lupa bago magpataba ulit'
+            'HUWAG maglagay ng anumang pataba sa susunod na 2-3 linggo',
+            'Kung sobrang itim na berde ang dahon, i-skip ang susunod na scheduled na application',
+            'Magpataba ulit lang kapag bumalik na sa light green ang mga dahon',
+            'Bantayan kung may senyales ng mahinang tangkay o dumaming peste'
           ],
-          tips: 'Sundin ang tagubilin sa pakete ng pataba. Ang sobra ay hindi mabuti!',
+          tips: 'Senyales ng sobrang pataba: sobrang itim na berdeng dahon, malambot/mahinang tangkay, mas matangkad kaysa karaniwan, dumaming stem borers.',
           currentLabel: 'Sustansya Ngayon',
           optimalLabel: 'Tamang Antas',
-          optimal: '200-2000 µS/cm',
+          optimal: '300-1500 µS/cm',
           reference: {
-            study: 'Ang mataas na salinity ng lupa ay nagpapababa ng pagsipsip ng tubig at nagdudulot ng osmotic stress, na nagpapababa ng paglaki ng pananim ng 15-20%.',
-            source: 'Annual Review of Plant Biology, Vol. 59, Pages 651-681',
-            author: 'Munns, R., Tester, M.',
-            year: '2008',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/18444910/'
+            study: 'Ang sobrang nitrogen ay nagdudulot ng maitim na berdeng dahon, mahinang tangkay (lodging), at mas madaling atakihin ng peste at sakit.',
+            source: 'IRRI Rice Knowledge Bank - Nitrogen Excess',
+            author: 'International Rice Research Institute (IRRI)',
+            year: '2023',
+            url: 'http://www.knowledgebank.irri.org/training/fact-sheets/nutrient-management/deficiencies-and-toxicities-fact-sheet/item/nitrogen-excess'
           }
         },
-        'Maglagay ng apog': {
-          title: 'Maglagay ng Apog',
-          whatIsIt: 'Masyadong maasim ang lupa (mababang pH). Naka-lock ang mga sustansya at hindi makuha ng halaman.',
-          whyNeeded: 'Ang maasim na lupa ay pumipigil sa halaman na kumuha ng sustansya kahit mayroon.',
+        'Maglagay ng Abo ng Dayami': {
+          title: 'Maglagay ng Abo ng Dayami',
+          whatIsIt: 'Maasim ang lupa sa palayan. Ang abo ng dayami ay LIBRENG soil amendment na nagpapataas ng pH at nagdadagdag ng potassium.',
+          whyNeeded: 'Ang maasim na lupa ay nag-lo-lock ng sustansya, na nagiging sanhi ng mahina ugat at mababang ani kahit may pataba.',
           howToDo: [
-            'Maglagay ng apog - 1 kilo kada 10 metro kwadrado',
-            'Haluin sa ibabaw na 6 pulgada ng lupa',
-            'Diligan ng mabuti pagkatapos',
-            'Maghintay ng 2-3 linggo bago magtanim'
+            'Ipunin ang abo pagkatapos magsunog ng dayami mula sa nakaraang ani',
+            'Para sa maliit na palayan (<1 ektarya): Gamitin lahat ng abo na nakuha',
+            'Para sa malaking palayan (2+ ektarya): Kung kulang ang abo, bumili ng Dolomite (P150-200/sako) sa agri-supply',
+            'Ikalat ang abo ng pantay 2 linggo bago magtanim'
           ],
-          tips: 'Maglagay ng apog 2-3 linggo bago magtanim. Ang abo ng kahoy ay natural na alternatibo.',
+          tips: 'Ang abo ng dayami ay LIBRE! Pagkatapos ng ani, sunugin ang dayami at ipunin ang abo. Ito ay tradisyonal na praktis na gumagana.',
           currentLabel: 'pH ng Lupa Ngayon',
           optimalLabel: 'Tamang Antas',
-          optimal: '5.5-7.5',
+          optimal: '5.5-6.5',
           reference: {
-            study: 'Ang aluminum toxicity ang pangunahing salik na naglilimita sa produksyon ng pananim sa mga maasim na lupa. Mga 50% ng mga lupang matatamnan ay maasim.',
-            source: 'Annual Review of Plant Biology, Vol. 55, Pages 459-493',
-            author: 'Kochian, L.V., Hoekenga, O.A., Piñeros, M.A.',
-            year: '2004',
-            url: 'https://pubmed.ncbi.nlm.nih.gov/15377228/'
-          }
-        },
-        'Maglagay ng asupre': {
-          title: 'Maglagay ng Asupre',
-          whatIsIt: 'Masyadong matabang ang lupa (mataas na pH). Naka-lock ang iron at zinc.',
-          whyNeeded: 'Ang matabang na lupa ay nagdudulot ng dilaw na dahon na may berdeng ugat, mahinang paglaki.',
-          howToDo: [
-            'Maglagay ng asupre - 0.5 kilo kada 10 metro kwadrado',
-            'Haluin sa lupa at diligan ng mabuti',
-            'Magdagdag ng organic matter tulad ng compost',
-            'Gumamit ng acidifying fertilizers (ammonium sulfate)'
-          ],
-          tips: 'Ang regular na pagdadagdag ng organic matter ay tumutulong sa tamang pH ng lupa.',
-          currentLabel: 'pH ng Lupa Ngayon',
-          optimalLabel: 'Tamang Antas',
-          optimal: '5.5-7.5',
-          reference: {
-            study: 'Ang iron chlorosis ay nangyayari sa alkaline/calcareous na lupa (pH > 7.5) dahil sa mababang solubility ng iron.',
-            source: 'Plant and Soil, Vol. 165, Pages 261-274',
-            author: 'Marschner, H., Römheld, V.',
-            year: '1994',
-            url: 'https://link.springer.com/article/10.1007/BF00008069'
+            study: 'Ang abo ng dayami ay epektibong nagpapataas ng pH ng lupa ng hanggang 3.29 units at nagpapabuti ng fertility ng lupa.',
+            source: 'Long-Term Successive Seasonal Application of Rice Straw-Derived Biochar Improves the Acidity and Fertility of Red Soil',
+            author: 'MDPI Agronomy Journal',
+            year: '2023',
+            url: 'https://www.mdpi.com/2073-4395/13/2/505'
           }
         }
       }
@@ -481,25 +429,27 @@ export default function SmartRecommendations({ sensorData, language }) {
     const details = getRecommendationDetails(recommendation.action);
     if (!details) return null;
 
-    // Get current sensor value based on recommendation type
+    // Get current sensor value based on recommendation type (Rice-specific actions)
     const getCurrentValue = () => {
-      if (recommendation.action.includes('Irrigate') || recommendation.action.includes('Magdilig') ||
-          recommendation.action.includes('Drain') || recommendation.action.includes('Magdrain')) {
+      // Water/Moisture related actions
+      if (recommendation.action.includes('Irrigate') || recommendation.action.includes('Padaluyin') ||
+          recommendation.action.includes('drainage') || recommendation.action.includes('Pagsasapaw')) {
         return `${sensorData.soilHumidity}%`;
       }
-      if (recommendation.action.includes('mulch') || recommendation.action.includes('dayami') ||
-          recommendation.action.includes('cold') || recommendation.action.includes('ginaw') ||
-          recommendation.action.includes('Protect') || recommendation.action.includes('shade') ||
-          recommendation.action.includes('Takpan') || recommendation.action.includes('Protektahan')) {
+      // Temperature related actions (water depth for hot/cold)
+      if (recommendation.action.includes('water depth') || recommendation.action.includes('Tubig') ||
+          recommendation.action.includes('Deepen') || recommendation.action.includes('Palalimin') ||
+          recommendation.action.includes('Dagdagan')) {
         return `${sensorData.soilTemperature}°C`;
       }
+      // Nutrient/Fertilizer related actions
       if (recommendation.action.includes('fertilizer') || recommendation.action.includes('pataba') ||
-          recommendation.action.includes('Magpataba')) {
+          recommendation.action.includes('Magpataba') || recommendation.action.includes('Skip')) {
         return `${sensorData.soilConductivity} µS/cm`;
       }
-      if (recommendation.action.includes('apog') || recommendation.action.includes('asupre') ||
-          recommendation.action.includes('sulfur') || recommendation.action.includes('Sulfur') ||
-          recommendation.action.includes('lime')) {
+      // pH related actions (rice straw ash)
+      if (recommendation.action.includes('Abo') || recommendation.action.includes('ash') ||
+          recommendation.action.includes('straw')) {
         return sensorData.ph.toFixed(1);
       }
       return '';
