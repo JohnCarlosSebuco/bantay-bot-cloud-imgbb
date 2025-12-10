@@ -14,6 +14,29 @@ import DeviceService from '../services/DeviceService';
 import { CONFIG } from '../config/config';
 import { dashboardTourSteps } from '../config/tourSteps';
 
+// Parse timestamp from various formats (number, string like "December 10, 2025 12:03:01 PM")
+const parseTimestamp = (ts) => {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if (typeof ts === 'number') return new Date(ts);
+  if (typeof ts === 'string') {
+    const parsed = new Date(ts);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+};
+
+// Count detections that occurred today
+const countTodayDetections = (detections) => {
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  return detections.filter(detection => {
+    const detectionDate = parseTimestamp(detection.timestamp);
+    return detectionDate && detectionDate >= todayStart;
+  }).length;
+};
+
 export default function Dashboard({ language }) {
   const { currentTheme } = useTheme();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
@@ -167,14 +190,15 @@ export default function Dashboard({ language }) {
       }
     });
 
-    // Subscribe to Firebase detection history for bird count
+    // Subscribe to Firebase detection history for bird count (only today's detections)
     const unsubscribeDetection = DeviceService.subscribeToDetectionHistory((detections) => {
-      console.log('🐦 Firebase detection history received:', detections.length, 'detections');
+      const todayCount = countTodayDetections(detections);
+      console.log('🐦 Firebase detection history received:', detections.length, 'total,', todayCount, 'today');
       setSensorData(prev => ({
         ...prev,
-        birdsDetectedToday: detections.length,
+        birdsDetectedToday: todayCount,
       }));
-    }, 100);
+    }, 500);
 
     return () => {
       ConnectionManager.disconnect();
