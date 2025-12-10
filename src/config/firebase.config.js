@@ -12,13 +12,13 @@
  */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAthWHwp7HLlFCl_3Cx_nS1GZzYBDPwEd0",
-  authDomain: "bantaybot-dd590.firebaseapp.com",
-  projectId: "bantaybot-dd590",
-  storageBucket: "bantaybot-dd590.firebasestorage.app",
-  messagingSenderId: "262864773334",
-  appId: "1:262864773334:web:63e70b125a16ab4b6c6977",
-  measurementId: "G-6508GZ07X1"
+  apiKey: "AIzaSyCnoTxukz7Jj32BPuUxIxub0N2MtgfDRxs",
+  authDomain: "bantay-bot.firebaseapp.com",
+  projectId: "bantay-bot",
+  storageBucket: "bantay-bot.firebasestorage.app",
+  messagingSenderId: "783316846678",
+  appId: "1:783316846678:web:43ef0c19ad8130d42fd3f7",
+  measurementId: "G-8N5Q0CGR34"
 };
 
 /**
