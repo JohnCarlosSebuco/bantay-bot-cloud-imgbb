@@ -1273,6 +1273,7 @@ void setup() {
   // Initialize stepper motor
   stepper.setMaxSpeed(2000);     // Increased from 1000
   stepper.setAcceleration(1000);  // Increased from 500
+  stepper.setCurrentPosition(0); // Set initial position to 0
   Serial.println("⚙️  Stepper motor configured: 2000 steps/sec, 1000 accel");
 
   // Connect to WiFi (non-blocking with timeout)
