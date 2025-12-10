@@ -60,7 +60,7 @@
 // ===========================
 
 // Stepper Motor
-#define STEPS_PER_REVOLUTION 200   // Testing: 400 still too much
+#define STEPS_PER_REVOLUTION 800   // 200 was 1/4 cycle, so 800 = full 360°
 
 // Audio
 #define TOTAL_TRACKS 7
