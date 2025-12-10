@@ -6,9 +6,24 @@ import DeviceService from '../services/DeviceService';
 import { historyTourSteps } from '../config/tourSteps';
 
 // Utility functions
+
+// Parse timestamp from various formats (number, string like "December 10, 2025 12:03:01 PM")
+const parseTimestamp = (ts) => {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if (typeof ts === 'number') return new Date(ts);
+  if (typeof ts === 'string') {
+    const parsed = new Date(ts);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+};
+
 const formatTime = (ts) => {
   try {
-    return new Date(ts).toLocaleTimeString('en-US', {
+    const date = parseTimestamp(ts);
+    if (!date) return '';
+    return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
@@ -20,7 +35,8 @@ const formatTime = (ts) => {
 
 const formatDate = (ts) => {
   try {
-    const date = new Date(ts);
+    const date = parseTimestamp(ts);
+    if (!date) return '';
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -41,7 +57,9 @@ const formatDate = (ts) => {
 
 const formatFullDate = (ts) => {
   try {
-    return new Date(ts).toLocaleDateString('en-US', {
+    const date = parseTimestamp(ts);
+    if (!date) return '';
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -511,18 +529,6 @@ export default function History({ language }) {
           </div>
           <div className="text-[10px] text-secondary">
             {formatTime(item.timestamp)} • {formatDate(item.timestamp)}
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="flex items-center gap-2 text-center">
-          <div>
-            <div className="text-[9px] text-secondary">{t.size}</div>
-            <div className="text-[11px] font-bold text-primary">{item.birdSize?.toFixed(0) || 0}px</div>
-          </div>
-          <div>
-            <div className="text-[9px] text-secondary">{t.confidence}</div>
-            <div className="text-[11px] font-bold text-success">{((item.confidence || 0) * 100).toFixed(0)}%</div>
           </div>
         </div>
       </div>
