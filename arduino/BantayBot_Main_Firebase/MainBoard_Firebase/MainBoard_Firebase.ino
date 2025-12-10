@@ -123,8 +123,8 @@ bool headMovementPaused = false;  // Pause head during arm movement
 long pausedStepperTarget = 0;  // Store stepper target when paused
 bool headScanningActive = false;  // Continuous head scanning mode
 int headScanDirection = 1;  // 1 = right, -1 = left
-const int HEAD_SCAN_MIN = -90;  // Minimum scan angle (degrees)
-const int HEAD_SCAN_MAX = 90;   // Maximum scan angle (degrees)
+const int HEAD_SCAN_MIN = 0;    // Minimum scan angle (degrees)
+const int HEAD_SCAN_MAX = 360;  // Maximum scan angle (degrees) - oscillates 0→360→0
 
 // Detection State
 int birdsDetectedToday = 0;
@@ -914,6 +914,7 @@ void setup() {
   // Initialize stepper motor
   stepper.setMaxSpeed(2000);     // Increased from 1000
   stepper.setAcceleration(1000);  // Increased from 500
+  stepper.setCurrentPosition(0); // Set initial position to 0
   Serial.println("⚙️  Stepper motor configured: 2000 steps/sec, 1000 accel");
 
   // Connect to WiFi
