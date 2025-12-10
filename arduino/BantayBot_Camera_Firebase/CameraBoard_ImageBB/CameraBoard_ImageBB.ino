@@ -65,12 +65,12 @@ const int MAIN_BOARD_PORT = 81;
 // ===========================
 bool birdDetectionEnabled = true;
 int detectionSensitivity = 2;  // 1=low, 2=medium, 3=high
-int detectionThreshold = 25;    // Pixel difference threshold
-int minBirdSize = 1000;         // Minimum pixels for bird
+int detectionThreshold = 40;    // Pixel difference threshold (was 25)
+int minBirdSize = 2500;         // Minimum pixels for bird (was 1000)
 int maxBirdSize = 30000;        // Maximum pixels for bird
 int birdsDetectedToday = 0;
 unsigned long lastDetectionTime = 0;
-const unsigned long DETECTION_COOLDOWN = 10000;  // 10 second cooldown
+const unsigned long DETECTION_COOLDOWN = 15000;  // 15 second cooldown (was 10s)
 
 // On-Demand Capture & Upload Tracking
 unsigned long lastUploadTime = 0;  // Track last upload (detection or manual)

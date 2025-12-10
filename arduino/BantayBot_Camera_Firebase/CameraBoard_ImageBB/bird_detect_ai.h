@@ -23,7 +23,7 @@
 // ============================================
 
 // Set to false to disable AI completely
-#define AI_ENABLED true
+#define AI_ENABLED false
 
 // Model selection: true = small (16.8KB), false = normal (49.7KB)
 // Small model: faster inference, less memory (~40KB arena)
