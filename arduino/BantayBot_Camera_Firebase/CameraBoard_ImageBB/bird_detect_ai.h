@@ -179,8 +179,8 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
     }
 
     if (output_size >= 2) {
-      // Two outputs: [not_bird, bird]
-      bird_confidence = output_tensor->data.f[1];
+      // Two outputs: [bird, not_bird] - bird is class 0
+      bird_confidence = output_tensor->data.f[0];
     } else {
       // Single output (sigmoid): direct bird confidence
       bird_confidence = output_tensor->data.f[0];
@@ -196,7 +196,8 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
     }
 
     if (output_size >= 2) {
-      bird_confidence = (output_tensor->data.uint8[1] - zero_point) * scale;
+      // Bird is class 0
+      bird_confidence = (output_tensor->data.uint8[0] - zero_point) * scale;
     } else {
       bird_confidence = (output_tensor->data.uint8[0] - zero_point) * scale;
     }
@@ -211,7 +212,8 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
     }
 
     if (output_size >= 2) {
-      bird_confidence = (output_tensor->data.int8[1] - zero_point) * scale;
+      // Bird is class 0
+      bird_confidence = (output_tensor->data.int8[0] - zero_point) * scale;
     } else {
       bird_confidence = (output_tensor->data.int8[0] - zero_point) * scale;
     }
