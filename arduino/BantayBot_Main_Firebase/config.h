@@ -60,7 +60,7 @@
 // ===========================
 
 // Stepper Motor
-#define STEPS_PER_REVOLUTION 3200  // 200 * 16 (microstepping)
+#define STEPS_PER_REVOLUTION 800   // Based on arm calibration (400 steps = 180°)
 
 // Audio
 #define TOTAL_TRACKS 7
