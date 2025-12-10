@@ -60,7 +60,7 @@
 // ===========================
 
 // Stepper Motor
-#define STEPS_PER_REVOLUTION 800   // Based on arm calibration (400 steps = 180°)
+#define STEPS_PER_REVOLUTION 400   // Calibrated: 800 was 2 rotations, so 400 = 1 rotation
 
 // Audio
 #define TOTAL_TRACKS 7
