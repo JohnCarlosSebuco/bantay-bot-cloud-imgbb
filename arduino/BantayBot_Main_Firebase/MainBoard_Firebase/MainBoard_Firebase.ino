@@ -403,12 +403,6 @@ void readRS485Sensor() {
 // ===========================
 
 void playAudio(int track) {
-  // Skip track 3 as specified
-  if (track == 3) {
-    Serial.println("⚠️  Track 3 is disabled, skipping");
-    return;
-  }
-
   if (track >= 1 && track <= TOTAL_TRACKS) {
     dfPlayer.play(track);
     currentTrack = track;
@@ -583,9 +577,8 @@ void triggerAlarmSequence() {
     Serial.println("⏸️  Head movement paused");
   }
 
-  // Play audio (random track, skip track 3)
+  // Play audio (random track)
   int track = random(1, TOTAL_TRACKS + 1);
-  if (track == 3) track = 4;  // Skip track 3
   playAudio(track);
 
   // Start arm sweeps
@@ -1092,13 +1085,11 @@ void checkFirebaseCommands() {
             else if (action == "next_track") {
               int nextTrack = currentTrack + 1;
               if (nextTrack > TOTAL_TRACKS) nextTrack = 1;
-              if (nextTrack == 3) nextTrack = 4;  // Skip track 3
               playAudio(nextTrack);
             }
             else if (action == "prev_track") {
               int prevTrack = currentTrack - 1;
               if (prevTrack < 1) prevTrack = TOTAL_TRACKS;
-              if (prevTrack == 3) prevTrack = 2;  // Skip track 3
               playAudio(prevTrack);
             }
             else if (action == "set_track") {
