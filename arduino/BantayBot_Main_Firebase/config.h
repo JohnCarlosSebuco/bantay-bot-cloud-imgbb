@@ -60,7 +60,7 @@
 // ===========================
 
 // Stepper Motor
-#define STEPS_PER_REVOLUTION 3200  // 200 * 16 (microstepping)
+#define STEPS_PER_REVOLUTION 800   // Adjusted for actual head rotation (was 3200)
 
 // Audio
 #define TOTAL_TRACKS 7
