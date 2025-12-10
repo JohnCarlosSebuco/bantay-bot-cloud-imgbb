@@ -60,7 +60,7 @@
 // ===========================
 
 // Stepper Motor
-#define STEPS_PER_REVOLUTION 3200  // 200 * 16 (microstepping)
+#define STEPS_PER_REVOLUTION 800   // 200 was 1/4 cycle, so 800 = full 360°
 
 // Audio
 #define TOTAL_TRACKS 7

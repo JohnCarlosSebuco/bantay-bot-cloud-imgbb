@@ -123,8 +123,8 @@ bool headMovementPaused = false;  // Pause head during arm movement
 long pausedStepperTarget = 0;  // Store stepper target when paused
 bool headScanningActive = false;  // Continuous head scanning mode
 int headScanDirection = 1;  // 1 = right, -1 = left
-const int HEAD_SCAN_MIN = -90;  // Minimum scan angle (degrees)
-const int HEAD_SCAN_MAX = 90;   // Maximum scan angle (degrees)
+const int HEAD_SCAN_MIN = 0;    // Minimum scan angle (degrees)
+const int HEAD_SCAN_MAX = 360;  // Maximum scan angle (degrees) - oscillates 0→360→0
 
 // Detection State
 int birdsDetectedToday = 0;
@@ -307,16 +307,35 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
 
   Serial.println("📝 Logging bird detection to Firestore...");
 
+  // Create doc ID with camera device ID and formatted timestamp (like sensor_history)
+  struct tm timeinfo;
+  String docId;
+  String readableTime;
+
+  if (getLocalTime(&timeinfo)) {
+    char timestamp[40];
+    strftime(timestamp, sizeof(timestamp), "%m-%d-%Y_%I-%M-%S-%p", &timeinfo);
+    docId = String(CAMERA_DEVICE_ID) + "_" + String(timestamp);
+
+    char readableTs[50];
+    strftime(readableTs, sizeof(readableTs), "%B %d, %Y %I:%M:%S %p", &timeinfo);
+    readableTime = String(readableTs);
+  } else {
+    // Fallback if NTP not synced
+    docId = String(CAMERA_DEVICE_ID) + "_" + String(millis());
+    readableTime = "Time not synced";
+  }
+
   FirebaseJson json;
   json.set("fields/deviceId/stringValue", CAMERA_DEVICE_ID);
-  json.set("fields/timestamp/integerValue", String(millis()));
+  json.set("fields/timestamp/stringValue", readableTime);
   json.set("fields/imageUrl/stringValue", imageUrl);
   json.set("fields/birdSize/integerValue", String(birdSize));
   json.set("fields/confidence/integerValue", String(confidence));
   json.set("fields/detectionZone/stringValue", detectionZone);
   json.set("fields/triggered/booleanValue", true);
 
-  String path = "detection_history";
+  String path = "detection_history/" + docId;
 
   if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
     Serial.println("✅ Detection logged to Firestore!");
@@ -914,6 +933,7 @@ void setup() {
   // Initialize stepper motor
   stepper.setMaxSpeed(2000);     // Increased from 1000
   stepper.setAcceleration(1000);  // Increased from 500
+  stepper.setCurrentPosition(0); // Set initial position to 0
   Serial.println("⚙️  Stepper motor configured: 2000 steps/sec, 1000 accel");
 
   // Connect to WiFi

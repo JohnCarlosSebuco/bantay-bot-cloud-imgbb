@@ -82,32 +82,6 @@ unsigned long lastResetTime = 0; // Last time we reset daily counter
 const unsigned long DAY_MS = 86400000;  // 24 hours in milliseconds
 const int DAILY_UPLOAD_LIMIT = 150;  // Conservative limit (166 available, keep margin)
 
-// ===========================
-// WiFi State Management (Offline/Online Mode)
-// ===========================
-enum WiFiState { WIFI_DISCONNECTED, WIFI_CONNECTING, WIFI_CONNECTED, WIFI_NO_INTERNET };
-WiFiState wifiState = WIFI_DISCONNECTED;
-unsigned long lastWiFiReconnectAttempt = 0;
-const unsigned long WIFI_CONNECT_TIMEOUT = 30000;    // 30 sec initial connection timeout
-const unsigned long WIFI_RECONNECT_INTERVAL = 60000; // 60 sec between reconnect attempts
-const unsigned long WIFI_RECONNECT_TIMEOUT = 10000;  // 10 sec per reconnect attempt
-bool mainBoardReachable = false;
-
-// ===========================
-// Offline Detection Queue - Memory Safe Design
-// ===========================
-#define MAX_CAM_QUEUE 10  // 10 events max (~80 bytes total)
-struct CamDetection {
-    uint32_t timestamp;       // 4 bytes (millis/1000 as pseudo-timestamp)
-    int16_t birdSize;         // 2 bytes
-    int8_t confidence;        // 1 byte
-    uint8_t flags;            // 1 byte - bit 0: notified
-};  // 8 bytes per event
-CamDetection camQueue[MAX_CAM_QUEUE];
-uint8_t camQueueHead = 0;
-uint8_t camQueueTail = 0;
-uint8_t camQueueCount = 0;
-
 // Frame Buffer for Motion Detection
 camera_fb_t *currentFrame = NULL;  // Temporary frame buffer (returned immediately after use)
 uint8_t *prevGrayBuffer = NULL;    // Previous frame grayscale data for comparison
@@ -400,163 +374,6 @@ bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
 }
 
 // ===========================
-// WiFi Connection Management (Offline/Online Mode)
-// ===========================
-
-// Non-blocking WiFi connection with timeout
-bool tryConnectWiFi(unsigned long timeout) {
-    Serial.println("📶 Attempting WiFi connection...");
-    wifiState = WIFI_CONNECTING;
-
-    // Clean disconnect first to avoid stuck states
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    delay(100);
-    WiFi.mode(WIFI_STA);
-    delay(100);
-
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    unsigned long startTime = millis();
-
-    while (WiFi.status() != WL_CONNECTED) {
-        if (millis() - startTime > timeout) {
-            Serial.println("\n⚠️ WiFi timeout - continuing in OFFLINE MODE");
-            WiFi.disconnect(true);
-            wifiState = WIFI_DISCONNECTED;
-            return false;
-        }
-
-        // Check for specific failure states
-        wl_status_t status = WiFi.status();
-        if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
-            Serial.printf("\n❌ WiFi failed (status: %d)\n", status);
-            wifiState = WIFI_DISCONNECTED;
-            return false;
-        }
-
-        delay(500);
-        Serial.print(".");
-    }
-
-    Serial.println("\n✅ WiFi connected!");
-    Serial.printf("📍 IP: %s, RSSI: %d dBm\n",
-                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    wifiState = WIFI_CONNECTED;
-    return true;
-}
-
-// Check if main board is reachable on local network
-bool checkMainBoardReachable() {
-    if (WiFi.status() != WL_CONNECTED) {
-        mainBoardReachable = false;
-        return false;
-    }
-
-    HTTPClient http;
-    String url = "http://" + String(MAIN_BOARD_IP) + ":" + String(MAIN_BOARD_PORT) + "/status";
-    http.begin(url);
-    http.setTimeout(3000);  // 3 second timeout
-    int httpCode = http.GET();
-    http.end();
-
-    mainBoardReachable = (httpCode == 200);
-
-    if (mainBoardReachable) {
-        Serial.printf("✅ Main board reachable at %s\n", MAIN_BOARD_IP);
-    } else {
-        Serial.printf("⚠️ Main board not reachable (code: %d)\n", httpCode);
-    }
-
-    return mainBoardReachable;
-}
-
-// Queue detection event when main board unreachable
-bool queueCamDetection(int birdSize, int confidence) {
-    if (camQueueCount >= MAX_CAM_QUEUE) {
-        // Queue full - overwrite oldest
-        camQueueTail = (camQueueTail + 1) % MAX_CAM_QUEUE;
-        camQueueCount--;
-        Serial.println("🐦 Cam queue full - dropping oldest");
-    }
-
-    CamDetection* event = &camQueue[camQueueHead];
-    event->timestamp = (uint32_t)(millis() / 1000);  // Pseudo-timestamp (seconds since boot)
-    event->birdSize = (int16_t)birdSize;
-    event->confidence = (int8_t)confidence;
-    event->flags = 0;  // Not notified
-
-    camQueueHead = (camQueueHead + 1) % MAX_CAM_QUEUE;
-    camQueueCount++;
-
-    Serial.printf("🐦 Detection queued (%d/%d)\n", camQueueCount, MAX_CAM_QUEUE);
-    return true;
-}
-
-// Sync queued detections to main board
-bool syncCamQueue() {
-    if (!mainBoardReachable || camQueueCount == 0) return false;
-
-    Serial.printf("📤 Syncing %d queued detections to main board...\n", camQueueCount);
-    int synced = 0;
-
-    while (camQueueCount > 0) {
-        CamDetection* event = &camQueue[camQueueTail];
-
-        // Notify main board (with empty image URL for queued events)
-        if (notifyMainBoard("", event->birdSize, event->confidence)) {
-            synced++;
-            camQueueTail = (camQueueTail + 1) % MAX_CAM_QUEUE;
-            camQueueCount--;
-        } else {
-            Serial.println("❌ Sync failed, will retry later");
-            break;
-        }
-
-        delay(100);  // Rate limit
-    }
-
-    Serial.printf("✅ Synced %d detections, %d remaining\n", synced, camQueueCount);
-    return synced > 0;
-}
-
-// Background WiFi reconnection handler (call from loop)
-void handleWiFiReconnection() {
-    unsigned long now = millis();
-
-    // If connected, periodically verify connection
-    if (wifiState == WIFI_CONNECTED || wifiState == WIFI_NO_INTERNET) {
-        if (WiFi.status() != WL_CONNECTED) {
-            Serial.println("📶 WiFi connection lost!");
-            wifiState = WIFI_DISCONNECTED;
-            mainBoardReachable = false;
-        }
-        return;
-    }
-
-    // If disconnected, try to reconnect periodically
-    if (wifiState == WIFI_DISCONNECTED) {
-        if (now - lastWiFiReconnectAttempt > WIFI_RECONNECT_INTERVAL) {
-            lastWiFiReconnectAttempt = now;
-
-            Serial.println("📶 Attempting WiFi reconnection...");
-            if (tryConnectWiFi(WIFI_RECONNECT_TIMEOUT)) {
-                // WiFi connected, check main board
-                if (checkMainBoardReachable()) {
-                    // Sync any queued detections
-                    syncCamQueue();
-                }
-            }
-        }
-    }
-}
-
-// Log memory status for debugging
-void logMemoryStatus() {
-    Serial.printf("💾 Memory: %d free, %d min\n",
-                  ESP.getFreeHeap(), ESP.getMinFreeHeap());
-}
-
-// ===========================
 // Bird Detection Functions
 // ===========================
 
@@ -662,22 +479,10 @@ bool detectBirdMotion() {
         }
         #else
         Serial.println("📸 ImgBB upload disabled - detection only mode");
-        birdsDetectedToday++;  // Count locally even without upload
         #endif
 
-        // Notify main board if reachable, otherwise queue for later
-        if (mainBoardReachable && wifiState == WIFI_CONNECTED) {
-          if (!notifyMainBoard(imageUrl, changedPixels, confidence)) {
-            // Notification failed - queue it
-            Serial.println("📦 Main board notification failed - queuing...");
-            queueCamDetection(changedPixels, confidence);
-            mainBoardReachable = false;  // Mark as unreachable
-          }
-        } else {
-          // Offline - queue detection for later sync
-          Serial.println("📦 Offline - queuing bird detection...");
-          queueCamDetection(changedPixels, confidence);
-        }
+        // Always notify main board (with or without image URL)
+        notifyMainBoard(imageUrl, changedPixels, confidence);
       }
     }
   }
@@ -729,37 +534,28 @@ void setup() {
   // Setup bird detection
   setupBirdDetection();
 
-  // Connect to WiFi (non-blocking with timeout)
-  Serial.println("📶 Attempting initial WiFi connection (30s timeout)...");
-  bool wifiConnected = tryConnectWiFi(WIFI_CONNECT_TIMEOUT);
+  // Connect to WiFi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("📶 Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\n✅ WiFi connected!");
+  Serial.println("📍 IP address: " + WiFi.localIP().toString());
 
-  if (wifiConnected) {
-    // Test internet connectivity
-    Serial.println("🌐 Testing internet connectivity...");
-    HTTPClient http;
-    http.begin("http://www.google.com");
-    http.setTimeout(5000);
-    int testCode = http.GET();
-    http.end();
-
-    if (testCode > 0) {
-      Serial.printf("✅ Internet accessible (HTTP %d)\n", testCode);
-      wifiState = WIFI_CONNECTED;
-    } else {
-      Serial.printf("⚠️ No internet (code: %d) - local detection still works\n", testCode);
-      wifiState = WIFI_NO_INTERNET;
-    }
-
-    // Check main board reachability
-    checkMainBoardReachable();
+  // Test internet connectivity
+  Serial.println("🌐 Testing internet connectivity...");
+  HTTPClient http;
+  http.begin("http://www.google.com");  // Simple HTTP test (not HTTPS)
+  http.setTimeout(5000);
+  int testCode = http.GET();
+  http.end();
+  if (testCode > 0) {
+    Serial.printf("✅ Internet accessible (HTTP %d)\n", testCode);
   } else {
-    Serial.println("═══════════════════════════════════════════");
-    Serial.println("⚠️  OFFLINE MODE ACTIVE");
-    Serial.println("═══════════════════════════════════════════");
-    Serial.println("🐦 Bird detection will work locally");
-    Serial.println("🔄 WiFi reconnection every 60 seconds");
-    Serial.println("📦 Detections will be queued for sync");
-    Serial.println("═══════════════════════════════════════════");
+    Serial.printf("⚠️  Internet test failed (code: %d) - uploads may not work\n", testCode);
+    Serial.println("💡 Check if router has internet access");
   }
 
   // HTTP endpoint for settings changes
@@ -952,21 +748,7 @@ void setup() {
 }
 
 void loop() {
-  // Handle WiFi reconnection in background (non-blocking)
-  handleWiFiReconnection();
-
-  // Periodic memory check (every 60 seconds)
-  static unsigned long lastMemCheck = 0;
-  unsigned long now = millis();
-  if (now - lastMemCheck > 60000) {
-    lastMemCheck = now;
-    logMemoryStatus();
-    if (ESP.getFreeHeap() < 20000) {
-      Serial.println("⚠️ WARNING: Low memory!");
-    }
-  }
-
-  // Bird detection (works offline - queues when main board unreachable)
+  // Bird detection (uploads on detection only)
   detectBirdMotion();
 
   // Small delay to prevent overwhelming the system
