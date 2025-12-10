@@ -460,7 +460,17 @@ bool detectBirdMotion() {
         lastDetectionTime = now;
 
         int confidence = map(changedPixels, minBirdSize, maxBirdSize, 50, 95);
-        Serial.printf("🐦 BIRD DETECTED! Size: %d pixels, Confidence: %d%%\n", changedPixels, confidence);
+        Serial.printf("🐦 Motion detected: %d pixels, Confidence: %d%%\n", changedPixels, confidence);
+
+        // Reject if confidence too low (minimum 70%)
+        if (confidence < 70) {
+          Serial.printf("❌ Rejected (confidence %d%% < 70%%)\n", confidence);
+          esp_camera_fb_return(currentFrame);
+          currentFrame = NULL;
+          memcpy(prevGrayBuffer, currGrayBuffer, GRAY_BUFFER_SIZE);
+          return false;
+        }
+        Serial.println("✅ BIRD CONFIRMED!");
 
         // Check if we can upload (rate limit check)
         String imageUrl = "";
