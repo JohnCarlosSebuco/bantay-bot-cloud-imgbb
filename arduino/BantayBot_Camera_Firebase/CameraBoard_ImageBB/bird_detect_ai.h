@@ -58,9 +58,9 @@
   constexpr int kTensorArenaSize = 60 * 1024;
 #endif
 
-// Model input/output dimensions
-#define AI_INPUT_WIDTH  64
-#define AI_INPUT_HEIGHT 64
+// Model input/output dimensions (must match training: 48x48)
+#define AI_INPUT_WIDTH  48
+#define AI_INPUT_HEIGHT 48
 #define AI_INPUT_SIZE   (AI_INPUT_WIDTH * AI_INPUT_HEIGHT)
 #define AI_OUTPUT_SIZE  2  // [not_bird, bird]
 
