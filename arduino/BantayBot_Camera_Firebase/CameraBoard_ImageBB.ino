@@ -29,9 +29,6 @@
 #include <ESPAsyncWebServer.h>
 #include "board_config.h"
 
-// === AI BIRD DETECTION (Optional Add-on) ===
-#include "bird_detect_ai.h"
-
 // ===========================
 // Feature Flags
 // ===========================
@@ -434,69 +431,31 @@ bool detectBirdMotion() {
   convertToGrayscale(currentFrame, currGrayBuffer);
 
   bool birdDetected = false;
+  static bool hasFirstFrame = false;
 
-  // Check cooldown
-  unsigned long now = millis();
-  if (now - lastDetectionTime > DETECTION_COOLDOWN) {
+  // If we have a previous frame buffer (grayscale data), perform motion detection
+  if (hasFirstFrame) {
+    int changedPixels = 0;
+    int totalPixels = 0;
 
-    // === AI-ONLY DETECTION (pixel comparison disabled) ===
-    float aiConfidence = runBirdAI(currGrayBuffer, 320, 240);
-
-    if (aiConfidence >= 0 && isAIBird(aiConfidence)) {
-      // AI detected a bird
-      birdDetected = true;
-      lastDetectionTime = now;
-
-      int confidence = (int)(aiConfidence * 100);
-      Serial.printf("🐦 AI BIRD DETECTED! Confidence: %d%%\n", confidence);
-
-      // Check if we can upload (rate limit check)
-      String imageUrl = "";
-
-      #if ENABLE_IMGBB_UPLOAD
-      if (canUpload()) {
-        // Upload image to ImageBB (uses currentFrame before we return it)
-        imageUrl = uploadViaMainBoard(currentFrame);
-
-        if (imageUrl.length() > 0) {
-          recordUpload(true);  // Record as detection upload
-          birdsDetectedToday++;
+    // Compare frames within detection zone
+    for (int y = detectionZoneTop; y < detectionZoneBottom; y++) {
+      for (int x = detectionZoneLeft; x < detectionZoneRight; x++) {
+        int index = y * 320 + x;
+        if (index < GRAY_BUFFER_SIZE) {
+          int diff = abs(currGrayBuffer[index] - prevGrayBuffer[index]);
+          if (diff > detectionThreshold) {
+            changedPixels++;
+          }
+          totalPixels++;
         }
-      } else {
-        Serial.println("⚠️  Daily upload limit reached, skipping ImageBB upload");
       }
-      #else
-      Serial.println("📸 ImgBB upload disabled - detection only mode");
-      #endif
-
-      // Always notify main board (with or without image URL)
-      notifyMainBoard(imageUrl, 0, confidence);  // 0 for pixel count (not used)
     }
 
-    /* === PIXEL COMPARISON DISABLED ===
-    static bool hasFirstFrame = false;
-
-    // If we have a previous frame buffer (grayscale data), perform motion detection
-    if (hasFirstFrame) {
-      int changedPixels = 0;
-      int totalPixels = 0;
-
-      // Compare frames within detection zone
-      for (int y = detectionZoneTop; y < detectionZoneBottom; y++) {
-        for (int x = detectionZoneLeft; x < detectionZoneRight; x++) {
-          int index = y * 320 + x;
-          if (index < GRAY_BUFFER_SIZE) {
-            int diff = abs(currGrayBuffer[index] - prevGrayBuffer[index]);
-            if (diff > detectionThreshold) {
-              changedPixels++;
-            }
-            totalPixels++;
-          }
-        }
-      }
-
-      // Check if motion indicates a bird
-      if (changedPixels > minBirdSize && changedPixels < maxBirdSize) {
+    // Check if motion indicates a bird
+    if (changedPixels > minBirdSize && changedPixels < maxBirdSize) {
+      unsigned long now = millis();
+      if (now - lastDetectionTime > DETECTION_COOLDOWN) {
         birdDetected = true;
         lastDetectionTime = now;
 
@@ -508,9 +467,11 @@ bool detectBirdMotion() {
 
         #if ENABLE_IMGBB_UPLOAD
         if (canUpload()) {
+          // Upload image to ImageBB (uses currentFrame before we return it)
           imageUrl = uploadViaMainBoard(currentFrame);
+
           if (imageUrl.length() > 0) {
-            recordUpload(true);
+            recordUpload(true);  // Record as detection upload
             birdsDetectedToday++;
           }
         } else {
@@ -520,19 +481,20 @@ bool detectBirdMotion() {
         Serial.println("📸 ImgBB upload disabled - detection only mode");
         #endif
 
+        // Always notify main board (with or without image URL)
         notifyMainBoard(imageUrl, changedPixels, confidence);
       }
     }
-
-    // Copy current gray buffer to previous for next iteration comparison
-    memcpy(prevGrayBuffer, currGrayBuffer, GRAY_BUFFER_SIZE);
-    hasFirstFrame = true;
-    === END PIXEL COMPARISON === */
   }
 
-  // Return frame buffer immediately after use
+  // ✅ CRITICAL FIX: Return frame buffer immediately after use
+  // We only need the grayscale data in currGrayBuffer, not the frame buffer itself
   esp_camera_fb_return(currentFrame);
   currentFrame = NULL;
+
+  // Copy current gray buffer to previous for next iteration comparison
+  memcpy(prevGrayBuffer, currGrayBuffer, GRAY_BUFFER_SIZE);
+  hasFirstFrame = true;  // Mark that we now have data in prevGrayBuffer
 
   return birdDetected;
 }
@@ -571,9 +533,6 @@ void setup() {
 
   // Setup bird detection
   setupBirdDetection();
-
-  // Initialize AI detection (optional - disabled by default)
-  initBirdAI();
 
   // Connect to WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
