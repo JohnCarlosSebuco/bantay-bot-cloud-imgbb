@@ -239,17 +239,26 @@ export default function History({ language }) {
   const filterData = (data) => {
     let filtered = [...data];
 
-    // Date filter
+    // Date filter (use parseTimestamp for proper date handling)
     const now = new Date();
     if (dateFilter === 'today') {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      filtered = filtered.filter(item => new Date(item.timestamp) >= todayStart);
+      filtered = filtered.filter(item => {
+        const itemDate = parseTimestamp(item.timestamp);
+        return itemDate && itemDate >= todayStart;
+      });
     } else if (dateFilter === '7days') {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(item => new Date(item.timestamp) >= weekAgo);
+      filtered = filtered.filter(item => {
+        const itemDate = parseTimestamp(item.timestamp);
+        return itemDate && itemDate >= weekAgo;
+      });
     } else if (dateFilter === '30days') {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(item => new Date(item.timestamp) >= monthAgo);
+      filtered = filtered.filter(item => {
+        const itemDate = parseTimestamp(item.timestamp);
+        return itemDate && itemDate >= monthAgo;
+      });
     }
 
     // Status filter (for sensor data)
@@ -257,14 +266,22 @@ export default function History({ language }) {
       filtered = filtered.filter(item => getOverallStatus(item) === statusFilter);
     }
 
-    // Sort
+    // Sort (use parseTimestamp for proper date handling)
     if (sortOrder === 'oldest') {
-      filtered.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      filtered.sort((a, b) => {
+        const dateA = parseTimestamp(a.timestamp);
+        const dateB = parseTimestamp(b.timestamp);
+        return (dateA || 0) - (dateB || 0);
+      });
     } else if (sortOrder === 'severity' && activeTab === 'sensor') {
       const severityOrder = { critical: 0, warning: 1, optimal: 2 };
       filtered.sort((a, b) => severityOrder[getOverallStatus(a)] - severityOrder[getOverallStatus(b)]);
     } else {
-      filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      filtered.sort((a, b) => {
+        const dateA = parseTimestamp(a.timestamp);
+        const dateB = parseTimestamp(b.timestamp);
+        return (dateB || 0) - (dateA || 0);
+      });
     }
 
     return filtered;
@@ -272,8 +289,8 @@ export default function History({ language }) {
 
   const refresh = async () => {
     const [s, d] = await Promise.all([
-      DeviceService.getSensorHistory(50),
-      DeviceService.getDetectionHistory(50),
+      DeviceService.getSensorHistory(500),
+      DeviceService.getDetectionHistory(500),
     ]);
     setSensorHistory(s);
     setDetectionHistory(d);
@@ -296,12 +313,12 @@ export default function History({ language }) {
     // Subscribe to Firebase sensor history
     const unsubscribeSensor = DeviceService.subscribeToSensorHistory((history) => {
       setSensorHistory(history);
-    }, 50);
+    }, 500);
 
     // Subscribe to Firebase detection history
     const unsubscribeDetection = DeviceService.subscribeToDetectionHistory((history) => {
       setDetectionHistory(history);
-    }, 50);
+    }, 500);
 
     return () => {
       if (unsubscribeSensor) unsubscribeSensor();
