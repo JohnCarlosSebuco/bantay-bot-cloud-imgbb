@@ -19,3 +19,4 @@ export { default as ControlButton } from './ControlButton';
 export { default as HeadControlPanel } from './HeadControlPanel';
 export { default as SoilHealthCard } from './SoilHealthCard';
 export { default as SmartRecommendations } from './SmartRecommendations';
+export { default as NotificationPreferences } from './NotificationPreferences';

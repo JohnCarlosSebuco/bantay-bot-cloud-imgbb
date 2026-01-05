@@ -8,7 +8,8 @@ import {
   InputCard,
   ToggleCard,
   ConnectionTestCard,
-  SpeakerControl
+  SpeakerControl,
+  NotificationPreferences
 } from '../components/ui';
 import ConfigService from '../services/ConfigService';
 import ConnectionManager from '../services/ConnectionManager';
@@ -469,6 +470,12 @@ export default function Settings({ language, onLanguageChange }) {
             />
           </div>
 
+          {/* Push Notifications Section */}
+          <div data-tour="settings-notifications">
+            <SectionHeader icon={Bell} title={language === 'tl' ? 'Push Notifications' : 'Push Notifications'} color="error" />
+            <NotificationPreferences language={language} />
+          </div>
+
           {/* App Preferences Section */}
           <SectionHeader icon={Smartphone} title={txt.appPreferences} color="brand" />
 
@@ -491,14 +498,6 @@ export default function Settings({ language, onLanguageChange }) {
                 {language === 'tl' ? txt.switchToEnglish : txt.switchToTagalog}
               </button>
             </div>
-
-            <ToggleCard
-              title={txt.notifications}
-              value={config.notifications}
-              onValueChange={(value) => updateConfig('notifications', value)}
-              description={txt.notificationsDesc}
-              icon="🔔"
-            />
 
             <div data-tour="settings-dark-mode">
               <ToggleCard

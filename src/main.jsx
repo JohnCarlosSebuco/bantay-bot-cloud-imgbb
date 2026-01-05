@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './styles/index.css';
+import notificationService from './services/NotificationService';
 
 // App version - update this to force cache clear
 const APP_VERSION = '1.0.2';
@@ -39,6 +40,18 @@ const forceUpdate = async () => {
 
 // Run version check
 forceUpdate();
+
+// Initialize notification service
+const initNotifications = async () => {
+  try {
+    await notificationService.initialize();
+    console.log('Notification service initialized');
+  } catch (error) {
+    console.error('Failed to initialize notification service:', error);
+  }
+};
+
+initNotifications();
 
 // Auto-reload when new service worker is activated
 if ('serviceWorker' in navigator) {

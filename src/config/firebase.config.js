@@ -35,4 +35,17 @@ const firebaseConfig = {
  * };
  */
 
+/**
+ * VAPID Key for Firebase Cloud Messaging (FCM) Web Push
+ *
+ * Instructions to get your VAPID key:
+ * 1. Go to Firebase Console > Project Settings > Cloud Messaging
+ * 2. Scroll to "Web configuration" section
+ * 3. Click "Generate key pair" if you don't have one
+ * 4. Copy the "Key pair" value and paste it below
+ *
+ * Note: Replace the placeholder with your actual VAPID key
+ */
+export const FCM_VAPID_KEY = 'YOUR_VAPID_KEY_FROM_FIREBASE_CONSOLE';
+
 export default firebaseConfig;
