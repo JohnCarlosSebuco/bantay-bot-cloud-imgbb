@@ -11,6 +11,7 @@ import { db } from './FirebaseService';
 import { FCM_VAPID_KEY } from '../config/firebase.config';
 import {
   NOTIFICATION_THRESHOLDS,
+  RECOMMENDATION_THRESHOLDS,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_MESSAGES,
   NOTIFICATION_URLS,
@@ -623,6 +624,120 @@ class NotificationService {
         severity: 'alert',
       });
       this.recordNotificationSent(type, 'alert');
+    }
+  }
+
+  /**
+   * Check smart recommendations and trigger notifications
+   * Same thresholds as SmartRecommendations.jsx
+   */
+  async checkRecommendations(sensorData, language = 'en') {
+    if (!this.preferences.enabled) return;
+    if (!this.preferences.recommendations?.enabled) return;
+    if (Notification.permission !== 'granted') return;
+
+    const messages = NOTIFICATION_MESSAGES[language] || NOTIFICATION_MESSAGES.en;
+    const recMessages = messages.recommendations;
+    const prefs = this.preferences.recommendations;
+    const thresholds = RECOMMENDATION_THRESHOLDS;
+
+    // Check: Irrigate paddy (humidity < 60%)
+    if (prefs.irrigate && sensorData.soilHumidity !== undefined) {
+      if (sensorData.soilHumidity < thresholds.irrigate.humidity_below) {
+        if (this.shouldSendNotification('recommend_irrigate', 'action')) {
+          const msg = recMessages.irrigate;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.soilHumidity.toFixed(1)),
+            { type: 'recommend_irrigate', severity: 'high', value: sensorData.soilHumidity }
+          );
+          this.recordNotificationSent('recommend_irrigate', 'action');
+        }
+      }
+    }
+
+    // Check: Mid-season drainage (humidity > 95%)
+    if (prefs.drainage && sensorData.soilHumidity !== undefined) {
+      if (sensorData.soilHumidity > thresholds.drainage.humidity_above) {
+        if (this.shouldSendNotification('recommend_drainage', 'action')) {
+          const msg = recMessages.drainage;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.soilHumidity.toFixed(1)),
+            { type: 'recommend_drainage', severity: 'medium', value: sensorData.soilHumidity }
+          );
+          this.recordNotificationSent('recommend_drainage', 'action');
+        }
+      }
+    }
+
+    // Check: Increase water depth (temp > 35°C)
+    if (prefs.water_depth && sensorData.soilTemperature !== undefined) {
+      if (sensorData.soilTemperature > thresholds.water_depth_hot.temp_above) {
+        if (this.shouldSendNotification('recommend_water_depth_hot', 'action')) {
+          const msg = recMessages.water_depth_hot;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.soilTemperature.toFixed(1)),
+            { type: 'recommend_water_depth_hot', severity: 'medium', value: sensorData.soilTemperature }
+          );
+          this.recordNotificationSent('recommend_water_depth_hot', 'action');
+        }
+      }
+      // Check: Deepen water level (temp < 18°C)
+      else if (sensorData.soilTemperature < thresholds.water_depth_cold.temp_below) {
+        if (this.shouldSendNotification('recommend_water_depth_cold', 'action')) {
+          const msg = recMessages.water_depth_cold;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.soilTemperature.toFixed(1)),
+            { type: 'recommend_water_depth_cold', severity: 'medium', value: sensorData.soilTemperature }
+          );
+          this.recordNotificationSent('recommend_water_depth_cold', 'action');
+        }
+      }
+    }
+
+    // Check: Apply fertilizer (conductivity < 300)
+    if (prefs.fertilizer && sensorData.soilConductivity !== undefined) {
+      if (sensorData.soilConductivity < thresholds.fertilizer.conductivity_below) {
+        if (this.shouldSendNotification('recommend_fertilizer', 'action')) {
+          const msg = recMessages.fertilizer;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.soilConductivity.toFixed(0)),
+            { type: 'recommend_fertilizer', severity: 'medium', value: sensorData.soilConductivity }
+          );
+          this.recordNotificationSent('recommend_fertilizer', 'action');
+        }
+      }
+      // Check: Skip fertilizer (conductivity > 1500)
+      else if (sensorData.soilConductivity > thresholds.skip_fertilizer.conductivity_above) {
+        if (this.shouldSendNotification('recommend_skip_fertilizer', 'action')) {
+          const msg = recMessages.skip_fertilizer;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.soilConductivity.toFixed(0)),
+            { type: 'recommend_skip_fertilizer', severity: 'info', value: sensorData.soilConductivity }
+          );
+          this.recordNotificationSent('recommend_skip_fertilizer', 'action');
+        }
+      }
+    }
+
+    // Check: Apply rice straw ash (pH < 5.5)
+    if (prefs.ph_ash && sensorData.ph !== undefined) {
+      if (sensorData.ph < thresholds.ph_ash.ph_below) {
+        if (this.shouldSendNotification('recommend_ph_ash', 'action')) {
+          const msg = recMessages.ph_ash;
+          await this.showLocalNotification(
+            msg.title,
+            msg.body.replace('{value}', sensorData.ph.toFixed(1)),
+            { type: 'recommend_ph_ash', severity: 'high', value: sensorData.ph }
+          );
+          this.recordNotificationSent('recommend_ph_ash', 'action');
+        }
+      }
     }
   }
 }

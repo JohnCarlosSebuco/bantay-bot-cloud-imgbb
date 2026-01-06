@@ -12,6 +12,8 @@ import {
   Clock,
   Moon,
   Check,
+  Leaf,
+  Snowflake,
 } from 'lucide-react';
 import notificationService from '../../services/NotificationService';
 
@@ -59,6 +61,19 @@ const NotificationPreferences = ({ language = 'en' }) => {
       saved: 'Saved!',
       notSupported: 'Not Supported',
       notSupportedDesc: 'Push notifications are not supported in this browser',
+      // Recommendations
+      recommendations: 'Smart Recommendations',
+      recommendationsDesc: 'Action alerts like irrigate, fertilize',
+      irrigate: 'Irrigate Paddy',
+      irrigateDesc: 'Low moisture alert',
+      drainage: 'Mid-Season Drainage',
+      drainageDesc: 'High moisture alert',
+      waterDepth: 'Water Depth',
+      waterDepthDesc: 'Temperature-based alerts',
+      fertilizer: 'Fertilizer',
+      fertilizerDesc: 'Nutrient level alerts',
+      phAsh: 'Apply Ash',
+      phAshDesc: 'Low pH alert',
     },
     tl: {
       title: 'Push Notifications',
@@ -96,6 +111,19 @@ const NotificationPreferences = ({ language = 'en' }) => {
       saved: 'Na-save na!',
       notSupported: 'Hindi Suportado',
       notSupportedDesc: 'Hindi suportado ang push notifications sa browser na ito',
+      // Recommendations
+      recommendations: 'Mga Rekomendasyon',
+      recommendationsDesc: 'Mga alerto tulad ng patubig, pataba',
+      irrigate: 'Padaluyin ang Tubig',
+      irrigateDesc: 'Alerto sa tuyong lupa',
+      drainage: 'Pagsasapaw',
+      drainageDesc: 'Alerto sa sobrang basa',
+      waterDepth: 'Lalim ng Tubig',
+      waterDepthDesc: 'Alerto batay sa temperatura',
+      fertilizer: 'Pataba',
+      fertilizerDesc: 'Alerto sa sustansya',
+      phAsh: 'Maglagay ng Abo',
+      phAshDesc: 'Alerto sa mababang pH',
     },
   };
 
@@ -151,6 +179,21 @@ const NotificationPreferences = ({ language = 'en' }) => {
       ...preferences,
       throttle: {
         ...preferences.throttle,
+        [field]: value,
+      },
+    };
+    setPreferences(updated);
+    setSaving(true);
+    await notificationService.savePreferences(updated);
+    setSaving(false);
+    showSaved();
+  };
+
+  const updateRecommendationPreference = async (field, value) => {
+    const updated = {
+      ...preferences,
+      recommendations: {
+        ...preferences.recommendations,
         [field]: value,
       },
     };
@@ -244,6 +287,49 @@ const NotificationPreferences = ({ language = 'en' }) => {
       desc: t.waterStressDesc,
       color: 'text-cyan-500',
       bgColor: 'bg-cyan-500/20',
+    },
+  ];
+
+  const recommendationCategories = [
+    {
+      key: 'irrigate',
+      icon: Droplets,
+      label: t.irrigate,
+      desc: t.irrigateDesc,
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/20',
+    },
+    {
+      key: 'drainage',
+      icon: CloudRain,
+      label: t.drainage,
+      desc: t.drainageDesc,
+      color: 'text-cyan-500',
+      bgColor: 'bg-cyan-500/20',
+    },
+    {
+      key: 'water_depth',
+      icon: Thermometer,
+      label: t.waterDepth,
+      desc: t.waterDepthDesc,
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/20',
+    },
+    {
+      key: 'fertilizer',
+      icon: Leaf,
+      label: t.fertilizer,
+      desc: t.fertilizerDesc,
+      color: 'text-green-500',
+      bgColor: 'bg-green-500/20',
+    },
+    {
+      key: 'ph_ash',
+      icon: FlaskConical,
+      label: t.phAsh,
+      desc: t.phAshDesc,
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-500/20',
     },
   ];
 
@@ -361,6 +447,60 @@ const NotificationPreferences = ({ language = 'en' }) => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Smart Recommendations */}
+      {preferences.enabled && permissionStatus === 'granted' && (
+        <div className="surface-primary rounded-xl p-4 border border-primary">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                <Leaf size={16} className="text-green-500" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-primary">{t.recommendations}</h4>
+                <p className="text-xs text-secondary">{t.recommendationsDesc}</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={preferences.recommendations?.enabled}
+                onChange={(e) => updateRecommendationPreference('enabled', e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand"></div>
+            </label>
+          </div>
+          {preferences.recommendations?.enabled && (
+            <div className="space-y-2">
+              {recommendationCategories.map(({ key, icon: Icon, label, desc, color, bgColor }) => (
+                <div key={key} className="bg-tertiary rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 ${bgColor} rounded-lg flex items-center justify-center`}>
+                        <Icon size={16} className={color} />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-primary">{label}</span>
+                        <p className="text-xs text-secondary">{desc}</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={preferences.recommendations?.[key]}
+                        onChange={(e) => updateRecommendationPreference(key, e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand"></div>
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

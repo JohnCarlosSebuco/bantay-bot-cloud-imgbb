@@ -8,6 +8,14 @@ export const NOTIFICATION_TYPES = {
   HEALTH_SCORE: 'health_score',
   WATER_STRESS: 'water_stress',
   BIRD_DETECTION: 'bird_detection',
+  // Smart Recommendations
+  RECOMMEND_IRRIGATE: 'recommend_irrigate',
+  RECOMMEND_DRAINAGE: 'recommend_drainage',
+  RECOMMEND_WATER_DEPTH_HOT: 'recommend_water_depth_hot',
+  RECOMMEND_WATER_DEPTH_COLD: 'recommend_water_depth_cold',
+  RECOMMEND_FERTILIZER: 'recommend_fertilizer',
+  RECOMMEND_SKIP_FERTILIZER: 'recommend_skip_fertilizer',
+  RECOMMEND_PH_ASH: 'recommend_ph_ash',
 };
 
 export const NOTIFICATION_THRESHOLDS = {
@@ -37,6 +45,17 @@ export const NOTIFICATION_THRESHOLDS = {
   },
 };
 
+// Thresholds for Smart Recommendations (same as SmartRecommendations.jsx)
+export const RECOMMENDATION_THRESHOLDS = {
+  irrigate: { humidity_below: 60 },
+  drainage: { humidity_above: 95 },
+  water_depth_hot: { temp_above: 35 },
+  water_depth_cold: { temp_below: 18 },
+  fertilizer: { conductivity_below: 300 },
+  skip_fertilizer: { conductivity_above: 1500 },
+  ph_ash: { ph_below: 5.5 },
+};
+
 export const DEFAULT_NOTIFICATION_PREFERENCES = {
   enabled: true,
   soil_moisture: { enabled: true, warning: true, critical: true },
@@ -46,6 +65,15 @@ export const DEFAULT_NOTIFICATION_PREFERENCES = {
   health_score: { enabled: true, warning: true, critical: true },
   water_stress: { enabled: true, warning: true, critical: true },
   bird_detection: { enabled: true },
+  // Smart Recommendations
+  recommendations: {
+    enabled: true,
+    irrigate: true,
+    drainage: true,
+    water_depth: true,
+    fertilizer: true,
+    ph_ash: true,
+  },
   throttle: {
     minIntervalMinutes: 30,
     quietHoursStart: 22,
@@ -138,6 +166,37 @@ export const NOTIFICATION_MESSAGES = {
         body: 'Bird activity detected in your field. Deterrent activated.',
       },
     },
+    // Smart Recommendations
+    recommendations: {
+      irrigate: {
+        title: 'Action: Irrigate Paddy',
+        body: 'Soil moisture low ({value}%). Rice paddy needs water.',
+      },
+      drainage: {
+        title: 'Action: Mid-Season Drainage',
+        body: 'Soil too wet ({value}%). Drain water for 1 week.',
+      },
+      water_depth_hot: {
+        title: 'Action: Increase Water Depth',
+        body: 'Soil temperature high ({value}°C). Add water to cool soil.',
+      },
+      water_depth_cold: {
+        title: 'Action: Deepen Water Level',
+        body: 'Soil temperature low ({value}°C). Water insulates soil from cold.',
+      },
+      fertilizer: {
+        title: 'Action: Apply Fertilizer',
+        body: 'Nutrient level low ({value} µS/cm). Time to fertilize.',
+      },
+      skip_fertilizer: {
+        title: 'Reminder: Skip Fertilizer',
+        body: 'Nutrient level high ({value} µS/cm). No fertilizer needed now.',
+      },
+      ph_ash: {
+        title: 'Action: Apply Rice Straw Ash',
+        body: 'Soil too acidic (pH {value}). Add ash to balance pH.',
+      },
+    },
   },
   tl: {
     soil_moisture: {
@@ -222,6 +281,37 @@ export const NOTIFICATION_MESSAGES = {
         body: 'May nakitang ibon sa bukid. Nag-activate ang panakot.',
       },
     },
+    // Smart Recommendations
+    recommendations: {
+      irrigate: {
+        title: 'Aksyon: Padaluyin ang Tubig',
+        body: 'Mababa ang basa ng lupa ({value}%). Kailangan ng tubig ang palayan.',
+      },
+      drainage: {
+        title: 'Aksyon: Pagsasapaw',
+        body: 'Sobrang basa ng lupa ({value}%). Patuyuin ng 1 linggo.',
+      },
+      water_depth_hot: {
+        title: 'Aksyon: Dagdagan ang Tubig',
+        body: 'Mainit ang lupa ({value}°C). Magdagdag ng tubig para lumamig.',
+      },
+      water_depth_cold: {
+        title: 'Aksyon: Palalimin ang Tubig',
+        body: 'Malamig ang lupa ({value}°C). Ang tubig ay nagpoprotekta sa lamig.',
+      },
+      fertilizer: {
+        title: 'Aksyon: Magpataba',
+        body: 'Kulang sa sustansya ({value} µS/cm). Oras na para magpataba.',
+      },
+      skip_fertilizer: {
+        title: 'Paalala: Huwag Muna Magpataba',
+        body: 'Mataas ang sustansya ({value} µS/cm). Hindi na kailangan ng pataba.',
+      },
+      ph_ash: {
+        title: 'Aksyon: Maglagay ng Abo ng Dayami',
+        body: 'Maasim ang lupa (pH {value}). Maglagay ng abo para balansehin.',
+      },
+    },
   },
 };
 
@@ -234,4 +324,12 @@ export const NOTIFICATION_URLS = {
   health_score: '/crop-health-monitor',
   water_stress: '/rainfall-tracker',
   bird_detection: '/history',
+  // Recommendations go to dashboard where SmartRecommendations is shown
+  recommend_irrigate: '/',
+  recommend_drainage: '/',
+  recommend_water_depth_hot: '/',
+  recommend_water_depth_cold: '/',
+  recommend_fertilizer: '/',
+  recommend_skip_fertilizer: '/',
+  recommend_ph_ash: '/',
 };

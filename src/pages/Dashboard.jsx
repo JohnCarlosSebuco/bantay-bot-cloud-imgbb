@@ -194,6 +194,7 @@ export default function Dashboard({ language }) {
 
         // Check sensor data for notification triggers
         notificationService.checkAndNotify(updatedData, language);
+        notificationService.checkRecommendations(updatedData, language);
       }
     });
 
