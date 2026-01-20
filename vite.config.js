@@ -35,6 +35,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3000000,
         skipWaiting: true,
         clientsClaim: true,
+        // Import custom service worker for FCM push notifications
+        importScripts: ['sw-push-handler.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,

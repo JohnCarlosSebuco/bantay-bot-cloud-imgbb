@@ -8,7 +8,8 @@ import {
   InputCard,
   ToggleCard,
   ConnectionTestCard,
-  SpeakerControl
+  SpeakerControl,
+  NotificationPreferences
 } from '../components/ui';
 import ConfigService from '../services/ConfigService';
 import ConnectionManager from '../services/ConnectionManager';
@@ -375,7 +376,7 @@ export default function Settings({ language, onLanguageChange }) {
         </div>
 
         <div className="px-3 sm:px-4">
-          {/* Connection Settings Section */}
+          {/* Connection Settings Section - COMMENTED OUT
           <div data-tour="settings-connection">
             <SectionHeader icon={Wifi} title={txt.connectionSettings} color="info" first={true} />
           </div>
@@ -436,7 +437,6 @@ export default function Settings({ language, onLanguageChange }) {
               error={errors.updateInterval}
             />
 
-            {/* Network Discovery */}
             <div data-tour="settings-auto-discovery">
               <ConnectionTestCard
                 title={txt.autoDiscovery}
@@ -447,7 +447,6 @@ export default function Settings({ language, onLanguageChange }) {
               />
             </div>
 
-            {/* Connection Test */}
             <ConnectionTestCard
               title={txt.connectionTest}
               description={txt.connectionTestDesc}
@@ -457,16 +456,23 @@ export default function Settings({ language, onLanguageChange }) {
               isLoading={isLoading}
             />
           </div>
+          END Connection Settings Section */}
 
           {/* Speaker & Audio Section */}
           <div data-tour="settings-audio">
-            <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" />
+            <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" first={true} />
             <SpeakerControl
               volume={volume}
               onVolumeChange={setVolume}
               isMuted={isMuted}
               onMuteToggle={() => setIsMuted(!isMuted)}
             />
+          </div>
+
+          {/* Push Notifications Section */}
+          <div data-tour="settings-notifications">
+            <SectionHeader icon={Bell} title={language === 'tl' ? 'Push Notifications' : 'Push Notifications'} color="error" />
+            <NotificationPreferences language={language} />
           </div>
 
           {/* App Preferences Section */}
@@ -492,14 +498,6 @@ export default function Settings({ language, onLanguageChange }) {
               </button>
             </div>
 
-            <ToggleCard
-              title={txt.notifications}
-              value={config.notifications}
-              onValueChange={(value) => updateConfig('notifications', value)}
-              description={txt.notificationsDesc}
-              icon="🔔"
-            />
-
             <div data-tour="settings-dark-mode">
               <ToggleCard
                 title={txt.darkMode}
@@ -510,6 +508,7 @@ export default function Settings({ language, onLanguageChange }) {
               />
             </div>
 
+            {/* Auto Reconnect - COMMENTED OUT
             <ToggleCard
               title={txt.autoReconnect}
               value={config.autoReconnect}
@@ -517,6 +516,7 @@ export default function Settings({ language, onLanguageChange }) {
               description={txt.autoReconnectDesc}
               icon="🔄"
             />
+            */}
           </div>
 
           {/* System Information Section */}

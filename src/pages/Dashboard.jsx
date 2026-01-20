@@ -11,6 +11,7 @@ import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
 import FirebaseService from '../services/FirebaseService';
 import DeviceService from '../services/DeviceService';
+import notificationService from '../services/NotificationService';
 import { CONFIG } from '../config/config';
 import { dashboardTourSteps } from '../config/tourSteps';
 
@@ -173,12 +174,15 @@ export default function Dashboard({ language }) {
       if (data) {
         console.log('📡 Firebase sensor data received:', data);
         const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
+        const updatedData = {
+          soilHumidity: safeNumber(data.soilHumidity, 0),
+          soilTemperature: safeNumber(data.soilTemperature, 0),
+          soilConductivity: safeNumber(data.soilConductivity, 0),
+          ph: safeNumber(data.ph, 7.0),
+        };
         setSensorData(prev => ({
           ...prev,
-          soilHumidity: safeNumber(data.soilHumidity, prev.soilHumidity),
-          soilTemperature: safeNumber(data.soilTemperature, prev.soilTemperature),
-          soilConductivity: safeNumber(data.soilConductivity, prev.soilConductivity),
-          ph: safeNumber(data.ph, prev.ph),
+          ...updatedData,
           currentTrack: safeNumber(data.currentTrack, prev.currentTrack),
           volume: safeNumber(data.volume, prev.volume),
           headPosition: safeNumber(data.headPosition, prev.headPosition),
@@ -187,6 +191,10 @@ export default function Dashboard({ language }) {
         }));
         setLastUpdate(new Date());
         setIsConnected(true);
+
+        // Check sensor data for notification triggers
+        notificationService.checkAndNotify(updatedData, language);
+        notificationService.checkRecommendations(updatedData, language);
       }
     });
 

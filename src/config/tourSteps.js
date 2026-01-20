@@ -216,32 +216,33 @@ export const settingsTourSteps = [
     position: 'bottom',
     icon: '⚙️'
   },
-  {
-    target: 'settings-connection',
-    title: {
-      en: 'Connection Settings',
-      tl: 'Settings ng Koneksyon'
-    },
-    description: {
-      en: 'Set up the IP addresses to connect to your BantayBot device.',
-      tl: 'I-setup ang IP addresses para makakonekta sa BantayBot device mo.'
-    },
-    position: 'bottom',
-    icon: '🔌'
-  },
-  {
-    target: 'settings-auto-discovery',
-    title: {
-      en: 'Auto-Discovery',
-      tl: 'Auto-Discovery'
-    },
-    description: {
-      en: 'Tap "Scan" to automatically find BantayBot devices on your network.',
-      tl: 'Pindutin ang "Hanapin" para awtomatikong hanapin ang mga BantayBot device sa network mo.'
-    },
-    position: 'bottom',
-    icon: '🔍'
-  },
+  // Connection Settings - COMMENTED OUT
+  // {
+  //   target: 'settings-connection',
+  //   title: {
+  //     en: 'Connection Settings',
+  //     tl: 'Settings ng Koneksyon'
+  //   },
+  //   description: {
+  //     en: 'Set up the IP addresses to connect to your BantayBot device.',
+  //     tl: 'I-setup ang IP addresses para makakonekta sa BantayBot device mo.'
+  //   },
+  //   position: 'bottom',
+  //   icon: '🔌'
+  // },
+  // {
+  //   target: 'settings-auto-discovery',
+  //   title: {
+  //     en: 'Auto-Discovery',
+  //     tl: 'Auto-Discovery'
+  //   },
+  //   description: {
+  //     en: 'Tap "Scan" to automatically find BantayBot devices on your network.',
+  //     tl: 'Pindutin ang "Hanapin" para awtomatikong hanapin ang mga BantayBot device sa network mo.'
+  //   },
+  //   position: 'bottom',
+  //   icon: '🔍'
+  // },
   {
     target: 'settings-audio',
     title: {
