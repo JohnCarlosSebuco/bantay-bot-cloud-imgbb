@@ -89,6 +89,20 @@ const byte cmd_temp[] = {0x01,0x03,0x00,0x01,0x00,0x01,0xD5,0xCA};
 const byte cmd_conductivity[] = {0x01,0x03,0x00,0x02,0x00,0x01,0x25,0xCA};
 const byte cmd_ph[] = {0x01,0x03,0x00,0x03,0x00,0x01,0x74,0x0A};
 byte sensorValues[11];
+
+// Sensor 1 values
+float soil1Humidity = 0.0;
+float soil1Temperature = 0.0;
+float soil1Conductivity = 0.0;
+float soil1PH = 0.0;
+
+// Sensor 2 values
+float soil2Humidity = 0.0;
+float soil2Temperature = 0.0;
+float soil2Conductivity = 0.0;
+float soil2PH = 0.0;
+
+// Averaged values (backward compatibility)
 float soilHumidity = 0.0;
 float soilTemperature = 0.0;
 float soilConductivity = 0.0;
@@ -222,10 +236,26 @@ void updateSensorDataSmart() {
   }
 
   FirebaseJson json;
+
+  // Sensor 1 data (NEW)
+  json.set("fields/soil1Humidity/doubleValue", soil1Humidity);
+  json.set("fields/soil1Temperature/doubleValue", soil1Temperature);
+  json.set("fields/soil1Conductivity/doubleValue", soil1Conductivity);
+  json.set("fields/soil1PH/doubleValue", soil1PH);
+
+  // Sensor 2 data (NEW)
+  json.set("fields/soil2Humidity/doubleValue", soil2Humidity);
+  json.set("fields/soil2Temperature/doubleValue", soil2Temperature);
+  json.set("fields/soil2Conductivity/doubleValue", soil2Conductivity);
+  json.set("fields/soil2PH/doubleValue", soil2PH);
+
+  // Averaged data (backward compatibility)
   json.set("fields/soilHumidity/doubleValue", soilHumidity);
   json.set("fields/soilTemperature/doubleValue", soilTemperature);
   json.set("fields/soilConductivity/doubleValue", soilConductivity);
   json.set("fields/ph/doubleValue", soilPH);
+
+  // Other fields
   json.set("fields/currentTrack/integerValue", String(currentTrack));
   json.set("fields/volume/integerValue", String(volumeLevel));
   json.set("fields/servoActive/booleanValue", armSteppersActive);
@@ -236,6 +266,8 @@ void updateSensorDataSmart() {
 
   if (Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw(), "")) {
     Serial.println("✅ Sensor data updated (values changed)");
+    Serial.printf("   S1: H=%.1f T=%.1f EC=%.0f pH=%.1f\n", soil1Humidity, soil1Temperature, soil1Conductivity, soil1PH);
+    Serial.printf("   S2: H=%.1f T=%.1f EC=%.0f pH=%.1f\n", soil2Humidity, soil2Temperature, soil2Conductivity, soil2PH);
     // Update last sent values
     lastSentHumidity = soilHumidity;
     lastSentTemperature = soilTemperature;
@@ -283,10 +315,26 @@ void saveSensorHistory() {
   Serial.printf("📜 Saving sensor history: %s\n", docId.c_str());
 
   FirebaseJson json;
+
+  // Sensor 1 data (NEW)
+  json.set("fields/soil1Humidity/doubleValue", soil1Humidity);
+  json.set("fields/soil1Temperature/doubleValue", soil1Temperature);
+  json.set("fields/soil1Conductivity/doubleValue", soil1Conductivity);
+  json.set("fields/soil1PH/doubleValue", soil1PH);
+
+  // Sensor 2 data (NEW)
+  json.set("fields/soil2Humidity/doubleValue", soil2Humidity);
+  json.set("fields/soil2Temperature/doubleValue", soil2Temperature);
+  json.set("fields/soil2Conductivity/doubleValue", soil2Conductivity);
+  json.set("fields/soil2PH/doubleValue", soil2PH);
+
+  // Averaged data (backward compatibility)
   json.set("fields/soilHumidity/doubleValue", soilHumidity);
   json.set("fields/soilTemperature/doubleValue", soilTemperature);
   json.set("fields/soilConductivity/doubleValue", soilConductivity);
   json.set("fields/ph/doubleValue", soilPH);
+
+  // Other fields
   json.set("fields/currentTrack/integerValue", String(currentTrack));
   json.set("fields/volume/integerValue", String(volumeLevel));
   json.set("fields/headPosition/integerValue", String(currentHeadPosition));
@@ -349,53 +397,92 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
 // RS485 Soil Sensor Functions
 // ===========================
 
-byte readRS485(const byte* query, byte* values) {
-  // Set RS485 to transmit mode
-  digitalWrite(RS485_RE, HIGH);
+// Parameterized RS485 read function for dual sensor support
+float readRS485SensorValue(HardwareSerial &port, int rePin, const byte *command) {
+  byte values[11];
+
+  // Ensure both RE pins are LOW first (receive mode)
+  digitalWrite(RS485_RE1, LOW);
+  digitalWrite(RS485_RE2, LOW);
+
+  // Set target sensor to transmit mode
+  digitalWrite(rePin, HIGH);
   delay(10);
 
-  // Send query
-  Serial2.write(query, 8);
-  Serial2.flush();
+  // Send command
+  for (int i = 0; i < 8; i++) {
+    port.write(command[i]);
+  }
+  port.flush();
 
-  // Set RS485 to receive mode
-  digitalWrite(RS485_RE, LOW);
-  delay(100);
+  // Switch to receive mode
+  digitalWrite(rePin, LOW);
+  delay(200);
 
   // Read response
-  byte index = 0;
+  int i = 0;
   unsigned long startTime = millis();
-  while (Serial2.available() && index < 11) {
-    values[index++] = Serial2.read();
+  while (port.available() > 0 && i < 11) {
+    values[i++] = port.read();
     if (millis() - startTime > 500) break;  // Timeout
   }
 
-  return index;
+  if (i < 5) return -999;  // Invalid response
+  return ((values[3] << 8) | values[4]);
 }
 
+// Read all sensors (both sensor 1 and sensor 2)
+void readAllSensors() {
+  float raw;
+
+  // ===== Read Sensor 1 (Serial2) =====
+  raw = readRS485SensorValue(Serial2, RS485_RE1, cmd_humidity);
+  if (raw != -999) soil1Humidity = raw / 10.0;
+
+  raw = readRS485SensorValue(Serial2, RS485_RE1, cmd_temp);
+  if (raw != -999) soil1Temperature = raw / 10.0;
+
+  raw = readRS485SensorValue(Serial2, RS485_RE1, cmd_conductivity);
+  if (raw != -999) soil1Conductivity = raw;
+
+  raw = readRS485SensorValue(Serial2, RS485_RE1, cmd_ph);
+  if (raw != -999) soil1PH = raw / 10.0;
+
+  // ===== Read Sensor 2 (Serial1 - temporarily switch from DFPlayer) =====
+  // Reinitialize Serial1 for sensor 2 (4800 baud for RS485)
+  dfPlayerSerial.end();
+  delay(10);
+  dfPlayerSerial.begin(4800, SERIAL_8N1, RS485_RX2, RS485_TX2);
+  delay(50);
+
+  raw = readRS485SensorValue(dfPlayerSerial, RS485_RE2, cmd_humidity);
+  if (raw != -999) soil2Humidity = raw / 10.0;
+
+  raw = readRS485SensorValue(dfPlayerSerial, RS485_RE2, cmd_temp);
+  if (raw != -999) soil2Temperature = raw / 10.0;
+
+  raw = readRS485SensorValue(dfPlayerSerial, RS485_RE2, cmd_conductivity);
+  if (raw != -999) soil2Conductivity = raw;
+
+  raw = readRS485SensorValue(dfPlayerSerial, RS485_RE2, cmd_ph);
+  if (raw != -999) soil2PH = raw / 10.0;
+
+  // Reinitialize Serial1 back to DFPlayer (9600 baud)
+  dfPlayerSerial.end();
+  delay(10);
+  dfPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
+  delay(50);
+
+  // ===== Calculate averages (backward compatibility) =====
+  soilHumidity = (soil1Humidity + soil2Humidity) / 2.0;
+  soilTemperature = (soil1Temperature + soil2Temperature) / 2.0;
+  soilConductivity = (soil1Conductivity + soil2Conductivity) / 2.0;
+  soilPH = (soil1PH + soil2PH) / 2.0;
+}
+
+// Legacy function for backward compatibility
 void readRS485Sensor() {
-  // Read humidity
-  if (readRS485(cmd_humidity, sensorValues) >= 7) {
-    soilHumidity = ((sensorValues[3] << 8) | sensorValues[4]) / 10.0;
-  }
-  delay(100);
-
-  // Read temperature
-  if (readRS485(cmd_temp, sensorValues) >= 7) {
-    soilTemperature = ((sensorValues[3] << 8) | sensorValues[4]) / 10.0;
-  }
-  delay(100);
-
-  // Read conductivity
-  if (readRS485(cmd_conductivity, sensorValues) >= 7) {
-    soilConductivity = ((sensorValues[3] << 8) | sensorValues[4]);
-  }
-  delay(100);
-
-  // Read pH
-  if (readRS485(cmd_ph, sensorValues) >= 7) {
-    soilPH = ((sensorValues[3] << 8) | sensorValues[4]) / 10.0;
-  }
+  readAllSensors();
 }
 
 // ===========================
@@ -810,14 +897,30 @@ void setupHTTPEndpoints() {
 
   // Status endpoint
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    DynamicJsonDocument doc(512);
+    DynamicJsonDocument doc(1024);
     doc["device"] = "main_board";
     doc["status"] = "online";
     doc["firebase"] = firebaseConnected;
+
+    // Sensor 1 data
+    doc["soil1Humidity"] = soil1Humidity;
+    doc["soil1Temperature"] = soil1Temperature;
+    doc["soil1Conductivity"] = soil1Conductivity;
+    doc["soil1PH"] = soil1PH;
+
+    // Sensor 2 data
+    doc["soil2Humidity"] = soil2Humidity;
+    doc["soil2Temperature"] = soil2Temperature;
+    doc["soil2Conductivity"] = soil2Conductivity;
+    doc["soil2PH"] = soil2PH;
+
+    // Averaged data (backward compatibility)
     doc["soilHumidity"] = soilHumidity;
     doc["soilTemperature"] = soilTemperature;
     doc["soilConductivity"] = soilConductivity;
     doc["ph"] = soilPH;
+
+    // Other fields
     doc["currentTrack"] = currentTrack;
     doc["volume"] = volumeLevel;
     doc["servoActive"] = armSteppersActive;
@@ -888,11 +991,13 @@ void setup() {
   Serial.println("🤖 BantayBot Main Board with Firebase - Starting...");
   Serial.printf("💾 Free heap: %d bytes\n", ESP.getFreeHeap());
 
-  // Initialize pins
-  pinMode(RS485_RE, OUTPUT);
+  // Initialize RS485 pins for both sensors
+  pinMode(RS485_RE1, OUTPUT);
+  pinMode(RS485_RE2, OUTPUT);
   pinMode(STEPPER_ENABLE_PIN, OUTPUT);
   pinMode(SPEAKER_PIN, OUTPUT);
-  digitalWrite(RS485_RE, LOW);
+  digitalWrite(RS485_RE1, LOW);  // Sensor 1 receive mode
+  digitalWrite(RS485_RE2, LOW);  // Sensor 2 receive mode
   digitalWrite(STEPPER_ENABLE_PIN, HIGH); // Disable stepper initially
   digitalWrite(SPEAKER_PIN, LOW);
 
@@ -907,8 +1012,14 @@ void setup() {
   digitalWrite(ARM2_STEP_PIN, LOW);
   enableArmSteppers(false);
 
-  // Initialize RS485 for soil sensor
-  Serial2.begin(4800, SERIAL_8N1, RS485_RX, RS485_TX);
+  // Initialize RS485 for soil sensors
+  // Sensor 1 on Serial2
+  Serial2.begin(4800, SERIAL_8N1, RS485_RX1, RS485_TX1);
+  Serial.println("📡 Soil Sensor 1 initialized on Serial2 (pins 17/16)");
+
+  // Note: Sensor 2 uses Serial1 which is also used by DFPlayer
+  // We'll reinitialize Serial1 for sensor reading when needed
+  // For now, DFPlayer gets priority on Serial1
 
   // Initialize DFPlayer Mini
   dfPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
@@ -1163,7 +1274,12 @@ void loop() {
     readRS485Sensor();
     lastSensorRead = currentTime;
 
-    Serial.printf("📊 Sensors - Humidity: %.1f%%, Temp: %.1fC, Conductivity: %.0f, pH: %.2f\n",
+    Serial.println("📊 Dual Sensor Readings:");
+    Serial.printf("   Sensor 1: H=%.1f%%, T=%.1f°C, EC=%.0f µS/cm, pH=%.2f\n",
+                  soil1Humidity, soil1Temperature, soil1Conductivity, soil1PH);
+    Serial.printf("   Sensor 2: H=%.1f%%, T=%.1f°C, EC=%.0f µS/cm, pH=%.2f\n",
+                  soil2Humidity, soil2Temperature, soil2Conductivity, soil2PH);
+    Serial.printf("   Average:  H=%.1f%%, T=%.1f°C, EC=%.0f µS/cm, pH=%.2f\n",
                   soilHumidity, soilTemperature, soilConductivity, soilPH);
   }
 

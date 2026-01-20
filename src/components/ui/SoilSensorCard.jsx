@@ -6,7 +6,9 @@ const SoilSensorCard = ({
   conductivity = 0,
   ph = 7.0,
   language = 'tl',
-  className = ''
+  className = '',
+  sensorLabel = null, // Optional label for dual sensor mode (e.g., "Sensor 1", "Sensor 2")
+  compact = false // Optional compact mode for side-by-side display
 }) => {
   // Status determination functions
   const getHumidityStatus = (val) => {
@@ -102,18 +104,28 @@ const SoilSensorCard = ({
   const phData = getPHStatus(ph);
 
   return (
-    <div className={`bg-primary rounded-2xl p-6 shadow-lg border border-primary hover-lift transition-all animate-slide-up ${className}`}>
+    <div className={`bg-primary rounded-2xl ${compact ? 'p-4' : 'p-6'} shadow-lg border border-primary hover-lift transition-all animate-slide-up ${className}`}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 bg-brand rounded-xl flex items-center justify-center">
-          <span className="text-2xl">🌱</span>
+      <div className={`flex items-center gap-3 ${compact ? 'mb-4' : 'mb-6'}`}>
+        <div className={`${compact ? 'w-10 h-10' : 'w-12 h-12'} bg-brand rounded-xl flex items-center justify-center`}>
+          <span className={`${compact ? 'text-xl' : 'text-2xl'}`}>🌱</span>
         </div>
-        <div>
-          <h3 className="text-lg font-bold text-primary">
-            {language === 'tl' ? 'KALAGAYAN NG LUPA' : 'SOIL STATUS'}
-          </h3>
-          <p className="text-sm text-secondary">
-            {language === 'tl' ? 'Live na datos' : 'Real-time monitoring'}
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className={`${compact ? 'text-base' : 'text-lg'} font-bold text-primary`}>
+              {sensorLabel || (language === 'tl' ? 'KALAGAYAN NG LUPA' : 'SOIL STATUS')}
+            </h3>
+            {sensorLabel && (
+              <span className="px-2 py-0.5 text-[10px] font-semibold bg-brand/20 text-brand rounded-full">
+                {language === 'tl' ? 'LIVE' : 'LIVE'}
+              </span>
+            )}
+          </div>
+          <p className={`${compact ? 'text-xs' : 'text-sm'} text-secondary`}>
+            {sensorLabel
+              ? (language === 'tl' ? 'Datos ng sensor' : 'Sensor data')
+              : (language === 'tl' ? 'Live na datos' : 'Real-time monitoring')
+            }
           </p>
         </div>
       </div>
@@ -214,7 +226,7 @@ const SoilSensorCard = ({
       </div>
 
       {/* Footer */}
-      <div className="mt-6 pt-4 border-t border-secondary flex items-center justify-between">
+      <div className={`${compact ? 'mt-4 pt-3' : 'mt-6 pt-4'} border-t border-secondary flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
           <span className="text-xs text-secondary">

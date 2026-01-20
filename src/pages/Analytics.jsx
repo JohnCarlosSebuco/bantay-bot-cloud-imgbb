@@ -21,8 +21,19 @@ export default function Analytics({ language }) {
   const [cropData, setCropData] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  // Sensor data state
+  // Sensor data state (with dual sensor support)
   const [sensorData, setSensorData] = useState({
+    // Sensor 1 values
+    soil1Humidity: 45,
+    soil1Temperature: 24.2,
+    soil1Conductivity: 850,
+    soil1PH: 6.8,
+    // Sensor 2 values
+    soil2Humidity: 45,
+    soil2Temperature: 24.2,
+    soil2Conductivity: 850,
+    soil2PH: 6.8,
+    // Averaged values (backward compatibility)
     soilHumidity: 45,
     soilTemperature: 24.2,
     soilConductivity: 850,
@@ -114,6 +125,17 @@ export default function Analytics({ language }) {
         console.log('📡 Firebase sensor data received on Analytics:', data);
         const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
         setSensorData(prev => ({
+          // Sensor 1 values
+          soil1Humidity: safeNumber(data.soil1Humidity, data.soilHumidity ?? prev.soil1Humidity),
+          soil1Temperature: safeNumber(data.soil1Temperature, data.soilTemperature ?? prev.soil1Temperature),
+          soil1Conductivity: safeNumber(data.soil1Conductivity, data.soilConductivity ?? prev.soil1Conductivity),
+          soil1PH: safeNumber(data.soil1PH, data.ph ?? prev.soil1PH),
+          // Sensor 2 values
+          soil2Humidity: safeNumber(data.soil2Humidity, data.soilHumidity ?? prev.soil2Humidity),
+          soil2Temperature: safeNumber(data.soil2Temperature, data.soilTemperature ?? prev.soil2Temperature),
+          soil2Conductivity: safeNumber(data.soil2Conductivity, data.soilConductivity ?? prev.soil2Conductivity),
+          soil2PH: safeNumber(data.soil2PH, data.ph ?? prev.soil2PH),
+          // Averaged values (backward compatibility)
           soilHumidity: safeNumber(data.soilHumidity, prev.soilHumidity),
           soilTemperature: safeNumber(data.soilTemperature, prev.soilTemperature),
           soilConductivity: safeNumber(data.soilConductivity, prev.soilConductivity),

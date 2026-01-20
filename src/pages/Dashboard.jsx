@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTour } from '../contexts/TourContext';
 import {
-  SoilSensorCard,
+  DualSoilSensorDisplay,
   SoilHealthCard,
   SmartRecommendations,
 } from '../components/ui';
@@ -51,12 +51,23 @@ export default function Dashboard({ language }) {
   // Quick action loading states
   const [loadingAction, setLoadingAction] = useState(null);
 
-  // Sensor data state
+  // Sensor data state (with dual sensor support)
   const [sensorData, setSensorData] = useState({
     motion: 0,
     headPosition: 90,
     dhtTemperature: 25.5,
     dhtHumidity: 60,
+    // Sensor 1 values
+    soil1Humidity: 45,
+    soil1Temperature: 24.2,
+    soil1Conductivity: 850,
+    soil1PH: 6.8,
+    // Sensor 2 values
+    soil2Humidity: 45,
+    soil2Temperature: 24.2,
+    soil2Conductivity: 850,
+    soil2PH: 6.8,
+    // Averaged values (backward compatibility)
     soilHumidity: 45,
     soilTemperature: 24.2,
     soilConductivity: 850,
@@ -175,6 +186,17 @@ export default function Dashboard({ language }) {
         console.log('📡 Firebase sensor data received:', data);
         const safeNumber = (v, fallback = 0) => (typeof v === 'number' && isFinite(v) ? v : fallback);
         const updatedData = {
+          // Sensor 1 values
+          soil1Humidity: safeNumber(data.soil1Humidity, data.soilHumidity ?? 0),
+          soil1Temperature: safeNumber(data.soil1Temperature, data.soilTemperature ?? 0),
+          soil1Conductivity: safeNumber(data.soil1Conductivity, data.soilConductivity ?? 0),
+          soil1PH: safeNumber(data.soil1PH, data.ph ?? 7.0),
+          // Sensor 2 values
+          soil2Humidity: safeNumber(data.soil2Humidity, data.soilHumidity ?? 0),
+          soil2Temperature: safeNumber(data.soil2Temperature, data.soilTemperature ?? 0),
+          soil2Conductivity: safeNumber(data.soil2Conductivity, data.soilConductivity ?? 0),
+          soil2PH: safeNumber(data.soil2PH, data.ph ?? 7.0),
+          // Averaged values (backward compatibility)
           soilHumidity: safeNumber(data.soilHumidity, 0),
           soilTemperature: safeNumber(data.soilTemperature, 0),
           soilConductivity: safeNumber(data.soilConductivity, 0),
@@ -192,7 +214,7 @@ export default function Dashboard({ language }) {
         setLastUpdate(new Date());
         setIsConnected(true);
 
-        // Check sensor data for notification triggers
+        // Check sensor data for notification triggers (use averaged values)
         notificationService.checkAndNotify(updatedData, language);
         notificationService.checkRecommendations(updatedData, language);
       }
@@ -383,16 +405,13 @@ export default function Dashboard({ language }) {
         </div>
 
         <div className="px-3 sm:px-4 pb-10">
-          {/* Soil Sensor Section */}
+          {/* Soil Sensor Section - Dual Sensor Display */}
           {sensorData.hasRS485Sensor && (
             <div data-tour="dashboard-soil-sensors" className="mb-4 sm:mb-6">
-              <SectionHeader icon={Sprout} title={t.soilConditions} />
-              <SoilSensorCard
-                humidity={sensorData.soilHumidity}
-                temperature={sensorData.soilTemperature}
-                conductivity={sensorData.soilConductivity}
-                ph={sensorData.ph}
+              <DualSoilSensorDisplay
+                sensorData={sensorData}
                 language={language}
+                showTitle={true}
               />
             </div>
           )}

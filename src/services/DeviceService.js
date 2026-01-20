@@ -2,6 +2,47 @@ import { db } from './FirebaseService';
 import { doc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { DEVICE_CONFIG, FIREBASE_COLLECTIONS } from '../config/hardware.config';
 
+/**
+ * Transform raw Firebase sensor data to support dual sensors
+ * Provides backward compatibility for old single-sensor data
+ */
+function transformSensorData(data) {
+  if (!data) return null;
+
+  return {
+    // Sensor 1 data (fall back to averaged if sensor-specific not available)
+    sensor1: {
+      humidity: data.soil1Humidity ?? data.soilHumidity ?? 0,
+      temperature: data.soil1Temperature ?? data.soilTemperature ?? 0,
+      conductivity: data.soil1Conductivity ?? data.soilConductivity ?? 0,
+      ph: data.soil1PH ?? data.ph ?? 0
+    },
+    // Sensor 2 data (fall back to averaged if sensor-specific not available)
+    sensor2: {
+      humidity: data.soil2Humidity ?? data.soilHumidity ?? 0,
+      temperature: data.soil2Temperature ?? data.soilTemperature ?? 0,
+      conductivity: data.soil2Conductivity ?? data.soilConductivity ?? 0,
+      ph: data.soil2PH ?? data.ph ?? 0
+    },
+    // Averaged/combined values for backward compatibility
+    average: {
+      humidity: data.soilHumidity ?? 0,
+      temperature: data.soilTemperature ?? 0,
+      conductivity: data.soilConductivity ?? 0,
+      ph: data.ph ?? 0
+    },
+    // Ambient conditions (DHT22)
+    ambient: {
+      temperature: data.temperature ?? 0,
+      humidity: data.humidity ?? 0
+    },
+    // Check if dual sensor data is available
+    hasDualSensors: !!(data.soil1Humidity !== undefined && data.soil2Humidity !== undefined),
+    // Keep original data for reference
+    raw: data
+  };
+}
+
 class DeviceService {
   /**
    * Subscribe to device status updates
@@ -60,6 +101,7 @@ class DeviceService {
   /**
    * Get sensor history from Firebase
    * Returns array of sensor snapshots, most recent first
+   * Includes dual sensor data if available
    */
   async getSensorHistory(maxResults = 50) {
     try {
@@ -71,12 +113,25 @@ class DeviceService {
         const data = doc.data();
         history.push({
           id: doc.id,
+          // Sensor 1 data
+          soil1Humidity: data.soil1Humidity ?? data.soilHumidity ?? 0,
+          soil1Temperature: data.soil1Temperature ?? data.soilTemperature ?? 0,
+          soil1Conductivity: data.soil1Conductivity ?? data.soilConductivity ?? 0,
+          soil1PH: data.soil1PH ?? data.ph ?? 7,
+          // Sensor 2 data
+          soil2Humidity: data.soil2Humidity ?? data.soilHumidity ?? 0,
+          soil2Temperature: data.soil2Temperature ?? data.soilTemperature ?? 0,
+          soil2Conductivity: data.soil2Conductivity ?? data.soilConductivity ?? 0,
+          soil2PH: data.soil2PH ?? data.ph ?? 7,
+          // Averaged data (backward compatibility)
           soilHumidity: data.soilHumidity || 0,
           soilTemperature: data.soilTemperature || 0,
           soilConductivity: data.soilConductivity || 0,
           ph: data.ph || 7,
+          // Metadata
           timestamp: data.timestamp || doc.id,
           deviceId: data.deviceId || 'main_001',
+          hasDualSensors: !!(data.soil1Humidity !== undefined && data.soil2Humidity !== undefined),
         });
       });
 
@@ -91,6 +146,7 @@ class DeviceService {
 
   /**
    * Subscribe to sensor history updates (real-time)
+   * Includes dual sensor data if available
    */
   subscribeToSensorHistory(callback, maxResults = 20) {
     try {
@@ -102,12 +158,25 @@ class DeviceService {
           const data = doc.data();
           history.push({
             id: doc.id,
+            // Sensor 1 data
+            soil1Humidity: data.soil1Humidity ?? data.soilHumidity ?? 0,
+            soil1Temperature: data.soil1Temperature ?? data.soilTemperature ?? 0,
+            soil1Conductivity: data.soil1Conductivity ?? data.soilConductivity ?? 0,
+            soil1PH: data.soil1PH ?? data.ph ?? 7,
+            // Sensor 2 data
+            soil2Humidity: data.soil2Humidity ?? data.soilHumidity ?? 0,
+            soil2Temperature: data.soil2Temperature ?? data.soilTemperature ?? 0,
+            soil2Conductivity: data.soil2Conductivity ?? data.soilConductivity ?? 0,
+            soil2PH: data.soil2PH ?? data.ph ?? 7,
+            // Averaged data (backward compatibility)
             soilHumidity: data.soilHumidity || 0,
             soilTemperature: data.soilTemperature || 0,
             soilConductivity: data.soilConductivity || 0,
             ph: data.ph || 7,
+            // Metadata
             timestamp: data.timestamp || doc.id,
             deviceId: data.deviceId || 'main_001',
+            hasDualSensors: !!(data.soil1Humidity !== undefined && data.soil2Humidity !== undefined),
           });
         });
         // Sort by document ID descending and limit
@@ -205,4 +274,7 @@ class DeviceService {
   }
 }
 
-export default new DeviceService();
+const deviceServiceInstance = new DeviceService();
+
+export { transformSensorData };
+export default deviceServiceInstance;

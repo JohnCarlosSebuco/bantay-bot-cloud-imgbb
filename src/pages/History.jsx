@@ -4,6 +4,26 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useTour } from '../contexts/TourContext';
 import DeviceService from '../services/DeviceService';
 import { historyTourSteps } from '../config/tourSteps';
+import { SoilSensorToggle } from '../components/ui';
+
+// Storage key for view mode preference
+const HISTORY_VIEW_MODE_KEY = 'bantaybot_history_view_mode';
+
+const getStoredHistoryViewMode = () => {
+  try {
+    return localStorage.getItem(HISTORY_VIEW_MODE_KEY) || 'average';
+  } catch {
+    return 'average';
+  }
+};
+
+const setStoredHistoryViewMode = (mode) => {
+  try {
+    localStorage.setItem(HISTORY_VIEW_MODE_KEY, mode);
+  } catch {
+    // Ignore storage errors
+  }
+};
 
 // Utility functions
 
@@ -113,6 +133,19 @@ export default function History({ language }) {
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+
+  // Dual sensor view mode
+  const [viewMode, setViewMode] = useState(getStoredHistoryViewMode);
+
+  // Persist view mode preference
+  useEffect(() => {
+    setStoredHistoryViewMode(viewMode);
+  }, [viewMode]);
+
+  // Check if any history record has dual sensor data
+  const hasDualSensorData = sensorHistory.some(
+    record => record.hasDualSensors || (record.soil1Humidity !== undefined && record.soil2Humidity !== undefined)
+  );
 
   const listRef = useRef(null);
 
@@ -461,11 +494,8 @@ export default function History({ language }) {
   };
 
   // Compact Sensor History Item Component - Readable for older users
+  // Now supports dual sensor view mode
   const SensorHistoryItem = ({ item, isLast, isFirst }) => {
-    const humidityStatus = getSensorStatus('humidity', item.soilHumidity);
-    const tempStatus = getSensorStatus('temperature', item.soilTemperature);
-    const ecStatus = getSensorStatus('conductivity', item.soilConductivity);
-    const phStatus = getSensorStatus('ph', item.ph);
     const overallStatus = getOverallStatus(item);
 
     const statusColors = {
@@ -474,6 +504,100 @@ export default function History({ language }) {
       critical: 'text-error',
     };
 
+    // Use dual sensor values or averaged based on view mode
+    const showDual = viewMode === 'dual' && (item.hasDualSensors || (item.soil1Humidity !== undefined && item.soil2Humidity !== undefined));
+
+    // Get values for a sensor or averaged
+    const getValues = (sensorNum) => {
+      if (sensorNum === 1) {
+        return {
+          humidity: item.soil1Humidity ?? item.soilHumidity ?? 0,
+          temperature: item.soil1Temperature ?? item.soilTemperature ?? 0,
+          conductivity: item.soil1Conductivity ?? item.soilConductivity ?? 0,
+          ph: item.soil1PH ?? item.ph ?? 7,
+        };
+      } else if (sensorNum === 2) {
+        return {
+          humidity: item.soil2Humidity ?? item.soilHumidity ?? 0,
+          temperature: item.soil2Temperature ?? item.soilTemperature ?? 0,
+          conductivity: item.soil2Conductivity ?? item.soilConductivity ?? 0,
+          ph: item.soil2PH ?? item.ph ?? 7,
+        };
+      }
+      return {
+        humidity: item.soilHumidity ?? 0,
+        temperature: item.soilTemperature ?? 0,
+        conductivity: item.soilConductivity ?? 0,
+        ph: item.ph ?? 7,
+      };
+    };
+
+    // Render a single sensor row
+    const SensorRow = ({ values, label = null }) => {
+      const humidityStatus = getSensorStatus('humidity', values.humidity);
+      const tempStatus = getSensorStatus('temperature', values.temperature);
+      const ecStatus = getSensorStatus('conductivity', values.conductivity);
+      const phStatus = getSensorStatus('ph', values.ph);
+
+      return (
+        <div className="flex-1 grid grid-cols-4 gap-1">
+          <div className="text-center">
+            {label && <div className="text-[8px] text-secondary font-medium">{label}</div>}
+            <div className="text-[10px] text-secondary leading-none flex justify-center"><Droplets size={12} className="text-blue-500" /></div>
+            <div className={`text-xs font-bold leading-tight ${statusColors[humidityStatus]}`}>{values.humidity?.toFixed(0)}%</div>
+          </div>
+          <div className="text-center">
+            {label && <div className="text-[8px] text-secondary font-medium invisible">{label}</div>}
+            <div className="text-[10px] text-secondary leading-none flex justify-center"><Thermometer size={12} className="text-orange-500" /></div>
+            <div className={`text-xs font-bold leading-tight ${statusColors[tempStatus]}`}>{values.temperature?.toFixed(1)}°</div>
+          </div>
+          <div className="text-center">
+            {label && <div className="text-[8px] text-secondary font-medium invisible">{label}</div>}
+            <div className="text-[10px] text-secondary leading-none flex justify-center"><Zap size={12} className="text-yellow-500" /></div>
+            <div className={`text-xs font-bold leading-tight ${statusColors[ecStatus]}`}>{values.conductivity?.toFixed(0)}</div>
+          </div>
+          <div className="text-center">
+            {label && <div className="text-[8px] text-secondary font-medium invisible">{label}</div>}
+            <div className="text-[10px] text-secondary leading-none flex justify-center"><FlaskConical size={12} className="text-purple-500" /></div>
+            <div className={`text-xs font-bold leading-tight ${statusColors[phStatus]}`}>{values.ph?.toFixed(1)}</div>
+          </div>
+        </div>
+      );
+    };
+
+    if (showDual) {
+      // Dual sensor view - show both sensors
+      return (
+        <div className={`px-2.5 py-2 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
+          <div className="flex items-start gap-2">
+            {/* Status Indicator */}
+            <div className={`w-1 h-full min-h-[50px] rounded-full flex-shrink-0 ${
+              overallStatus === 'optimal' ? 'bg-success' : overallStatus === 'warning' ? 'bg-warning' : 'bg-error'
+            }`} />
+
+            {/* Time */}
+            <div className="w-14 shrink-0">
+              <div className="text-[11px] font-semibold text-primary leading-tight">{formatTime(item.timestamp)}</div>
+              <div className="text-[10px] text-secondary">{formatDate(item.timestamp)}</div>
+            </div>
+
+            {/* Dual Sensor Values */}
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] font-semibold text-secondary w-4">S1</span>
+                <SensorRow values={getValues(1)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] font-semibold text-secondary w-4">S2</span>
+                <SensorRow values={getValues(2)} />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Average/single sensor view - original layout
     return (
       <div className={`px-2.5 py-2 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
         {/* Compact Row Layout */}
@@ -490,24 +614,7 @@ export default function History({ language }) {
           </div>
 
           {/* Sensor Values - Compact Grid */}
-          <div className="flex-1 grid grid-cols-4 gap-1">
-            <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none flex justify-center"><Droplets size={12} className="text-blue-500" /></div>
-              <div className={`text-xs font-bold leading-tight ${statusColors[humidityStatus]}`}>{item.soilHumidity?.toFixed(0)}%</div>
-            </div>
-            <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none flex justify-center"><Thermometer size={12} className="text-orange-500" /></div>
-              <div className={`text-xs font-bold leading-tight ${statusColors[tempStatus]}`}>{item.soilTemperature?.toFixed(1)}°</div>
-            </div>
-            <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none flex justify-center"><Zap size={12} className="text-yellow-500" /></div>
-              <div className={`text-xs font-bold leading-tight ${statusColors[ecStatus]}`}>{item.soilConductivity?.toFixed(0)}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-[10px] text-secondary leading-none flex justify-center"><FlaskConical size={12} className="text-purple-500" /></div>
-              <div className={`text-xs font-bold leading-tight ${statusColors[phStatus]}`}>{item.ph?.toFixed(1)}</div>
-            </div>
-          </div>
+          <SensorRow values={getValues('average')} />
         </div>
       </div>
     );
@@ -676,6 +783,10 @@ export default function History({ language }) {
               onChange={setSortOrder}
               icon={<ArrowUpDown size={10} />}
             />
+            {/* Dual Sensor Toggle */}
+            {activeTab === 'sensor' && hasDualSensorData && (
+              <SoilSensorToggle viewMode={viewMode} onToggle={setViewMode} language={language} className="ml-1" />
+            )}
             <div className="flex-1 min-w-0" />
             {hasActiveFilters && (
               <button

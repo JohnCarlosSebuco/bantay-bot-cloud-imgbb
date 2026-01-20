@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Droplets, Thermometer, Snowflake, Leaf, Zap, FlaskConical, BookOpen, HelpCircle, CheckCircle, Lightbulb, BookMarked, Info, X } from 'lucide-react';
+import SoilSensorToggle from './SoilSensorToggle';
 
 // Icon mapping for recommendation types
 const IconMap = {
@@ -11,85 +12,157 @@ const IconMap = {
   flask: FlaskConical,
 };
 
+// Storage key for view mode preference
+const STORAGE_KEY = 'bantaybot_recommendations_view_mode';
+
+const getStoredViewMode = () => {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || 'average';
+  } catch {
+    return 'average';
+  }
+};
+
+const setStoredViewMode = (mode) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, mode);
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 export default function SmartRecommendations({ sensorData, language }) {
   const [selectedRecommendation, setSelectedRecommendation] = useState(null);
+  const [viewMode, setViewMode] = useState(getStoredViewMode);
+
+  // Persist view mode preference
+  useEffect(() => {
+    setStoredViewMode(viewMode);
+  }, [viewMode]);
+
+  // Check if dual sensor data is available
+  const hasDualSensors = !!(
+    sensorData?.soil1Humidity !== undefined ||
+    sensorData?.sensor1?.humidity !== undefined
+  );
+
+  // Extract sensor values for a specific sensor
+  const getSensorValues = (sensorNum) => {
+    if (sensorNum === 1) {
+      return {
+        soilHumidity: sensorData?.sensor1?.humidity ?? sensorData?.soil1Humidity ?? sensorData?.soilHumidity ?? 0,
+        soilTemperature: sensorData?.sensor1?.temperature ?? sensorData?.soil1Temperature ?? sensorData?.soilTemperature ?? 0,
+        soilConductivity: sensorData?.sensor1?.conductivity ?? sensorData?.soil1Conductivity ?? sensorData?.soilConductivity ?? 0,
+        ph: sensorData?.sensor1?.ph ?? sensorData?.soil1PH ?? sensorData?.ph ?? 7
+      };
+    } else if (sensorNum === 2) {
+      return {
+        soilHumidity: sensorData?.sensor2?.humidity ?? sensorData?.soil2Humidity ?? sensorData?.soilHumidity ?? 0,
+        soilTemperature: sensorData?.sensor2?.temperature ?? sensorData?.soil2Temperature ?? sensorData?.soilTemperature ?? 0,
+        soilConductivity: sensorData?.sensor2?.conductivity ?? sensorData?.soil2Conductivity ?? sensorData?.soilConductivity ?? 0,
+        ph: sensorData?.sensor2?.ph ?? sensorData?.soil2PH ?? sensorData?.ph ?? 7
+      };
+    }
+    // Average/combined
+    return {
+      soilHumidity: sensorData?.average?.humidity ?? sensorData?.soilHumidity ?? 0,
+      soilTemperature: sensorData?.average?.temperature ?? sensorData?.soilTemperature ?? 0,
+      soilConductivity: sensorData?.average?.conductivity ?? sensorData?.soilConductivity ?? 0,
+      ph: sensorData?.average?.ph ?? sensorData?.ph ?? 7
+    };
+  };
 
   // Generate recommendations based on sensor values (Rice-specific for Lopez, Quezon)
-  const getRecommendations = () => {
+  const getRecommendationsForSensor = (values, sensorLabel = null) => {
     const recommendations = [];
+    const prefix = sensorLabel ? `[${sensorLabel}] ` : '';
 
     // Humidity recommendations (Rice needs flooded paddies: 60-90% is normal)
-    if (sensorData.soilHumidity < 60) {
+    if (values.soilHumidity < 60) {
       recommendations.push({
         icon: 'droplets',
         iconColor: 'text-blue-500',
-        action: language === 'tl' ? 'Padaluyin ang Tubig' : 'Irrigate paddy',
+        action: prefix + (language === 'tl' ? 'Padaluyin ang Tubig' : 'Irrigate paddy'),
         reason: language === 'tl' ? 'Kulang ang tubig sa palayan' : 'Paddy needs water',
         priority: 'high',
-        color: 'error'
+        color: 'error',
+        sensorLabel,
+        sensorValues: values
       });
-    } else if (sensorData.soilHumidity > 95) {
+    } else if (values.soilHumidity > 95) {
       recommendations.push({
         icon: 'droplets',
         iconColor: 'text-blue-500',
-        action: language === 'tl' ? 'Pagsasapaw' : 'Mid-season drainage',
+        action: prefix + (language === 'tl' ? 'Pagsasapaw' : 'Mid-season drainage'),
         reason: language === 'tl' ? 'Patuyuin ng 1 linggo' : 'Drain for 1 week',
         priority: 'medium',
-        color: 'warning'
+        color: 'warning',
+        sensorLabel,
+        sensorValues: values
       });
     }
 
     // Temperature recommendations (Rice: water regulates temperature, not mulch)
-    if (sensorData.soilTemperature > 35) {
+    if (values.soilTemperature > 35) {
       recommendations.push({
         icon: 'thermometer',
         iconColor: 'text-orange-500',
-        action: language === 'tl' ? 'Dagdagan ang Tubig' : 'Increase water depth',
+        action: prefix + (language === 'tl' ? 'Dagdagan ang Tubig' : 'Increase water depth'),
         reason: language === 'tl' ? 'Mainit ang lupa - tubig ang pampalamig' : 'Soil too hot - water cools it',
         priority: 'medium',
-        color: 'warning'
+        color: 'warning',
+        sensorLabel,
+        sensorValues: values
       });
-    } else if (sensorData.soilTemperature < 18) {
+    } else if (values.soilTemperature < 18) {
       recommendations.push({
         icon: 'snowflake',
         iconColor: 'text-sky-400',
-        action: language === 'tl' ? 'Palalimin ang Tubig' : 'Deepen water level',
+        action: prefix + (language === 'tl' ? 'Palalimin ang Tubig' : 'Deepen water level'),
         reason: language === 'tl' ? 'Malamig - tubig ang kumot ng lupa' : 'Cold - water insulates soil',
         priority: 'medium',
-        color: 'warning'
+        color: 'warning',
+        sensorLabel,
+        sensorValues: values
       });
     }
 
     // Conductivity recommendations (Rice: fertilizer per hectare, not per plant)
-    if (sensorData.soilConductivity < 300) {
+    if (values.soilConductivity < 300) {
       recommendations.push({
         icon: 'leaf',
         iconColor: 'text-green-500',
-        action: language === 'tl' ? 'Magpataba' : 'Apply fertilizer',
+        action: prefix + (language === 'tl' ? 'Magpataba' : 'Apply fertilizer'),
         reason: language === 'tl' ? 'Kulang sa sustansya' : 'Low nutrients',
         priority: 'medium',
-        color: 'warning'
+        color: 'warning',
+        sensorLabel,
+        sensorValues: values
       });
-    } else if (sensorData.soilConductivity > 1500) {
+    } else if (values.soilConductivity > 1500) {
       recommendations.push({
         icon: 'zap',
         iconColor: 'text-yellow-500',
-        action: language === 'tl' ? 'Huwag Muna Magpataba' : 'Skip fertilizer application',
+        action: prefix + (language === 'tl' ? 'Huwag Muna Magpataba' : 'Skip fertilizer application'),
         reason: language === 'tl' ? 'Sobra na ang sustansya' : 'Excess nutrients',
         priority: 'medium',
-        color: 'warning'
+        color: 'warning',
+        sensorLabel,
+        sensorValues: values
       });
     }
 
     // pH recommendations (Rice: use abo ng dayami, not commercial lime)
-    if (sensorData.ph < 5.5) {
+    if (values.ph < 5.5) {
       recommendations.push({
         icon: 'flask',
         iconColor: 'text-purple-500',
-        action: language === 'tl' ? 'Maglagay ng Abo ng Dayami' : 'Apply rice straw ash',
+        action: prefix + (language === 'tl' ? 'Maglagay ng Abo ng Dayami' : 'Apply rice straw ash'),
         reason: language === 'tl' ? 'Maasim ang lupa' : 'Too acidic',
         priority: 'high',
-        color: 'error'
+        color: 'error',
+        sensorLabel,
+        sensorValues: values
       });
     }
     // Removed alkaline soil (>7.5) recommendation - rare in Quezon and impractical for farmers
@@ -99,6 +172,20 @@ export default function SmartRecommendations({ sensorData, language }) {
     recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
     return recommendations;
+  };
+
+  // Get all recommendations based on view mode
+  const getRecommendations = () => {
+    if (viewMode === 'dual' && hasDualSensors) {
+      const sensor1Recs = getRecommendationsForSensor(getSensorValues(1), 'S1');
+      const sensor2Recs = getRecommendationsForSensor(getSensorValues(2), 'S2');
+      const allRecs = [...sensor1Recs, ...sensor2Recs];
+      // Sort combined by priority
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      allRecs.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+      return allRecs;
+    }
+    return getRecommendationsForSensor(getSensorValues('average'));
   };
 
   // Detailed info for each recommendation type
@@ -606,19 +693,25 @@ export default function SmartRecommendations({ sensorData, language }) {
   return (
     <>
       <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
+        {/* Header with Toggle */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base sm:text-lg font-bold text-primary">{language === 'tl' ? 'Mga Rekomendasyon' : 'Recommendations'}</h3>
-          <span className={`px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold ${
-            recommendations.length === 0
-              ? 'bg-success/20 text-success'
-              : recommendations[0]?.priority === 'high'
-                ? 'bg-error/20 text-error'
-                : 'bg-warning/20 text-warning'
-          }`}>
-            {recommendations.length === 0
-              ? (language === 'tl' ? 'Lahat OK' : 'All Good')
-              : `${recommendations.length} ${language === 'tl' ? 'aksyon' : 'action'}${recommendations.length > 1 ? 's' : ''}`}
-          </span>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-bold text-primary">{language === 'tl' ? 'Mga Rekomendasyon' : 'Recommendations'}</h3>
+            <span className={`px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold ${
+              recommendations.length === 0
+                ? 'bg-success/20 text-success'
+                : recommendations[0]?.priority === 'high'
+                  ? 'bg-error/20 text-error'
+                  : 'bg-warning/20 text-warning'
+            }`}>
+              {recommendations.length === 0
+                ? (language === 'tl' ? 'Lahat OK' : 'All Good')
+                : `${recommendations.length} ${language === 'tl' ? 'aksyon' : 'action'}${recommendations.length > 1 ? 's' : ''}`}
+            </span>
+          </div>
+          {hasDualSensors && (
+            <SoilSensorToggle viewMode={viewMode} onToggle={setViewMode} language={language} />
+          )}
         </div>
 
         {recommendations.length === 0 ? (
