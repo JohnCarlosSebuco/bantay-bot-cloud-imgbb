@@ -4,6 +4,14 @@ import { useQRSecurity } from '../contexts/QRSecurityContext';
 import QRScanner from './QRScanner';
 
 const QRSecurityGate = ({ children, language = 'en' }) => {
+  // Check if QR auth is disabled via environment variable (for testing)
+  const isQRAuthDisabled = import.meta.env.VITE_DISABLE_QR_AUTH === 'true';
+
+  // If QR auth is disabled, bypass the security gate entirely
+  if (isQRAuthDisabled) {
+    return children;
+  }
+
   const { isVerified, isLoading, verifyQRCode } = useQRSecurity();
   const [showScanner, setShowScanner] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
