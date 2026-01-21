@@ -9,11 +9,14 @@ import {
   ToggleCard,
   ConnectionTestCard,
   SpeakerControl,
-  NotificationPreferences
+  NotificationPreferences,
+  ConnectionModeSelector,
+  ConnectionStatusBanner
 } from '../components/ui';
 import ConfigService from '../services/ConfigService';
 import ConnectionManager from '../services/ConnectionManager';
 import NetworkDiscoveryService from '../services/NetworkDiscoveryService';
+import OfflineModeService, { CONNECTION_MODES } from '../services/OfflineModeService';
 import { settingsTourSteps } from '../config/tourSteps';
 
 export default function Settings({ language, onLanguageChange }) {
@@ -43,6 +46,11 @@ export default function Settings({ language, onLanguageChange }) {
   const [scanProgress, setScanProgress] = useState(0);
   const [foundDevices, setFoundDevices] = useState([]);
   const [errors, setErrors] = useState({});
+
+  // Offline Mode state
+  const [connectionMode, setConnectionMode] = useState(CONNECTION_MODES.AUTO);
+  const [botStatus, setBotStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const texts = {
     en: {
@@ -99,7 +107,12 @@ export default function Settings({ language, onLanguageChange }) {
       resetTour: 'Reset App Guide',
       resetTourDesc: 'Show guided tour again',
       tourReset: 'Guide Reset',
-      tourResetMsg: 'The app guide will show again on all pages.'
+      tourResetMsg: 'The app guide will show again on all pages.',
+      offlineMode: 'Connection Mode',
+      offlineModeDesc: 'Control how the bot connects to the cloud',
+      syncNow: 'Sync Now',
+      syncSuccess: 'Sync Complete',
+      syncFailed: 'Sync Failed'
     },
     tl: {
       title: 'Settings',
@@ -155,7 +168,12 @@ export default function Settings({ language, onLanguageChange }) {
       resetTour: 'Ulitin ang Gabay',
       resetTourDesc: 'Ipakita muli ang gabay',
       tourReset: 'Na-reset na',
-      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.'
+      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.',
+      offlineMode: 'Connection Mode',
+      offlineModeDesc: 'Kontrolin kung paano kumokonekta sa cloud',
+      syncNow: 'I-sync Ngayon',
+      syncSuccess: 'Tapos na ang Sync',
+      syncFailed: 'Hindi Nagawa ang Sync'
     }
   };
 
@@ -173,6 +191,31 @@ export default function Settings({ language, onLanguageChange }) {
 
   useEffect(() => {
     loadSettings();
+  }, []);
+
+  // Initialize Offline Mode Service
+  useEffect(() => {
+    const initOfflineMode = async () => {
+      const mode = await OfflineModeService.initialize();
+      setConnectionMode(mode);
+    };
+    initOfflineMode();
+
+    // Subscribe to status changes
+    const unsubscribe = OfflineModeService.onStatusChange(({ mode, botStatus }) => {
+      setConnectionMode(mode);
+      setBotStatus(botStatus);
+    });
+
+    // Start polling bot status
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+    const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+    OfflineModeService.startPolling(mainBoardIP, mainBoardPort, 10000);
+
+    return () => {
+      unsubscribe();
+      OfflineModeService.stopPolling();
+    };
   }, []);
 
   const loadSettings = async () => {
@@ -332,6 +375,35 @@ export default function Settings({ language, onLanguageChange }) {
     alert(`${title}\n\n${message}`);
   };
 
+  // Handle connection mode change
+  const handleModeChange = async (mode) => {
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+    const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+    await OfflineModeService.setMode(mode, mainBoardIP, mainBoardPort);
+  };
+
+  // Handle force sync
+  const handleForceSync = async () => {
+    setSyncing(true);
+    try {
+      const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+      const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+      const result = await OfflineModeService.forceSync(mainBoardIP, mainBoardPort);
+      showAlert(txt.syncSuccess, `${result.synced || 0} items synced`);
+    } catch (error) {
+      showAlert(txt.syncFailed, error.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Handle retry connection
+  const handleRetryConnection = async () => {
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+    const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+    await OfflineModeService.fetchBotStatus(mainBoardIP, mainBoardPort);
+  };
+
   const updateConfig = (key, value) => {
     setConfig(prev => ({ ...prev, [key]: value }));
     if (errors[key]) {
@@ -458,9 +530,38 @@ export default function Settings({ language, onLanguageChange }) {
           </div>
           END Connection Settings Section */}
 
+          {/* Connection Mode Section */}
+          <div data-tour="settings-connection-mode">
+            <SectionHeader icon={Wifi} title={txt.offlineMode} color="info" first={true} />
+            <div className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm mb-3">
+              {/* Status Banner */}
+              {botStatus && (
+                <div className="mb-4">
+                  <ConnectionStatusBanner
+                    connectionState={botStatus.connectionState}
+                    queuedDetections={botStatus.queuedDetections}
+                    offlineDuration={botStatus.offlineDuration}
+                    userModePreference={botStatus.userModePreference}
+                    onRetry={handleRetryConnection}
+                    onSync={handleForceSync}
+                    syncing={syncing}
+                    language={language}
+                  />
+                </div>
+              )}
+              {/* Mode Selector */}
+              <ConnectionModeSelector
+                currentMode={connectionMode}
+                onModeChange={handleModeChange}
+                language={language}
+              />
+              <p className="text-[10px] sm:text-xs text-secondary mt-2">{txt.offlineModeDesc}</p>
+            </div>
+          </div>
+
           {/* Speaker & Audio Section */}
           <div data-tour="settings-audio">
-            <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" first={true} />
+            <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" />
             <SpeakerControl
               volume={volume}
               onVolumeChange={setVolume}

@@ -5,6 +5,7 @@ import {
   DualSoilSensorDisplay,
   SoilHealthCard,
   SmartRecommendations,
+  ConnectionStatusBanner,
 } from '../components/ui';
 import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2, HelpCircle } from 'lucide-react';
 import ConnectionManager from '../services/ConnectionManager';
@@ -12,6 +13,8 @@ import CommandService from '../services/CommandService';
 import FirebaseService from '../services/FirebaseService';
 import DeviceService from '../services/DeviceService';
 import notificationService from '../services/NotificationService';
+import OfflineModeService from '../services/OfflineModeService';
+import ConfigService from '../services/ConfigService';
 import { CONFIG } from '../config/config';
 import { dashboardTourSteps } from '../config/tourSteps';
 
@@ -50,6 +53,10 @@ export default function Dashboard({ language }) {
 
   // Quick action loading states
   const [loadingAction, setLoadingAction] = useState(null);
+
+  // Offline Mode state
+  const [botStatus, setBotStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Sensor data state (with dual sensor support)
   const [sensorData, setSensorData] = useState({
@@ -230,10 +237,23 @@ export default function Dashboard({ language }) {
       }));
     }, 500);
 
+    // Initialize Offline Mode Service
+    OfflineModeService.initialize();
+    const unsubscribeOffline = OfflineModeService.onStatusChange(({ botStatus }) => {
+      setBotStatus(botStatus);
+    });
+
+    // Start polling bot status
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+    const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+    OfflineModeService.startPolling(mainBoardIP, mainBoardPort, 15000);
+
     return () => {
       ConnectionManager.disconnect();
       if (unsubscribeSensor) unsubscribeSensor();
       if (unsubscribeDetection) unsubscribeDetection();
+      if (unsubscribeOffline) unsubscribeOffline();
+      OfflineModeService.stopPolling();
     };
   }, [language]);
 
@@ -287,6 +307,27 @@ export default function Dashboard({ language }) {
     } finally {
       setTimeout(() => setLoadingAction(null), 1000);
     }
+  };
+
+  // Handle force sync
+  const handleForceSync = async () => {
+    setSyncing(true);
+    try {
+      const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+      const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+      await OfflineModeService.forceSync(mainBoardIP, mainBoardPort);
+    } catch (error) {
+      console.error('Sync failed:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Handle retry connection
+  const handleRetryConnection = async () => {
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '192.168.8.100');
+    const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
+    await OfflineModeService.fetchBotStatus(mainBoardIP, mainBoardPort);
   };
 
   // Quick Action Button Component - Compact for 3-column layout
@@ -402,6 +443,22 @@ export default function Dashboard({ language }) {
               </div>
             </div>
           </div>
+
+          {/* Offline Mode Status Banner */}
+          {botStatus && botStatus.connectionState !== 'online' && (
+            <div className="mt-3">
+              <ConnectionStatusBanner
+                connectionState={botStatus.connectionState}
+                queuedDetections={botStatus.queuedDetections}
+                offlineDuration={botStatus.offlineDuration}
+                userModePreference={botStatus.userModePreference}
+                onRetry={handleRetryConnection}
+                onSync={handleForceSync}
+                syncing={syncing}
+                language={language}
+              />
+            </div>
+          )}
         </div>
 
         <div className="px-3 sm:px-4 pb-10">

@@ -333,15 +333,38 @@ void recordUpload(bool isDetection) {
 // Main Board Communication
 // ===========================
 
-bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
-  Serial.println("📡 Notifying Main Board...");
-  Serial.printf("🔗 Target URL: http://%s:%d/bird_detected\n", MAIN_BOARD_IP, MAIN_BOARD_PORT);
+// Retry configuration for Main Board notification
+const int MAX_NOTIFY_RETRIES = 3;
+const int RETRY_DELAY_MS = 500;
 
+// Send notification to Main Board (single attempt)
+bool sendToMainBoard(String jsonString) {
   HTTPClient http;
   String url = "http://" + String(MAIN_BOARD_IP) + ":" + String(MAIN_BOARD_PORT) + "/bird_detected";
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
   http.setTimeout(5000);  // 5 second timeout
+
+  int httpResponseCode = http.POST(jsonString);
+
+  bool success = false;
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    Serial.printf("✅ Main Board responded: %d\n", httpResponseCode);
+    success = true;
+  } else {
+    Serial.printf("❌ HTTP error: %d\n", httpResponseCode);
+  }
+
+  http.end();
+  return success;
+}
+
+// Notify Main Board with retry logic
+// This works via LOCAL WiFi - no internet needed!
+bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
+  Serial.println("📡 Notifying Main Board (LOCAL HTTP)...");
+  Serial.printf("🔗 Target: http://%s:%d/bird_detected\n", MAIN_BOARD_IP, MAIN_BOARD_PORT);
 
   // Build JSON payload
   DynamicJsonDocument doc(512);
@@ -352,28 +375,29 @@ bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
   doc["confidence"] = confidence;
   doc["detectionZone"] = String(detectionZoneLeft) + "," + String(detectionZoneTop) + "," +
                          String(detectionZoneRight) + "," + String(detectionZoneBottom);
-  doc["detected"] = (birdSize > 0);  // True if bird, false if stream update
+  doc["detected"] = (birdSize > 0);
 
   String jsonString;
   serializeJson(doc, jsonString);
 
-  Serial.println("📦 Payload: " + jsonString);
+  // Retry loop
+  for (int attempt = 1; attempt <= MAX_NOTIFY_RETRIES; attempt++) {
+    Serial.printf("📡 Attempt %d/%d...\n", attempt, MAX_NOTIFY_RETRIES);
 
-  // Send POST request
-  int httpResponseCode = http.POST(jsonString);
+    if (sendToMainBoard(jsonString)) {
+      Serial.println("✅ Main Board notified - ALARM WILL TRIGGER!");
+      return true;
+    }
 
-  bool success = false;
-  if (httpResponseCode > 0) {
-    String response = http.getString();
-    Serial.printf("✅ Main Board responded: %d\n", httpResponseCode);
-    Serial.println("📥 Response: " + response);
-    success = true;
-  } else {
-    Serial.printf("❌ Failed to contact Main Board: %d\n", httpResponseCode);
+    if (attempt < MAX_NOTIFY_RETRIES) {
+      Serial.printf("⏳ Retrying in %dms...\n", RETRY_DELAY_MS);
+      delay(RETRY_DELAY_MS);
+    }
   }
 
-  http.end();
-  return success;
+  Serial.println("⚠️ All retries failed - Main Board may be restarting");
+  Serial.println("   Check: Are both boards on same WiFi?");
+  return false;
 }
 
 // ===========================
