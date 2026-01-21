@@ -91,9 +91,9 @@ uint8_t *prevGrayBuffer = NULL;    // Previous frame grayscale data for comparis
 uint8_t *currGrayBuffer = NULL;    // Current frame grayscale data
 const int GRAY_BUFFER_SIZE = 320 * 240;  // QVGA resolution (320x240 pixels)
 
-// Detection Zone (default: upper 60% of frame)
+// Detection Zone (full frame - AI filters false positives)
 int detectionZoneTop = 0;
-int detectionZoneBottom = 144;  // 60% of 240 pixels
+int detectionZoneBottom = 240;  // 100% of frame height
 int detectionZoneLeft = 0;
 int detectionZoneRight = 320;
 
