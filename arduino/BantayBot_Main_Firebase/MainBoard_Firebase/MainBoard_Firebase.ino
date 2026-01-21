@@ -137,8 +137,13 @@ bool headMovementPaused = false;  // Pause head during arm movement
 long pausedStepperTarget = 0;  // Store stepper target when paused
 bool headScanningActive = false;  // Continuous head scanning mode
 int headScanDirection = 1;  // 1 = right, -1 = left
-const int HEAD_SCAN_MIN = 0;    // Minimum scan angle (degrees)
-const int HEAD_SCAN_MAX = 360;  // Maximum scan angle (degrees) - oscillates 0→360→0
+const int HEAD_SCAN_MIN = -45;   // Minimum scan angle (degrees) - 45° left of center
+const int HEAD_SCAN_MAX = 45;    // Maximum scan angle (degrees) - 45° right of center (90° total range)
+
+// Stop-and-scan behavior
+bool headIsScanning = false;          // True when stopped and actively scanning (not moving)
+unsigned long lastScanArrivalTime = 0; // When head arrived at current scan position
+const unsigned long SCAN_DWELL_TIME = 3000;  // 3 seconds dwell at each position before moving
 
 // Detection State
 int birdsDetectedToday = 0;
@@ -611,14 +616,15 @@ void rotateHead(int targetDegrees) {
 
 void startHeadScanning() {
   headScanningActive = true;
+  headIsScanning = false;  // Will be set true when head arrives at position
   digitalWrite(STEPPER_ENABLE_PIN, LOW);  // Enable stepper
-  // Start scanning from current position or center
+
+  // Start scanning from center position (0°)
   if (stepper.distanceToGo() == 0) {
-    // If head is stationary, start from center
-    rotateHead(0);
-    headScanDirection = 1;  // Start scanning right
+    rotateHead(0);  // Go to center first
+    headScanDirection = 1;  // Start scanning right after center
   }
-  Serial.println("👁️  Head scanning started");
+  Serial.println("👁️  Head scanning started (90° range: -45° to +45°, 3s dwell)");
 }
 
 void stopHeadScanning() {
@@ -628,24 +634,47 @@ void stopHeadScanning() {
 
 void updateHeadScanning() {
   if (!headScanningActive || headMovementPaused || armSteppersActive) return;
-  
-  // Check if head has reached target
-  if (stepper.distanceToGo() == 0) {
-    // Calculate next scan position
-    int nextPosition = currentHeadPosition + (headScanDirection * 30);  // Move 30 degrees at a time
-    
-    // Reverse direction if we hit limits
-    if (nextPosition >= HEAD_SCAN_MAX) {
-      nextPosition = HEAD_SCAN_MAX;
-      headScanDirection = -1;  // Reverse to left
-    } else if (nextPosition <= HEAD_SCAN_MIN) {
-      nextPosition = HEAD_SCAN_MIN;
-      headScanDirection = 1;   // Reverse to right
-    }
-    
-    // Move to next position
-    rotateHead(nextPosition);
+
+  // If head is currently moving, don't scan - wait for it to arrive
+  if (stepper.distanceToGo() != 0) {
+    headIsScanning = false;  // Not scanning while moving
+    return;
   }
+
+  // Head has reached target position
+  if (!headIsScanning) {
+    // Just arrived at position - start scanning (dwell)
+    headIsScanning = true;
+    lastScanArrivalTime = millis();
+    Serial.printf("👁️  Head at %d° - scanning for %d seconds\n", currentHeadPosition, SCAN_DWELL_TIME / 1000);
+    return;
+  }
+
+  // Currently scanning (dwelling) at position - check if dwell time has passed
+  if (millis() - lastScanArrivalTime < SCAN_DWELL_TIME) {
+    return;  // Still scanning at current position, wait
+  }
+
+  // Dwell time complete - move to next scan position
+  headIsScanning = false;
+
+  // Calculate next scan position (15° increments for smoother coverage)
+  int nextPosition = currentHeadPosition + (headScanDirection * 15);
+
+  // Reverse direction if we hit limits
+  if (nextPosition >= HEAD_SCAN_MAX) {
+    nextPosition = HEAD_SCAN_MAX;
+    headScanDirection = -1;  // Reverse to left
+    Serial.println("↩️  Head reached right limit, reversing");
+  } else if (nextPosition <= HEAD_SCAN_MIN) {
+    nextPosition = HEAD_SCAN_MIN;
+    headScanDirection = 1;   // Reverse to right
+    Serial.println("↪️  Head reached left limit, reversing");
+  }
+
+  // Move to next position
+  Serial.printf("🔄 Moving head: %d° → %d°\n", currentHeadPosition, nextPosition);
+  rotateHead(nextPosition);
 }
 
 // ===========================
@@ -1034,11 +1063,11 @@ void setup() {
   // Initialize DHT sensor
   dht.begin();
 
-  // Initialize stepper motor
-  stepper.setMaxSpeed(2000);     // Increased from 1000
-  stepper.setAcceleration(1000);  // Increased from 500
-  stepper.setCurrentPosition(0); // Set initial position to 0
-  Serial.println("⚙️  Stepper motor configured: 2000 steps/sec, 1000 accel");
+  // Initialize stepper motor - slower speed for smooth scanning
+  stepper.setMaxSpeed(600);       // Slower speed for scan movement
+  stepper.setAcceleration(300);   // Gentle acceleration
+  stepper.setCurrentPosition(0);  // Set initial position to 0 (center)
+  Serial.println("⚙️  Stepper motor configured: 600 steps/sec, 300 accel (slow scan mode)");
 
   // Connect to WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
