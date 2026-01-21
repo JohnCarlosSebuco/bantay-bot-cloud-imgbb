@@ -147,7 +147,7 @@ const SoilSensorCard = ({
           <div className={`px-3 py-1 rounded-full text-xs font-medium ${humidityData.bgColor} ${humidityData.textColor}`}>
             {humidityData.status}
           </div>
-          <div className="w-full bg-tertiary rounded-full h-2">
+          <div className="w-full bg-tertiary rounded-full h-2 overflow-hidden">
             <div
               className="h-2 rounded-full transition-all duration-500 bg-success"
               style={{ width: `${Math.min(humidity, 100)}%` }}
@@ -170,7 +170,7 @@ const SoilSensorCard = ({
           <div className={`px-3 py-1 rounded-full text-xs font-medium ${tempData.bgColor} ${tempData.textColor}`}>
             {tempData.status}
           </div>
-          <div className="w-full bg-tertiary rounded-full h-2">
+          <div className="w-full bg-tertiary rounded-full h-2 overflow-hidden">
             <div
               className="h-2 rounded-full transition-all duration-500 bg-info"
               style={{ width: `${Math.min((temperature / 40) * 100, 100)}%` }}
@@ -193,7 +193,7 @@ const SoilSensorCard = ({
           <div className={`px-3 py-1 rounded-full text-xs font-medium ${conductivityData.bgColor} ${conductivityData.textColor}`}>
             {conductivityData.status}
           </div>
-          <div className="w-full bg-tertiary rounded-full h-2">
+          <div className="w-full bg-tertiary rounded-full h-2 overflow-hidden">
             <div
               className="h-2 rounded-full transition-all duration-500 bg-warning"
               style={{ width: `${Math.min((conductivity / 3000) * 100, 100)}%` }}
@@ -216,10 +216,10 @@ const SoilSensorCard = ({
           <div className={`px-3 py-1 rounded-full text-xs font-medium ${phData.bgColor} ${phData.textColor}`}>
             {phData.status}
           </div>
-          <div className="w-full bg-tertiary rounded-full h-2">
+          <div className="w-full bg-tertiary rounded-full h-2 overflow-hidden">
             <div
               className="h-2 rounded-full transition-all duration-500 bg-purple-500"
-              style={{ width: `${((ph - 4) / 6) * 100}%` }}
+              style={{ width: `${Math.min(Math.max(((ph - 4) / 6) * 100, 0), 100)}%` }}
             />
           </div>
         </div>
