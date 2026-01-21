@@ -64,8 +64,8 @@
 #define AI_INPUT_SIZE   (AI_INPUT_WIDTH * AI_INPUT_HEIGHT)
 #define AI_OUTPUT_SIZE  2  // [not_bird, bird]
 
-// TFLite globals
-alignas(16) uint8_t tensor_arena[kTensorArenaSize];
+// TFLite globals - tensor arena allocated in PSRAM to save DRAM
+uint8_t* tensor_arena = nullptr;
 tflite::MicroErrorReporter micro_error_reporter;
 tflite::ErrorReporter* error_reporter = &micro_error_reporter;
 const tflite::Model* model = nullptr;
@@ -84,6 +84,20 @@ bool initBirdAI() {
   Serial.printf("Model: %s (%d bytes)\n", MODEL_NAME, MODEL_DATA_LEN);
   Serial.printf("Arena size: %d bytes\n", kTensorArenaSize);
   Serial.printf("Free heap before: %d bytes\n", ESP.getFreeHeap());
+  Serial.printf("Free PSRAM: %d bytes\n", ESP.getFreePsram());
+
+  // Allocate tensor arena in PSRAM to save DRAM
+  tensor_arena = (uint8_t*)ps_malloc(kTensorArenaSize);
+  if (!tensor_arena) {
+    Serial.println("ERROR: Failed to allocate tensor arena in PSRAM!");
+    Serial.println("Trying regular malloc...");
+    tensor_arena = (uint8_t*)malloc(kTensorArenaSize);
+  }
+  if (!tensor_arena) {
+    Serial.println("ERROR: Failed to allocate tensor arena!");
+    return false;
+  }
+  Serial.println("Tensor arena allocated in PSRAM");
 
   // Load model
   model = tflite::GetModel(MODEL_DATA);
