@@ -9,9 +9,9 @@
  *
  * Models available:
  * - bird_model_small.h (16.8KB) - Faster, less memory, good accuracy
- * - bird_model.h (49.7KB) - More accurate, requires more memory
+ * - bird_model_96.h (v2) - 96x96 input, better accuracy
  *
- * Input: 64x64 grayscale image
+ * Input: 96x96 grayscale image (v2)
  * Output: [not_bird, bird] confidence scores
  */
 
@@ -51,16 +51,16 @@
   #define MODEL_NAME "small (16.8KB)"
   constexpr int kTensorArenaSize = 40 * 1024;
 #else
-  #include "bird_model.h"
-  #define MODEL_DATA bird_model_tflite
-  #define MODEL_DATA_LEN bird_model_tflite_len
-  #define MODEL_NAME "normal (49.7KB)"
-  constexpr int kTensorArenaSize = 60 * 1024;
+  #include "bird_model_96.h"
+  #define MODEL_DATA bird_model_96_tflite
+  #define MODEL_DATA_LEN bird_model_96_tflite_len
+  #define MODEL_NAME "v2 96x96"
+  constexpr int kTensorArenaSize = 80 * 1024;
 #endif
 
-// Model input/output dimensions (must match training: 48x48)
-#define AI_INPUT_WIDTH  48
-#define AI_INPUT_HEIGHT 48
+// Model input/output dimensions (must match training: 96x96 for v2)
+#define AI_INPUT_WIDTH  96
+#define AI_INPUT_HEIGHT 96
 #define AI_INPUT_SIZE   (AI_INPUT_WIDTH * AI_INPUT_HEIGHT)
 #define AI_OUTPUT_SIZE  2  // [not_bird, bird]
 
@@ -147,7 +147,7 @@ float runBirdAI(uint8_t* grayBuffer, int width, int height) {
   float input_scale = input_tensor->params.scale;
   int input_zero_point = input_tensor->params.zero_point;
 
-  // Fill input tensor - resize image to 64x64
+  // Fill input tensor - resize image to 96x96
   for (int y = 0; y < AI_INPUT_HEIGHT; y++) {
     for (int x = 0; x < AI_INPUT_WIDTH; x++) {
       int src_x = x * width / AI_INPUT_WIDTH;
