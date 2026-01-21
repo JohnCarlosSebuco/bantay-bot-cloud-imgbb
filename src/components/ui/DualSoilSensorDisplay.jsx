@@ -53,35 +53,31 @@ export default function DualSoilSensorDisplay({
   }, [viewMode]);
 
   // Handle both new dual sensor format and legacy single sensor format
-  const hasDualSensorData = sensorData?.sensor1 && sensorData?.sensor2;
+  // Check for raw Firebase fields (soil1Humidity, soil2Humidity) instead of nested objects
+  const hasDualSensorData = sensorData?.soil1Humidity !== undefined && sensorData?.soil2Humidity !== undefined;
 
-  // Extract sensor values
-  const sensor1 = hasDualSensorData
-    ? sensorData.sensor1
-    : {
-        humidity: sensorData?.soilHumidity ?? sensorData?.soil1Humidity ?? 0,
-        temperature: sensorData?.soilTemperature ?? sensorData?.soil1Temperature ?? 0,
-        conductivity: sensorData?.soilConductivity ?? sensorData?.soil1Conductivity ?? 0,
-        ph: sensorData?.ph ?? sensorData?.soil1PH ?? 7
-      };
+  // Extract sensor values - prioritize sensor-specific values over averaged values
+  const sensor1 = {
+    humidity: sensorData?.soil1Humidity ?? sensorData?.soilHumidity ?? 0,
+    temperature: sensorData?.soil1Temperature ?? sensorData?.soilTemperature ?? 0,
+    conductivity: sensorData?.soil1Conductivity ?? sensorData?.soilConductivity ?? 0,
+    ph: sensorData?.soil1PH ?? sensorData?.ph ?? 7
+  };
 
-  const sensor2 = hasDualSensorData
-    ? sensorData.sensor2
-    : {
-        humidity: sensorData?.soilHumidity ?? sensorData?.soil2Humidity ?? 0,
-        temperature: sensorData?.soilTemperature ?? sensorData?.soil2Temperature ?? 0,
-        conductivity: sensorData?.soilConductivity ?? sensorData?.soil2Conductivity ?? 0,
-        ph: sensorData?.ph ?? sensorData?.soil2PH ?? 7
-      };
+  const sensor2 = {
+    humidity: sensorData?.soil2Humidity ?? sensorData?.soilHumidity ?? 0,
+    temperature: sensorData?.soil2Temperature ?? sensorData?.soilTemperature ?? 0,
+    conductivity: sensorData?.soil2Conductivity ?? sensorData?.soilConductivity ?? 0,
+    ph: sensorData?.soil2PH ?? sensorData?.ph ?? 7
+  };
 
-  const average = hasDualSensorData
-    ? sensorData.average
-    : {
-        humidity: sensorData?.soilHumidity ?? 0,
-        temperature: sensorData?.soilTemperature ?? 0,
-        conductivity: sensorData?.soilConductivity ?? 0,
-        ph: sensorData?.ph ?? 7
-      };
+  // Average values from Firebase (soilHumidity, soilTemperature, etc. are the averaged values)
+  const average = {
+    humidity: sensorData?.soilHumidity ?? 0,
+    temperature: sensorData?.soilTemperature ?? 0,
+    conductivity: sensorData?.soilConductivity ?? 0,
+    ph: sensorData?.ph ?? 7
+  };
 
   const texts = {
     en: {
