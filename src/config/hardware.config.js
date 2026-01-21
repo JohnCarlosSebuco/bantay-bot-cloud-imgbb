@@ -37,17 +37,6 @@ export const CAMERA_PINS = {
 };
 
 // ===========================
-// ImgBB Configuration (Camera Snapshots)
-// ===========================
-export const IMGBB_CONFIG = {
-  API_KEY: '20460a2ad6db9bb546648b430930c94a',  // Get from https://api.imgbb.com/
-  UPLOAD_URL: 'https://api.imgbb.com/1/upload',
-  SNAPSHOT_INTERVAL: 10000,  // 10 seconds between uploads
-  DETECTION_QUALITY: 12,     // JPEG quality for normal snapshots (1-100)
-  DETECTION_HIGH_QUALITY: 8, // JPEG quality for bird detection snapshots
-};
-
-// ===========================
 // ESP32 Main Board Pin Configuration
 // ===========================
 export const MAIN_BOARD_PINS = {
@@ -354,7 +343,6 @@ export const APP_CONFIG = {
 
 export default {
   CAMERA_PINS,
-  IMGBB_CONFIG,
   MAIN_BOARD_PINS,
   AUDIO_CONFIG,
   STEPPER_CONFIG,
