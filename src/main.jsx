@@ -5,8 +5,18 @@ import './styles/index.css';
 import notificationService from './services/NotificationService';
 
 // App version - update this to force cache clear
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.3.7';
 const VERSION_KEY = 'bantaybot_version';
+
+// PWA Install prompt handler
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('PWA install prompt available');
+  e.preventDefault();
+  deferredPrompt = e;
+  // Store for later use - can trigger with deferredPrompt.prompt()
+  window.deferredPrompt = deferredPrompt;
+});
 
 // Force cache clear on version mismatch
 const forceUpdate = async () => {
