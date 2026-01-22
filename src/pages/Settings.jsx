@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Wifi, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle, Download } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTour } from '../contexts/TourContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { translations } from '../i18n/translations';
 import {
   InputCard,
@@ -17,6 +18,7 @@ import { settingsTourSteps } from '../config/tourSteps';
 export default function Settings({ language, onLanguageChange }) {
   const { currentTheme, isDark, toggleTheme } = useTheme();
   const { startTour, isFirstTimeUser, isTourCompleted, resetAllTours } = useTour();
+  const { showSuccess, showError, confirm } = useNotification();
   const t = translations[language];
 
   // Configuration state (volume is now managed by VolumeContext)
@@ -255,9 +257,9 @@ export default function Settings({ language, onLanguageChange }) {
 
       await ConfigService.update(updateConfig);
       setErrors({});
-      showAlert(txt.success, txt.successMsg);
+      showSuccess(txt.success, txt.successMsg);
     } catch (error) {
-      showAlert(txt.failed, txt.failedMsg);
+      showError(txt.failed, txt.failedMsg);
     } finally {
       setIsLoading(false);
     }
@@ -289,16 +291,16 @@ export default function Settings({ language, onLanguageChange }) {
       });
 
       if (cameraSuccess && mainSuccess) {
-        showAlert(txt.connectionSuccess, txt.connectionSuccessMsg);
+        showSuccess(txt.connectionSuccess, txt.connectionSuccessMsg);
       } else {
         const failedBoards = [];
         if (!cameraSuccess) failedBoards.push('Camera');
         if (!mainSuccess) failedBoards.push('Main Board');
-        showAlert(txt.connectionFailed, `Failed: ${failedBoards.join(', ')}`);
+        showError(txt.connectionFailed, `Failed: ${failedBoards.join(', ')}`);
       }
     } catch (error) {
       setConnectionStatus({ camera: 'Failed', mainBoard: 'Failed' });
-      showAlert(txt.connectionFailed, 'Connection error');
+      showError(txt.connectionFailed, 'Connection error');
     } finally {
       setIsLoading(false);
     }
@@ -328,43 +330,44 @@ export default function Settings({ language, onLanguageChange }) {
           setConfig(prev => ({ ...prev, mainBoardIP: mainDevice.ip }));
         }
 
-        showAlert(txt.devicesFound, `Found ${devices.length} device(s)!`);
+        showSuccess(txt.devicesFound, `Found ${devices.length} device(s)!`);
       } else {
-        showAlert(txt.noDevicesFound, txt.noDevicesMsg);
+        showError(txt.noDevicesFound, txt.noDevicesMsg);
       }
     } catch (error) {
-      showAlert(txt.scanError, 'Scan error');
+      showError(txt.scanError, 'Scan error');
     } finally {
       setIsScanning(false);
       setScanProgress(0);
     }
   };
 
-  const resetToDefaults = () => {
-    if (window.confirm(txt.resetConfirm)) {
-      ConfigService.reset().then((defaults) => {
-        setConfig({
-          cameraIP: defaults.cameraIP,
-          cameraPort: defaults.cameraPort.toString(),
-          mainBoardIP: defaults.mainBoardIP,
-          mainBoardPort: defaults.mainBoardPort.toString(),
-          updateInterval: defaults.updateInterval.toString(),
-          notifications: defaults.notifications,
-          autoReconnect: defaults.autoReconnect
-        });
-        setConnectionStatus({ camera: 'Not tested', mainBoard: 'Not tested' });
-        setErrors({});
+  const resetToDefaults = async () => {
+    const confirmed = await confirm(
+      language === 'tl' ? 'Babala' : 'Warning',
+      txt.resetConfirm,
+      { isDangerous: true }
+    );
+    if (confirmed) {
+      const defaults = await ConfigService.reset();
+      setConfig({
+        cameraIP: defaults.cameraIP,
+        cameraPort: defaults.cameraPort.toString(),
+        mainBoardIP: defaults.mainBoardIP,
+        mainBoardPort: defaults.mainBoardPort.toString(),
+        updateInterval: defaults.updateInterval.toString(),
+        notifications: defaults.notifications,
+        autoReconnect: defaults.autoReconnect
       });
+      setConnectionStatus({ camera: 'Not tested', mainBoard: 'Not tested' });
+      setErrors({});
+      showSuccess(txt.success, language === 'tl' ? 'Na-reset na ang settings!' : 'Settings reset!');
     }
   };
 
   const toggleLanguage = () => {
     const newLang = language === 'tl' ? 'en' : 'tl';
     onLanguageChange?.(newLang);
-  };
-
-  const showAlert = (title, message) => {
-    alert(`${title}\n\n${message}`);
   };
 
   const installPWA = async () => {
@@ -641,7 +644,7 @@ export default function Settings({ language, onLanguageChange }) {
               <button
                 onClick={() => {
                   resetAllTours();
-                  showAlert(txt.tourReset, txt.tourResetMsg);
+                  showSuccess(txt.tourReset, txt.tourResetMsg);
                 }}
                 className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-semibold text-sm sm:text-base surface-primary border-2 border-info/30 text-info hover:bg-info/10 transition-all cursor-pointer"
               >
