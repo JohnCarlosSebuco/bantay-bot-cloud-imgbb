@@ -22,7 +22,7 @@ export default function SoilSensorToggle({ viewMode, onToggle, language = 'en', 
     <div className={`flex items-center gap-1 bg-tertiary rounded-full p-0.5 ${className}`}>
       <button
         onClick={() => onToggle('average')}
-        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
+        className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-full transition-all duration-200 ${
           viewMode === 'average'
             ? 'bg-brand text-white shadow-sm'
             : 'text-secondary hover:text-primary'
@@ -32,7 +32,7 @@ export default function SoilSensorToggle({ viewMode, onToggle, language = 'en', 
       </button>
       <button
         onClick={() => onToggle('dual')}
-        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
+        className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded-full transition-all duration-200 ${
           viewMode === 'dual'
             ? 'bg-brand text-white shadow-sm'
             : 'text-secondary hover:text-primary'

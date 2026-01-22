@@ -694,7 +694,7 @@ export default function SmartRecommendations({ sensorData, language }) {
     <>
       <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
         {/* Header with Toggle */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
             <h3 className="text-base sm:text-lg font-bold text-primary">{language === 'tl' ? 'Mga Rekomendasyon' : 'Recommendations'}</h3>
             <span className={`px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold ${

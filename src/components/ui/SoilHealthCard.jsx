@@ -191,7 +191,7 @@ export default function SoilHealthCard({ sensorData, language }) {
   return (
     <div className="surface-primary rounded-2xl p-4 sm:p-5 shadow-lg border border-primary">
       {/* Header with Toggle */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-base sm:text-lg font-bold text-primary">{language === 'tl' ? 'Kalusugan ng Lupa' : 'Soil Health'}</h3>
           {viewMode === 'average' && (
