@@ -168,24 +168,11 @@ export const controlsTourSteps = [
       tl: 'Posisyon ng Ulo'
     },
     description: {
-      en: 'Choose where the head should face. Tap any position to rotate.',
-      tl: 'Piliin kung saan haharap ang ulo. Pindutin ang kahit anong posisyon para umikot.'
+      en: 'Choose where the head should face: Left, Center, or Right. Tap any position to rotate.',
+      tl: 'Piliin kung saan haharap ang ulo: Kaliwa, Gitna, o Kanan. Pindutin ang kahit anong posisyon para umikot.'
     },
     position: 'top',
     icon: '🔄'
-  },
-  {
-    target: 'controls-audio',
-    title: {
-      en: 'Audio Controls',
-      tl: 'Kontrol ng Tunog'
-    },
-    description: {
-      en: 'Control the alarm sounds. Adjust volume or play different sounds.',
-      tl: 'Kontrolin ang mga tunog ng alarma. Ayusin ang lakas o patugtugin ang iba\'t ibang tunog.'
-    },
-    position: 'top',
-    icon: '🔊'
   },
   {
     target: 'controls-emergency-stop',
@@ -244,17 +231,17 @@ export const settingsTourSteps = [
   //   icon: '🔍'
   // },
   {
-    target: 'settings-audio',
+    target: 'settings-notifications',
     title: {
-      en: 'Audio Settings',
-      tl: 'Settings ng Tunog'
+      en: 'Push Notifications',
+      tl: 'Push Notifications'
     },
     description: {
-      en: 'Adjust the speaker volume of your BantayBot device.',
-      tl: 'Ayusin ang lakas ng tunog ng speaker ng BantayBot mo.'
+      en: 'Enable push notifications to receive alerts about soil conditions even when the app is closed.',
+      tl: 'I-enable ang push notifications para makatanggap ng alerto tungkol sa kalagayan ng lupa kahit sarado ang app.'
     },
-    position: 'top',
-    icon: '🔈'
+    position: 'bottom',
+    icon: '🔔'
   },
   {
     target: 'settings-language',
