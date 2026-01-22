@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg', 'sw-push-handler.js'],
+      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'pwa-192x192.svg', 'pwa-512x512.svg', 'sw-push-handler.js'],
       manifest: {
         name: 'BantayBot - Smart Crop Protection',
         short_name: 'BantayBot',
@@ -16,17 +16,34 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
+        scope: '/',
         start_url: '/',
+        lang: 'tl',
+        prefer_related_applications: false,
         icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
           {
             src: 'pwa-192x192.svg',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/svg+xml',
+            purpose: 'any'
           },
           {
             src: 'pwa-512x512.svg',
             sizes: '512x512',
-            type: 'image/svg+xml'
+            type: 'image/svg+xml',
+            purpose: 'any'
           }
         ]
       },
