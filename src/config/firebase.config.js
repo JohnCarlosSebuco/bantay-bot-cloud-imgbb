@@ -46,6 +46,6 @@ const firebaseConfig = {
  *
  * Note: Replace the placeholder with your actual VAPID key
  */
-export const FCM_VAPID_KEY = 'YOUR_VAPID_KEY_FROM_FIREBASE_CONSOLE';
+export const FCM_VAPID_KEY = 'BCAU_7ckDwnb4dKa5MqDKFlbCnBlWPsj-LDKD7GAMMZYga34yJonXmQGh9J8CdfLBpPyypEwrRA1ln-IOXsa820';
 
 export default firebaseConfig;
