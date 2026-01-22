@@ -864,9 +864,9 @@ bool checkInternetConnectivity() {
     return false;
   }
 
-  // Quick DNS resolution test
+  // Quick DNS resolution test (timeout not supported on ESP32 core 2.0.x)
   IPAddress resolved;
-  int result = WiFi.hostByName("pool.ntp.org", resolved, 2000);
+  int result = WiFi.hostByName("pool.ntp.org", resolved);
 
   if (result != 1) {
     Serial.println("Internet unreachable (DNS failed)");
