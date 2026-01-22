@@ -4,7 +4,7 @@
  * for crop health alerts and warnings
  */
 
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { getApps } from 'firebase/app';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './FirebaseService';
@@ -115,6 +115,8 @@ class NotificationService {
       if (this.token) {
         console.log('FCM Token obtained');
         await this.saveTokenToFirestore(this.token);
+        // Subscribe to topic for broadcast notifications
+        await this.subscribeToTopic(this.token);
       }
 
       return this.token;
@@ -125,6 +127,30 @@ class NotificationService {
         return 'local-only';
       }
       return null;
+    }
+  }
+
+  /**
+   * Subscribe to FCM topic for broadcast notifications
+   */
+  async subscribeToTopic(token) {
+    try {
+      // Store topic subscription status in Firestore
+      // Server-side subscription will be handled by the backend
+      const deviceId = localStorage.getItem(DEVICE_ID_KEY);
+      if (deviceId) {
+        await setDoc(
+          doc(db, 'notification_tokens', deviceId),
+          {
+            subscribedTopics: ['bantaybot'],
+            lastUpdated: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+        console.log('Topic subscription recorded');
+      }
+    } catch (error) {
+      console.error('Failed to record topic subscription:', error);
     }
   }
 
