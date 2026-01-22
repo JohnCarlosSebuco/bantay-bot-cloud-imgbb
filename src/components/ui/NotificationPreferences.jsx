@@ -151,6 +151,20 @@ const NotificationPreferences = ({ language = 'en' }) => {
   };
 
   const updatePreference = async (key, value) => {
+    // If enabling notifications and permission not granted, request permission first
+    if (key === 'enabled' && value === true && permissionStatus !== 'granted') {
+      setLoading(true);
+      await notificationService.requestPermission();
+      const newStatus = notificationService.getPermissionStatus();
+      setPermissionStatus(newStatus);
+      setLoading(false);
+
+      // If permission was denied, don't enable
+      if (newStatus !== 'granted') {
+        return;
+      }
+    }
+
     const updated = { ...preferences, [key]: value };
     setPreferences(updated);
     setSaving(true);
