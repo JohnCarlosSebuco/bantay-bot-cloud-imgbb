@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle, Download } from 'lucide-react';
+import { Settings as SettingsIcon, Wifi, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle, Download } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import { useVolume } from '../contexts/VolumeContext';
 import { useTour } from '../contexts/TourContext';
 import { translations } from '../i18n/translations';
 import {
   InputCard,
   ToggleCard,
   ConnectionTestCard,
-  SpeakerControl,
   NotificationPreferences
 } from '../components/ui';
 import ConfigService from '../services/ConfigService';
@@ -18,7 +16,6 @@ import { settingsTourSteps } from '../config/tourSteps';
 
 export default function Settings({ language, onLanguageChange }) {
   const { currentTheme, isDark, toggleTheme } = useTheme();
-  const { volume, setVolume, isMuted, setIsMuted } = useVolume();
   const { startTour, isFirstTimeUser, isTourCompleted, resetAllTours } = useTour();
   const t = translations[language];
 
@@ -355,9 +352,6 @@ export default function Settings({ language, onLanguageChange }) {
           notifications: defaults.notifications,
           autoReconnect: defaults.autoReconnect
         });
-        // Reset volume to default (70%) through context
-        setVolume(70);
-        setIsMuted(false);
         setConnectionStatus({ camera: 'Not tested', mainBoard: 'Not tested' });
         setErrors({});
       });
@@ -511,20 +505,9 @@ export default function Settings({ language, onLanguageChange }) {
           </div>
           END Connection Settings Section */}
 
-          {/* Speaker & Audio Section */}
-          <div data-tour="settings-audio">
-            <SectionHeader icon={Volume2} title={txt.speakerAudio} color="warning" first={true} />
-            <SpeakerControl
-              volume={volume}
-              onVolumeChange={setVolume}
-              isMuted={isMuted}
-              onMuteToggle={() => setIsMuted(!isMuted)}
-            />
-          </div>
-
           {/* Push Notifications Section */}
           <div data-tour="settings-notifications">
-            <SectionHeader icon={Bell} title={language === 'tl' ? 'Push Notifications' : 'Push Notifications'} color="error" />
+            <SectionHeader icon={Bell} title={language === 'tl' ? 'Push Notifications' : 'Push Notifications'} color="error" first={true} />
             <NotificationPreferences language={language} />
           </div>
 

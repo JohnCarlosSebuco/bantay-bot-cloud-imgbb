@@ -17,6 +17,7 @@ export default function Controls({ language }) {
 
   const [headTargetAngle, setHeadTargetAngle] = useState(0);
   const [headLoadingAngle, setHeadLoadingAngle] = useState(null);
+  const [testingSpeaker, setTestingSpeaker] = useState(false);
 
   const texts = {
     en: {
@@ -47,7 +48,11 @@ export default function Controls({ language }) {
       successMessage: 'completed successfully!',
       failedMessage: 'Please try again.',
       headMoved: 'Head position updated!',
-      headFailed: 'Head rotation failed. Try again.'
+      headFailed: 'Head rotation failed. Try again.',
+      testSpeaker: 'Test Speaker',
+      testSpeakerDesc: 'Play test sound',
+      speakerSuccess: 'Speaker test playing!',
+      speakerFailed: 'Speaker test failed. Try again.'
     },
     tl: {
       title: 'Mga Kontrol',
@@ -77,7 +82,11 @@ export default function Controls({ language }) {
       successMessage: 'ay tapos na!',
       failedMessage: 'Subukan muli.',
       headMoved: 'Na-update ang posisyon ng ulo!',
-      headFailed: 'Hindi umiikot ang ulo. Subukan muli.'
+      headFailed: 'Hindi umiikot ang ulo. Subukan muli.',
+      testSpeaker: 'Subukan Speaker',
+      testSpeakerDesc: 'Patunugin ang speaker',
+      speakerSuccess: 'Tumutunog ang speaker!',
+      speakerFailed: 'Hindi gumana ang speaker. Subukan muli.'
     }
   };
 
@@ -172,6 +181,19 @@ export default function Controls({ language }) {
       showError(t.failed, t.headFailed);
     } finally {
       setHeadLoadingAngle(null);
+    }
+  };
+
+  const handleTestSpeaker = async () => {
+    setTestingSpeaker(true);
+    try {
+      await CommandService.soundAlarm(CONFIG.DEVICE_ID);
+      showSuccess(t.success, t.speakerSuccess);
+    } catch (error) {
+      console.error('Speaker test failed:', error);
+      showError(t.failed, t.speakerFailed);
+    } finally {
+      setTimeout(() => setTestingSpeaker(false), 1000);
     }
   };
 
@@ -309,7 +331,7 @@ export default function Controls({ language }) {
                 </span>
                 <span className="text-sm text-tertiary">{volume}%</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mb-4">
                 <span className="text-lg">{getVolumeIcon()}</span>
                 <input
                   type="range"
@@ -324,6 +346,25 @@ export default function Controls({ language }) {
                 />
                 <span className="text-xs text-tertiary w-8 text-right">100</span>
               </div>
+              {/* Test Speaker Button */}
+              <button
+                onClick={handleTestSpeaker}
+                disabled={testingSpeaker}
+                className={`
+                  w-full py-2.5 sm:py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2
+                  ${testingSpeaker
+                    ? 'bg-tertiary text-secondary cursor-wait'
+                    : 'bg-warning/20 text-warning hover:bg-warning/30 cursor-pointer'
+                  }
+                `}
+              >
+                {testingSpeaker ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Volume2 size={18} />
+                )}
+                <span>{t.testSpeaker}</span>
+              </button>
             </div>
           </div>
 
