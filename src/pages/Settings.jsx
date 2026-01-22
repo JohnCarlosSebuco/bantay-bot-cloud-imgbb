@@ -532,39 +532,36 @@ export default function Settings({ language, onLanguageChange }) {
           <SectionHeader icon={Smartphone} title={txt.appPreferences} color="brand" />
 
           <div className="space-y-2 sm:space-y-3">
-            {/* Install PWA Button */}
-            {(canInstallPWA || isInstalled) && (
-              <div className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-brand/20 flex items-center justify-center">
-                      <Download size={18} className="text-brand" />
-                    </div>
-                    <div>
-                      <span className="text-sm sm:text-base font-semibold text-primary">
-                        {isInstalled ? txt.appInstalled : txt.installApp}
-                      </span>
-                      <p className="text-[10px] sm:text-xs text-secondary">
-                        {isInstalled ? txt.appInstalledDesc : txt.installAppDesc}
-                      </p>
-                    </div>
+            {/* Install PWA Button - Always visible */}
+            <div className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${isInstalled ? 'bg-success/20' : 'bg-brand/20'}`}>
+                    {isInstalled ? <CheckCircle size={18} className="text-success" /> : <Download size={18} className="text-brand" />}
                   </div>
-                  {!isInstalled && (
-                    <button
-                      onClick={installPWA}
-                      className="py-2 px-4 bg-brand text-white rounded-lg text-xs sm:text-sm font-semibold hover:bg-brand/90 transition-all"
-                    >
-                      {language === 'tl' ? 'I-install' : 'Install'}
-                    </button>
-                  )}
-                  {isInstalled && (
-                    <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
-                      <CheckCircle size={18} className="text-success" />
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-sm sm:text-base font-semibold text-primary">
+                      {isInstalled ? txt.appInstalled : txt.installApp}
+                    </span>
+                    <p className="text-[10px] sm:text-xs text-secondary">
+                      {isInstalled
+                        ? txt.appInstalledDesc
+                        : canInstallPWA
+                          ? txt.installAppDesc
+                          : (language === 'tl' ? 'Buksan sa Chrome menu > "Install app"' : 'Use Chrome menu > "Install app"')}
+                    </p>
+                  </div>
                 </div>
+                {!isInstalled && canInstallPWA && (
+                  <button
+                    onClick={installPWA}
+                    className="py-2 px-4 bg-brand text-white rounded-lg text-xs sm:text-sm font-semibold hover:bg-brand/90 transition-all"
+                  >
+                    {language === 'tl' ? 'I-install' : 'Install'}
+                  </button>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Language Toggle */}
             <div data-tour="settings-language" className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
