@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Wifi, Volume2, Smartphone, Info, Shield, CheckCircle, RefreshCw, Camera, Radio, Wrench, Timer, Globe, Bell, Moon, HelpCircle, Download } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useVolume } from '../contexts/VolumeContext';
 import { useTour } from '../contexts/TourContext';
@@ -43,6 +43,8 @@ export default function Settings({ language, onLanguageChange }) {
   const [scanProgress, setScanProgress] = useState(0);
   const [foundDevices, setFoundDevices] = useState([]);
   const [errors, setErrors] = useState({});
+  const [canInstallPWA, setCanInstallPWA] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   const texts = {
     en: {
@@ -99,7 +101,11 @@ export default function Settings({ language, onLanguageChange }) {
       resetTour: 'Reset App Guide',
       resetTourDesc: 'Show guided tour again',
       tourReset: 'Guide Reset',
-      tourResetMsg: 'The app guide will show again on all pages.'
+      tourResetMsg: 'The app guide will show again on all pages.',
+      installApp: 'Install App',
+      installAppDesc: 'Install BantayBot on your device',
+      appInstalled: 'App Installed',
+      appInstalledDesc: 'BantayBot is installed on your device'
     },
     tl: {
       title: 'Settings',
@@ -155,7 +161,11 @@ export default function Settings({ language, onLanguageChange }) {
       resetTour: 'Ulitin ang Gabay',
       resetTourDesc: 'Ipakita muli ang gabay',
       tourReset: 'Na-reset na',
-      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.'
+      tourResetMsg: 'Ipapakita muli ang gabay sa lahat ng pages.',
+      installApp: 'I-install ang App',
+      installAppDesc: 'I-install ang BantayBot sa iyong device',
+      appInstalled: 'Naka-install na',
+      appInstalledDesc: 'Naka-install na ang BantayBot sa iyong device'
     }
   };
 
@@ -173,6 +183,37 @@ export default function Settings({ language, onLanguageChange }) {
 
   useEffect(() => {
     loadSettings();
+  }, []);
+
+  // Check PWA install availability
+  useEffect(() => {
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+
+    // Check if install prompt is available
+    if (window.deferredPrompt) {
+      setCanInstallPWA(true);
+    }
+
+    // Listen for install prompt
+    const handleBeforeInstall = () => {
+      setCanInstallPWA(true);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setCanInstallPWA(false);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
 
   const loadSettings = async () => {
@@ -332,6 +373,18 @@ export default function Settings({ language, onLanguageChange }) {
     alert(`${title}\n\n${message}`);
   };
 
+  const installPWA = async () => {
+    if (window.deferredPrompt) {
+      window.deferredPrompt.prompt();
+      const { outcome } = await window.deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+        setCanInstallPWA(false);
+      }
+      window.deferredPrompt = null;
+    }
+  };
+
   const updateConfig = (key, value) => {
     setConfig(prev => ({ ...prev, [key]: value }));
     if (errors[key]) {
@@ -479,6 +532,40 @@ export default function Settings({ language, onLanguageChange }) {
           <SectionHeader icon={Smartphone} title={txt.appPreferences} color="brand" />
 
           <div className="space-y-2 sm:space-y-3">
+            {/* Install PWA Button */}
+            {(canInstallPWA || isInstalled) && (
+              <div className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-brand/20 flex items-center justify-center">
+                      <Download size={18} className="text-brand" />
+                    </div>
+                    <div>
+                      <span className="text-sm sm:text-base font-semibold text-primary">
+                        {isInstalled ? txt.appInstalled : txt.installApp}
+                      </span>
+                      <p className="text-[10px] sm:text-xs text-secondary">
+                        {isInstalled ? txt.appInstalledDesc : txt.installAppDesc}
+                      </p>
+                    </div>
+                  </div>
+                  {!isInstalled && (
+                    <button
+                      onClick={installPWA}
+                      className="py-2 px-4 bg-brand text-white rounded-lg text-xs sm:text-sm font-semibold hover:bg-brand/90 transition-all"
+                    >
+                      {language === 'tl' ? 'I-install' : 'Install'}
+                    </button>
+                  )}
+                  {isInstalled && (
+                    <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
+                      <CheckCircle size={18} className="text-success" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Language Toggle */}
             <div data-tour="settings-language" className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
               <div className="flex justify-between items-center mb-2 sm:mb-3">
