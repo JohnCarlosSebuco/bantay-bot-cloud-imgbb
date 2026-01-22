@@ -604,7 +604,7 @@ export default function Settings({ language, onLanguageChange }) {
             </p>
             <div className="pt-3 sm:pt-4 border-t border-primary text-center">
               <div className="text-xs sm:text-sm font-semibold text-brand">{txt.developedBy}</div>
-              <div className="text-[10px] sm:text-xs text-secondary mt-1">Version 1.3.7</div>
+              <div className="text-[10px] sm:text-xs text-secondary mt-1">Version 1.4.0</div>
             </div>
           </div>
 
