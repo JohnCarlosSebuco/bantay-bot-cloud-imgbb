@@ -45,7 +45,9 @@ export default function Controls({ language }) {
       success: 'Success',
       failed: 'Failed',
       successMessage: 'completed successfully!',
-      failedMessage: 'Please try again.'
+      failedMessage: 'Please try again.',
+      headMoved: 'Head position updated!',
+      headFailed: 'Head rotation failed. Try again.'
     },
     tl: {
       title: 'Mga Kontrol',
@@ -73,7 +75,9 @@ export default function Controls({ language }) {
       success: 'Tapos na',
       failed: 'Hindi nagawa',
       successMessage: 'ay tapos na!',
-      failedMessage: 'Subukan muli.'
+      failedMessage: 'Subukan muli.',
+      headMoved: 'Na-update ang posisyon ng ulo!',
+      headFailed: 'Hindi umiikot ang ulo. Subukan muli.'
     }
   };
 
@@ -162,8 +166,10 @@ export default function Controls({ language }) {
     try {
       await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID, angle);
       setHeadTargetAngle(angle);
+      showSuccess(t.success, t.headMoved);
     } catch (error) {
       console.error('Head rotation failed:', error);
+      showError(t.failed, t.headFailed);
     } finally {
       setHeadLoadingAngle(null);
     }

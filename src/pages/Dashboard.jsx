@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTour } from '../contexts/TourContext';
+import { useNotification } from '../contexts/NotificationContext';
 import {
   DualSoilSensorDisplay,
   SoilHealthCard,
@@ -41,6 +42,7 @@ const countTodayDetections = (detections) => {
 export default function Dashboard({ language }) {
   const { currentTheme } = useTheme();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
+  const { showSuccess, showError } = useNotification();
   const [refreshing, setRefreshing] = useState(false);
   const fadeOpacity = useRef(1);
 
@@ -102,6 +104,12 @@ export default function Dashboard({ language }) {
       lastUpdated: 'Last updated',
       birdsToday: 'birds today',
       soilConditions: 'Soil Conditions',
+      success: 'Success',
+      failed: 'Failed',
+      armsSuccess: 'Arms moving!',
+      headSuccess: 'Head rotating!',
+      alarmSuccess: 'Alarm triggered!',
+      commandFailed: 'Command failed. Try again.',
     },
     tl: {
       title: 'BantayBot',
@@ -118,6 +126,12 @@ export default function Dashboard({ language }) {
       lastUpdated: 'Huling update',
       birdsToday: 'ibon ngayong araw',
       soilConditions: 'Kalagayan ng Lupa',
+      success: 'Tapos na',
+      failed: 'Hindi nagawa',
+      armsSuccess: 'Gumagalaw ang braso!',
+      headSuccess: 'Umiikot ang ulo!',
+      alarmSuccess: 'Tumutunog ang alarma!',
+      commandFailed: 'Hindi nagawa. Subukan muli.',
     }
   };
 
@@ -260,8 +274,10 @@ export default function Dashboard({ language }) {
     setLoadingAction('arms');
     try {
       await CommandService.moveArms(CONFIG.DEVICE_ID);
+      showSuccess(t.success, t.armsSuccess);
     } catch (e) {
       console.error('Move arms failed:', e);
+      showError(t.failed, t.commandFailed);
     } finally {
       setTimeout(() => setLoadingAction(null), 1000);
     }
@@ -271,8 +287,10 @@ export default function Dashboard({ language }) {
     setLoadingAction('head');
     try {
       await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID);
+      showSuccess(t.success, t.headSuccess);
     } catch (e) {
       console.error('Move head failed:', e);
+      showError(t.failed, t.commandFailed);
     } finally {
       setTimeout(() => setLoadingAction(null), 1000);
     }
@@ -282,8 +300,10 @@ export default function Dashboard({ language }) {
     setLoadingAction('sound');
     try {
       await CommandService.soundAlarm(CONFIG.DEVICE_ID);
+      showSuccess(t.success, t.alarmSuccess);
     } catch (e) {
       console.error('Sound alarm failed:', e);
+      showError(t.failed, t.commandFailed);
     } finally {
       setTimeout(() => setLoadingAction(null), 1000);
     }
