@@ -1,25 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Gamepad2, Check, Cog, Square, Volume2, Megaphone, Music, Settings, Wrench, RefreshCw, AlertTriangle, OctagonX, Loader2, ChevronRight, HelpCircle } from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
+import React, { useState, useEffect } from 'react';
+import { Gamepad2, Check, Cog, Square, Volume2, Megaphone, Settings, Wrench, RefreshCw, AlertTriangle, OctagonX, Loader2, ChevronRight, HelpCircle } from 'lucide-react';
 import { useVolume } from '../contexts/VolumeContext';
 import { useTour } from '../contexts/TourContext';
-import {
-  AudioPlayerControl,
-  HeadControlPanel
-} from '../components/ui';
+import { HeadControlPanel } from '../components/ui';
 import CommandService from '../services/CommandService';
 import { CONFIG } from '../config/config';
 import { controlsTourSteps } from '../config/tourSteps';
 
 export default function Controls({ language }) {
-  const { currentTheme } = useTheme();
   const { volume, setVolume } = useVolume();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const [loadingStates, setLoadingStates] = useState({});
   const [lastCommand, setLastCommand] = useState(null);
 
-  // Audio controls state
-  const [audioPlaying, setAudioPlaying] = useState(false);
   const [headTargetAngle, setHeadTargetAngle] = useState(0);
   const [headLoadingAngle, setHeadLoadingAngle] = useState(null);
 
@@ -150,28 +143,15 @@ export default function Controls({ language }) {
     return date.toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
   };
 
-  // Audio handlers
-  const handleAudioPlay = async () => {
-    try {
-      await CommandService.playAudio(CONFIG.DEVICE_ID);
-      setAudioPlaying(true);
-    } catch (error) {
-      console.error('Audio play failed:', error);
-    }
-  };
-
-  const handleAudioStop = async () => {
-    try {
-      await CommandService.stopAudio(CONFIG.DEVICE_ID);
-      setAudioPlaying(false);
-    } catch (error) {
-      console.error('Audio stop failed:', error);
-    }
-  };
-
   const handleVolumeChange = (newVolume) => {
-    // VolumeContext handles debounce and sending to device
     setVolume(newVolume);
+  };
+
+  const getVolumeIcon = () => {
+    if (volume === 0) return '🔇';
+    if (volume < 30) return '🔈';
+    if (volume < 70) return '🔉';
+    return '🔊';
   };
 
   const handleHeadAngleSelect = async (angle) => {
@@ -312,20 +292,30 @@ export default function Controls({ language }) {
               loading={loadingStates.SOUND_ALARM}
               color="error"
             />
-          </div>
-
-          {/* Audio Controls */}
-          <div data-tour="controls-audio">
-            <SectionHeader icon={Music} title="Audio" color="info" />
-            <AudioPlayerControl
-              isPlaying={audioPlaying}
-              isLoading={loadingStates.audio}
-              onPlay={handleAudioPlay}
-              onStop={handleAudioStop}
-              currentVolume={volume}
-              onVolumeChange={handleVolumeChange}
-              language={language}
-            />
+            {/* Volume Control */}
+            <div className="surface-primary rounded-xl p-4 sm:p-5 border-2 border-primary">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-secondary">
+                  {language === 'tl' ? 'Lakas ng tunog' : 'Volume'}
+                </span>
+                <span className="text-sm text-tertiary">{volume}%</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{getVolumeIcon()}</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={volume}
+                  onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                  className="flex-1 h-2 bg-tertiary rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, var(--primary-500) 0%, var(--primary-500) ${volume}%, var(--bg-tertiary) ${volume}%, var(--bg-tertiary) 100%)`
+                  }}
+                />
+                <span className="text-xs text-tertiary w-8 text-right">100</span>
+              </div>
+            </div>
           </div>
 
           {/* System Controls */}
