@@ -2,14 +2,9 @@ import React from 'react';
 import { STEPPER_CONFIG } from '../../config/hardware.config';
 
 const HEAD_POSITIONS = [
-  { angle: -135, icon: '↖️', labelEn: 'Far Left', labelTl: 'Kaliwang Sulok' },
   { angle: -90, icon: '⬅️', labelEn: 'Left', labelTl: 'Kaliwa' },
-  { angle: -45, icon: '↙️', labelEn: 'Left Sweep', labelTl: 'Hating Kaliwa' },
   { angle: 0, icon: '⬆️', labelEn: 'Center', labelTl: 'Gitna' },
-  { angle: 45, icon: '↗️', labelEn: 'Right Sweep', labelTl: 'Hating Kanan' },
   { angle: 90, icon: '➡️', labelEn: 'Right', labelTl: 'Kanan' },
-  { angle: 135, icon: '↘️', labelEn: 'Far Right', labelTl: 'Kanang Sulok' },
-  { angle: 180, icon: '🔁', labelEn: 'Reverse', labelTl: 'Baliktad' },
 ];
 
 const HeadControlPanel = ({
@@ -39,16 +34,13 @@ const HeadControlPanel = ({
           </h3>
           <p className="text-xs text-secondary">
             {language === 'tl'
-              ? 'Piliin ang tiyak na anggulo (45° na hakbang)'
-              : 'Select a precise angle (45° steps)'}
+              ? 'Piliin ang direksyon ng ulo'
+              : 'Select head direction'}
           </p>
-        </div>
-        <div className="text-xs text-secondary">
-          {language === 'tl' ? `Saklaw: ${min}° hanggang ${max}°` : `Range: ${min}° to ${max}°`}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {HEAD_POSITIONS.map((position) => {
           const { angle, icon } = position;
           const active = currentAngle === angle;
@@ -68,7 +60,6 @@ const HeadControlPanel = ({
             >
               <span className="text-2xl">{loadingAngle === angle ? '⏳' : icon}</span>
               <span className="text-sm font-semibold">{getLabel(position)}</span>
-              <span className="text-xs text-secondary">{angle}°</span>
             </button>
           );
         })}
