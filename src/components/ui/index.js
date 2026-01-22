@@ -22,3 +22,5 @@ export { default as SmartRecommendations } from './SmartRecommendations';
 export { default as NotificationPreferences } from './NotificationPreferences';
 export { default as SoilSensorToggle } from './SoilSensorToggle';
 export { default as DualSoilSensorDisplay } from './DualSoilSensorDisplay';
+export { default as Toast } from './Toast';
+export { default as ConfirmDialog } from './ConfirmDialog';

@@ -16,8 +16,10 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { VolumeProvider } from './contexts/VolumeContext';
 import { TourProvider } from './contexts/TourContext';
 import { QRSecurityProvider } from './contexts/QRSecurityContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import GuidedTour from './components/ui/GuidedTour';
 import QRSecurityGate from './components/QRSecurityGate';
+import { Toast, ConfirmDialog } from './components/ui';
 import { Home, Gamepad2, BarChart3, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 
 // Navigation Icon Components Map
@@ -145,37 +147,41 @@ function AppContent() {
   }, [language]);
 
   return (
-    <QRSecurityProvider>
-      <QRSecurityGate language={language}>
-        <TourProvider>
-          <Router>
-            <ScrollToTop />
-            <div className="min-h-screen bg-secondary pb-16 transition-colors duration-300">
-              {/* <ThemeToggle /> */}
-              <main className="animate-fade-in">
-                <Routes>
-                  <Route path="/" element={<Dashboard language={language} />} />
-                  <Route path="/controls" element={<Controls language={language} />} />
-                  <Route path="/analytics" element={<Analytics language={language} />} />
-                  <Route path="/history" element={<History language={language} />} />
-                  <Route path="/settings" element={<Settings language={language} onLanguageChange={handleLanguageChange} />} />
+    <NotificationProvider>
+      <QRSecurityProvider>
+        <QRSecurityGate language={language}>
+          <TourProvider>
+            <Router>
+              <ScrollToTop />
+              <div className="min-h-screen bg-secondary pb-16 transition-colors duration-300">
+                {/* <ThemeToggle /> */}
+                <main className="animate-fade-in">
+                  <Routes>
+                    <Route path="/" element={<Dashboard language={language} />} />
+                    <Route path="/controls" element={<Controls language={language} />} />
+                    <Route path="/analytics" element={<Analytics language={language} />} />
+                    <Route path="/history" element={<History language={language} />} />
+                    <Route path="/settings" element={<Settings language={language} onLanguageChange={handleLanguageChange} />} />
 
-                  {/* Analytics Sub-pages */}
-                  <Route path="/harvest-planner" element={<HarvestPlanner language={language} />} />
-                  <Route path="/add-harvest" element={<AddHarvest language={language} />} />
-                  <Route path="/rainfall-tracker" element={<RainfallTracker language={language} />} />
-                  <Route path="/crop-health-monitor" element={<CropHealthMonitor language={language} />} />
-                  <Route path="/bird-analytics" element={<BirdAnalytics language={language} />} />
-                  <Route path="/reports" element={<Reports language={language} />} />
-                </Routes>
-              </main>
-              <Navigation language={language} />
-              <GuidedTour language={language} />
-            </div>
-          </Router>
-        </TourProvider>
-      </QRSecurityGate>
-    </QRSecurityProvider>
+                    {/* Analytics Sub-pages */}
+                    <Route path="/harvest-planner" element={<HarvestPlanner language={language} />} />
+                    <Route path="/add-harvest" element={<AddHarvest language={language} />} />
+                    <Route path="/rainfall-tracker" element={<RainfallTracker language={language} />} />
+                    <Route path="/crop-health-monitor" element={<CropHealthMonitor language={language} />} />
+                    <Route path="/bird-analytics" element={<BirdAnalytics language={language} />} />
+                    <Route path="/reports" element={<Reports language={language} />} />
+                  </Routes>
+                </main>
+                <Navigation language={language} />
+                <GuidedTour language={language} />
+              </div>
+            </Router>
+          </TourProvider>
+        </QRSecurityGate>
+      </QRSecurityProvider>
+      <Toast />
+      <ConfirmDialog language={language} />
+    </NotificationProvider>
   );
 }
 

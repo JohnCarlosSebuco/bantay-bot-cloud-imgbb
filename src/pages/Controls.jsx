@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Gamepad2, Check, Cog, Square, Volume2, Megaphone, Settings, Wrench, RefreshCw, AlertTriangle, OctagonX, Loader2, ChevronRight, HelpCircle } from 'lucide-react';
 import { useVolume } from '../contexts/VolumeContext';
 import { useTour } from '../contexts/TourContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { HeadControlPanel } from '../components/ui';
 import CommandService from '../services/CommandService';
 import { CONFIG } from '../config/config';
@@ -10,6 +11,7 @@ import { controlsTourSteps } from '../config/tourSteps';
 export default function Controls({ language }) {
   const { volume, setVolume } = useVolume();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
+  const { showSuccess, showError, confirm } = useNotification();
   const [loadingStates, setLoadingStates] = useState({});
   const [lastCommand, setLastCommand] = useState(null);
 
@@ -39,6 +41,7 @@ export default function Controls({ language }) {
       emergencyStopDesc: 'Stop all operations immediately',
       confirmReset: 'This will restart the entire BantayBot system. Continue?',
       confirmEmergencyStop: 'This will immediately stop all operations. Continue?',
+      warning: 'Warning',
       success: 'Success',
       failed: 'Failed',
       successMessage: 'completed successfully!',
@@ -66,6 +69,7 @@ export default function Controls({ language }) {
       emergencyStopDesc: 'Itigil kaagad ang lahat',
       confirmReset: 'Uulitin nito ang sistema. Ituloy?',
       confirmEmergencyStop: 'Ititigil nito ang lahat. Ituloy?',
+      warning: 'Babala',
       success: 'Tapos na',
       failed: 'Hindi nagawa',
       successMessage: 'ay tapos na!',
@@ -89,10 +93,6 @@ export default function Controls({ language }) {
     setLoadingStates(prev => ({ ...prev, [command]: isLoading }));
   };
 
-  const showAlert = (title, message) => {
-    alert(`${title}\n\n${message}`);
-  };
-
   const getCommandDisplayName = (command) => {
     const names = {
       MOVE_ARMS: t.moveArms,
@@ -104,8 +104,11 @@ export default function Controls({ language }) {
     return names[command] || command;
   };
 
-  const executeCommand = async (command, confirmMsg = null) => {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+  const executeCommand = async (command, confirmMsg = null, isDangerous = false) => {
+    if (confirmMsg) {
+      const confirmed = await confirm(t.warning || 'Warning', confirmMsg, { isDangerous });
+      if (!confirmed) return;
+    }
 
     setLoading(command, true);
     setLastCommand({ command, timestamp: new Date() });
@@ -131,9 +134,9 @@ export default function Controls({ language }) {
           throw new Error('Unknown command');
       }
       await new Promise(resolve => setTimeout(resolve, 500));
-      showAlert(t.success, `${getCommandDisplayName(command)} ${t.successMessage}`);
+      showSuccess(t.success, `${getCommandDisplayName(command)} ${t.successMessage}`);
     } catch (error) {
-      showAlert(t.failed, `${getCommandDisplayName(command)} ${t.failedMessage}`);
+      showError(t.failed, `${getCommandDisplayName(command)} ${t.failedMessage}`);
     } finally {
       setLoading(command, false);
     }
@@ -333,7 +336,7 @@ export default function Controls({ language }) {
               icon={RefreshCw}
               title={t.resetSystem}
               desc={t.resetSystemDesc}
-              onClick={() => executeCommand('RESET_SYSTEM', t.confirmReset)}
+              onClick={() => executeCommand('RESET_SYSTEM', t.confirmReset, true)}
               loading={loadingStates.RESET_SYSTEM}
               color="info"
             />
@@ -346,7 +349,7 @@ export default function Controls({ language }) {
               <span className="font-bold text-error text-sm sm:text-base">Emergency</span>
             </div>
             <button
-              onClick={() => executeCommand('STOP_MOVEMENT', t.confirmEmergencyStop)}
+              onClick={() => executeCommand('STOP_MOVEMENT', t.confirmEmergencyStop, true)}
               disabled={loadingStates.STOP_MOVEMENT}
               className={`
                 w-full py-3 sm:py-4 rounded-xl font-bold text-white transition-all text-sm sm:text-base
