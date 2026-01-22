@@ -9,12 +9,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-com
 
 // Firebase configuration (must match your app config)
 const firebaseConfig = {
-  apiKey: 'AIzaSyCnoTxukz7Jj32BPuUxIxub0N2MtgfDRxs',
-  authDomain: 'bantay-bot.firebaseapp.com',
-  projectId: 'bantay-bot',
-  storageBucket: 'bantay-bot.firebasestorage.app',
-  messagingSenderId: '783316846678',
-  appId: '1:783316846678:web:43ef0c19ad8130d42fd3f7',
+  apiKey: 'AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg',
+  authDomain: 'cloudbantaybot.firebaseapp.com',
+  projectId: 'cloudbantaybot',
+  storageBucket: 'cloudbantaybot.firebasestorage.app',
+  messagingSenderId: '346273940225',
+  appId: '1:346273940225:web:4c3f43d8ee593802e85100',
 };
 
 // Initialize Firebase in Service Worker

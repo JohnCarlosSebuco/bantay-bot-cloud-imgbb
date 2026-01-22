@@ -12,13 +12,13 @@
  */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCnoTxukz7Jj32BPuUxIxub0N2MtgfDRxs",
-  authDomain: "bantay-bot.firebaseapp.com",
-  projectId: "bantay-bot",
-  storageBucket: "bantay-bot.firebasestorage.app",
-  messagingSenderId: "783316846678",
-  appId: "1:783316846678:web:43ef0c19ad8130d42fd3f7",
-  measurementId: "G-8N5Q0CGR34"
+  apiKey: "AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg",
+  authDomain: "cloudbantaybot.firebaseapp.com",
+  projectId: "cloudbantaybot",
+  storageBucket: "cloudbantaybot.firebasestorage.app",
+  messagingSenderId: "346273940225",
+  appId: "1:346273940225:web:4c3f43d8ee593802e85100",
+  measurementId: "G-2PP7RNM8WV"
 };
 
 /**
@@ -46,6 +46,6 @@ const firebaseConfig = {
  *
  * Note: Replace the placeholder with your actual VAPID key
  */
-export const FCM_VAPID_KEY = 'BCAU_7ckDwnb4dKa5MqDKFlbCnBlWPsj-LDKD7GAMMZYga34yJonXmQGh9J8CdfLBpPyypEwrRA1ln-IOXsa820';
+export const FCM_VAPID_KEY = 'BBjO22wxzkyLYMzXOQ18LRXskQsOGu7k8CCz7_aPqMod6PO0O-zF5AjHJBnLRqEuxe_d3RRd2jbN1FqH2j7u_-E';
 
 export default firebaseConfig;

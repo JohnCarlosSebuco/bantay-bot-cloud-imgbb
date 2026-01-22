@@ -15,9 +15,9 @@
 // ===========================
 // Firebase Configuration
 // ===========================
-#define FIREBASE_PROJECT_ID "bantay-bot"
-#define API_KEY "AIzaSyCnoTxukz7Jj32BPuUxIxub0N2MtgfDRxs"
-#define FIREBASE_AUTH_DOMAIN "bantay-bot.firebaseapp.com"
+#define FIREBASE_PROJECT_ID "cloudbantaybot"
+#define API_KEY "AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg"
+#define FIREBASE_AUTH_DOMAIN "cloudbantaybot.firebaseapp.com"
 
 // Device IDs (must match React Native app)
 #define MAIN_DEVICE_ID "main_001"
