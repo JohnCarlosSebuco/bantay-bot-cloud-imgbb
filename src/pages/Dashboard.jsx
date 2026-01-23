@@ -227,22 +227,15 @@ export default function Dashboard({ language }) {
           hasRS485Sensor: true,
         }));
 
-        // Check if data actually changed (device is sending new readings)
-        const dataFingerprint = JSON.stringify({
-          s1h: data.soil1Humidity, s1t: data.soil1Temperature,
-          s2h: data.soil2Humidity, s2t: data.soil2Temperature,
-          last_seen: data.last_seen,
-        });
-        const prevFingerprint = lastDataRef.current?.fingerprint;
-
-        if (prevFingerprint === undefined) {
-          // First snapshot - just store it, don't mark as connected yet
-          lastDataRef.current = { fingerprint: dataFingerprint, time: Date.now(), isFirst: true };
-        } else if (prevFingerprint !== dataFingerprint) {
-          // Data changed after first load - device is actively sending
-          lastDataRef.current = { fingerprint: dataFingerprint, time: Date.now() };
-          setLastUpdate(new Date());
+        // Check last_seen to determine connection status
+        const lastSeenTime = data.last_seen?.toMillis ? data.last_seen.toMillis()
+          : typeof data.last_seen === 'number' ? data.last_seen
+          : typeof data.last_seen === 'string' ? new Date(data.last_seen.replace(' at ', ' ')).getTime() || 0
+          : 0;
+        if (lastSeenTime > 0 && (Date.now() - lastSeenTime) < 90000) {
+          lastDataRef.current = { time: Date.now() };
           setIsConnected(true);
+          setLastUpdate(new Date(lastSeenTime));
         }
 
         // Check sensor data for notification triggers (use averaged values)
@@ -261,11 +254,11 @@ export default function Dashboard({ language }) {
       }));
     }, 500);
 
-    // Staleness check: if no data change in 60s, mark offline
+    // Staleness check: if no data update in 90s, mark offline
     const stalenessInterval = setInterval(() => {
       if (lastDataRef.current) {
         const elapsed = Date.now() - lastDataRef.current.time;
-        if (elapsed > 60000) {
+        if (elapsed > 90000) {
           setIsConnected(false);
         }
       }
