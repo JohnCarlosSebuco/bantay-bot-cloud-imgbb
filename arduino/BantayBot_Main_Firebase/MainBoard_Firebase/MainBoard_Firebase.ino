@@ -154,6 +154,7 @@ unsigned long lastNotifMoisture = 0;
 unsigned long lastNotifTemp = 0;
 unsigned long lastNotifPH = 0;
 unsigned long lastNotifConductivity = 0;
+unsigned long lastNotifBird = 0;
 const unsigned long NOTIF_COOLDOWN = 1800000; // 30 minutes
 
 // ===========================
@@ -400,8 +401,12 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
   if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
     Serial.println("✅ Detection logged to Firestore!");
     birdsDetectedToday++;
-    // Send push notification
-    sendPushNotification("bird_detection", "");
+    // Send push notification (with throttle)
+    unsigned long now = millis();
+    if (now - lastNotifBird > NOTIF_COOLDOWN) {
+      sendPushNotification("bird_detection", "");
+      lastNotifBird = now;
+    }
   } else {
     Serial.println("❌ Failed to log detection: " + fbdo.errorReason());
   }
@@ -561,7 +566,7 @@ void checkSensorAlerts() {
   }
 
   // Soil Conductivity
-  if (soilConductivity >= 0 && (now - lastNotifConductivity > NOTIF_COOLDOWN)) {
+  if (soilConductivity > 0 && (now - lastNotifConductivity > NOTIF_COOLDOWN)) {
     if (soilConductivity < 100) {
       sendPushNotification("nutrient_low", String(soilConductivity, 0));
       lastNotifConductivity = now;
