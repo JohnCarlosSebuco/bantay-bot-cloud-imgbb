@@ -19,8 +19,8 @@
 #define API_KEY "AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg"
 #define FIREBASE_AUTH_DOMAIN "cloudbantaybot.firebaseapp.com"
 
-// Push Notification Webhook (Pipedream)
-#define PIPEDREAM_WEBHOOK "https://eoujudws1ixl4dx.m.pipedream.net"
+// Push Notification Webhook - DISABLED: Now handled by Cloud Functions
+// #define PIPEDREAM_WEBHOOK "https://eoujudws1ixl4dx.m.pipedream.net"
 
 // Device IDs (must match React Native app)
 #define MAIN_DEVICE_ID "main_001"
