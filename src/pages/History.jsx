@@ -624,22 +624,9 @@ export default function History({ language }) {
   const DetectionHistoryItem = ({ item, isLast }) => (
     <div className={`px-2.5 py-2 transition-colors hover:bg-tertiary/30 ${!isLast ? 'border-b border-primary/20' : ''}`}>
       <div className="flex items-center gap-2">
-        {/* Thumbnail */}
-        {item.imageUrl && (
-          <div className="w-10 h-10 rounded-lg overflow-hidden bg-tertiary flex-shrink-0">
-            <img
-              src={item.imageUrl}
-              alt="Detection"
-              className="w-full h-full object-cover"
-              onError={(e) => { e.target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-sm opacity-30">🐦</div>'; }}
-            />
-          </div>
-        )}
-        {!item.imageUrl && (
-          <div className="w-10 h-10 rounded-lg bg-tertiary flex items-center justify-center flex-shrink-0">
-            <Bird size={16} className="text-secondary opacity-50" />
-          </div>
-        )}
+        <div className="w-10 h-10 rounded-lg bg-tertiary flex items-center justify-center flex-shrink-0">
+          <Bird size={16} className="text-secondary opacity-50" />
+        </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
