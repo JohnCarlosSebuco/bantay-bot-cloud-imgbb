@@ -69,6 +69,7 @@ const formatDate = (ts) => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
     });
   } catch (_) {
     return '';
@@ -134,6 +135,10 @@ export default function History({ language }) {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
 
+  // Progressive rendering
+  const BATCH_SIZE = 50;
+  const [displayCount, setDisplayCount] = useState(BATCH_SIZE);
+
   // Dual sensor view mode
   const [viewMode, setViewMode] = useState(getStoredHistoryViewMode);
 
@@ -141,6 +146,11 @@ export default function History({ language }) {
   useEffect(() => {
     setStoredHistoryViewMode(viewMode);
   }, [viewMode]);
+
+  // Reset visible count when filters/tab change
+  useEffect(() => {
+    setDisplayCount(BATCH_SIZE);
+  }, [activeTab, dateFilter, statusFilter, sortOrder]);
 
   // Check if any history record has dual sensor data
   const hasDualSensorData = sensorHistory.some(
@@ -322,7 +332,7 @@ export default function History({ language }) {
 
   const refresh = async () => {
     const [s, d] = await Promise.all([
-      DeviceService.getSensorHistory(500),
+      DeviceService.getSensorHistory(),
       DeviceService.getDetectionHistory(500),
     ]);
     setSensorHistory(s);
@@ -346,7 +356,7 @@ export default function History({ language }) {
     // Subscribe to Firebase sensor history
     const unsubscribeSensor = DeviceService.subscribeToSensorHistory((history) => {
       setSensorHistory(history);
-    }, 500);
+    });
 
     // Subscribe to Firebase detection history
     const unsubscribeDetection = DeviceService.subscribeToDetectionHistory((history) => {
@@ -667,6 +677,8 @@ export default function History({ language }) {
 
   const rawData = activeTab === 'sensor' ? sensorHistory : detectionHistory;
   const currentData = filterData(rawData);
+  const visibleData = currentData.slice(0, displayCount);
+  const hasMore = displayCount < currentData.length;
   const isFiltered = hasActiveFilters && rawData.length > 0 && currentData.length === 0;
 
   // Date filter options
@@ -813,22 +825,30 @@ export default function History({ language }) {
               className="surface-primary rounded-xl border border-primary overflow-hidden flex-1 overflow-y-auto scroll-smooth"
             >
               {activeTab === 'sensor' ? (
-                currentData.map((item, index) => (
+                visibleData.map((item, index) => (
                   <SensorHistoryItem
                     key={item.id || index}
                     item={item}
                     isFirst={index === 0}
-                    isLast={index === currentData.length - 1}
+                    isLast={!hasMore && index === visibleData.length - 1}
                   />
                 ))
               ) : (
-                currentData.map((item, index) => (
+                visibleData.map((item, index) => (
                   <DetectionHistoryItem
                     key={item.id || index}
                     item={item}
-                    isLast={index === currentData.length - 1}
+                    isLast={!hasMore && index === visibleData.length - 1}
                   />
                 ))
+              )}
+              {hasMore && (
+                <button
+                  onClick={() => setDisplayCount(prev => prev + BATCH_SIZE)}
+                  className="w-full py-2.5 text-xs font-medium text-accent hover:bg-tertiary/30 transition-colors border-t border-primary/20"
+                >
+                  Show more ({currentData.length - displayCount} remaining)
+                </button>
               )}
             </div>
           )}

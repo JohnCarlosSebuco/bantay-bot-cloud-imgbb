@@ -17,7 +17,9 @@ function resolveTimestamp(data, docId) {
 
   // 2. Check if data.timestamp is a string (readable format like "January 23, 2026 2:30:45 PM")
   if (typeof data.timestamp === 'string' && data.timestamp.length > 10) {
-    const parsed = new Date(data.timestamp);
+    // Strip " at " (Firestore timestamp format: "January 04, 2026 at 01:00:00 AM")
+    const cleaned = data.timestamp.replace(' at ', ' ');
+    const parsed = new Date(cleaned);
     if (!isNaN(parsed.getTime()) && parsed.getTime() > MIN_VALID_TIMESTAMP) {
       return parsed.getTime();
     }
@@ -146,7 +148,7 @@ class DeviceService {
    * Returns array of sensor snapshots, most recent first
    * Includes dual sensor data if available
    */
-  async getSensorHistory(maxResults = 50) {
+  async getSensorHistory() {
     try {
       const historyRef = collection(db, 'sensor_history');
       const snapshot = await getDocs(historyRef);
@@ -178,9 +180,9 @@ class DeviceService {
         });
       });
 
-      // Sort by timestamp descending, then limit
+      // Sort by timestamp descending
       history.sort((a, b) => b.timestamp - a.timestamp);
-      return history.slice(0, maxResults);
+      return history;
     } catch (error) {
       console.error('Error fetching sensor history:', error);
       return [];
@@ -191,7 +193,7 @@ class DeviceService {
    * Subscribe to sensor history updates (real-time)
    * Includes dual sensor data if available
    */
-  subscribeToSensorHistory(callback, maxResults = 20) {
+  subscribeToSensorHistory(callback) {
     try {
       const historyRef = collection(db, 'sensor_history');
 
@@ -222,9 +224,9 @@ class DeviceService {
             hasDualSensors: !!(data.soil1Humidity !== undefined && data.soil2Humidity !== undefined),
           });
         });
-        // Sort by timestamp descending and limit
+        // Sort by timestamp descending
         history.sort((a, b) => b.timestamp - a.timestamp);
-        callback(history.slice(0, maxResults));
+        callback(history);
       }, (error) => {
         console.error('Error subscribing to sensor history:', error);
         callback([]);
