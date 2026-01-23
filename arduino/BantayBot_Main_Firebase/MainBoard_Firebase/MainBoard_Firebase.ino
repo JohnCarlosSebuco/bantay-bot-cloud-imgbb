@@ -234,10 +234,10 @@ void initializeFirebase() {
     Serial.printf("⚠️ Sign up error: %s\n", fbConfig.signer.signupError.message.c_str());
   }
 
-  // Wait for Firebase to be ready
+  // Wait for Firebase to be ready (short timeout to avoid blocking)
   Serial.println("⏳ Waiting for Firebase...");
   int attempts = 0;
-  while (!Firebase.ready() && attempts < 30) {
+  while (!Firebase.ready() && attempts < 5) {
     Serial.print(".");
     delay(1000);
     attempts++;
@@ -927,10 +927,37 @@ void handleWiFiReconnection() {
   if (userModePreference == 2) return;
 
   if (WiFi.status() == WL_CONNECTED) {
-    return;  // WiFi is fine, nothing to do
+    // WiFi just reconnected after being disconnected?
+    if (!wifiWasConnected) {
+      wifiWasConnected = true;
+      Serial.println("WiFi reconnected! IP: " + WiFi.localIP().toString());
+
+      // Try Firebase init if not already done (one-shot on reconnect)
+      if (!firebaseInitialized) {
+        // Quick internet test first (don't init Firebase without internet)
+        HTTPClient http;
+        http.begin("http://www.google.com");
+        http.setTimeout(3000);
+        int code = http.GET();
+        http.end();
+        if (code > 0) {
+          Serial.println("Internet available - initializing Firebase");
+          configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+          initializeFirebase();
+        } else {
+          Serial.println("No internet yet - Firebase init skipped");
+        }
+      }
+    }
+    return;
   }
 
-  // WiFi is disconnected - rate-limit reconnection attempts
+  // WiFi is disconnected
+  if (wifiWasConnected) {
+    wifiWasConnected = false;  // Track disconnect so we detect reconnect
+  }
+
+  // Rate-limit reconnection attempts
   if (millis() - lastReconnectAttempt < RECONNECT_INTERVAL) return;
   lastReconnectAttempt = millis();
 
