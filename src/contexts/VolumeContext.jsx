@@ -19,6 +19,7 @@ export const VolumeProvider = ({ children }) => {
   const [volume, setVolumeState] = useState(70); // 0-100 range
   const [isMuted, setIsMuted] = useState(false);
   const lastSentVolumeRef = useRef(null);
+  const volumeRef = useRef(volume);
 
   // Sync volume from device sensor_data on load
   useEffect(() => {
@@ -46,6 +47,9 @@ export const VolumeProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  // Keep ref in sync with state (avoids stale closures)
+  volumeRef.current = volume;
+
   // Update local UI state only (no Firebase write)
   const setVolume = useCallback((newVolume) => {
     const clampedVolume = Math.max(0, Math.min(100, newVolume));
@@ -55,19 +59,17 @@ export const VolumeProvider = ({ children }) => {
   // Send current volume to Firebase immediately (called on slider release)
   const commitVolume = useCallback(async () => {
     try {
-      // Clear any stale volume commands before sending the new one
-      await CommandService.clearPendingVolumeCommands(CONFIG.DEVICE_ID);
-
-      lastSentVolumeRef.current = volume;
-      const hardwareVolume = appToHardwareVolume(volume);
-      console.log(`[VolumeContext] Committing volume: ${volume}% -> ${hardwareVolume} (hardware)`);
+      const currentVolume = volumeRef.current;
+      lastSentVolumeRef.current = currentVolume;
+      const hardwareVolume = appToHardwareVolume(currentVolume);
+      console.log(`[VolumeContext] Committing volume: ${currentVolume}% -> ${hardwareVolume} (hardware)`);
       await CommandService.sendCommand(CONFIG.DEVICE_ID, 'set_volume', { volume: hardwareVolume });
       return { success: true };
     } catch (error) {
       console.error('[VolumeContext] Failed to commit volume:', error);
       return { success: false };
     }
-  }, [volume]);
+  }, []);
 
   const value = {
     volume,
