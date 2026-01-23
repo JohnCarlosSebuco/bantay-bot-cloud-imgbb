@@ -48,6 +48,7 @@ FirebaseAuth auth;
 FirebaseConfig fbConfig;
 
 bool firebaseConnected = false;
+bool firebaseInitialized = false;  // Tracks if Firebase.begin() was ever called
 unsigned long lastFirebaseUpdate = 0;
 unsigned long lastCommandCheck = 0;
 
@@ -223,6 +224,7 @@ void initializeFirebase() {
   // Initialize Firebase
   Firebase.begin(&fbConfig, &auth);
   Firebase.reconnectWiFi(true);
+  firebaseInitialized = true;
 
   // Sign up anonymously
   Serial.println("🔐 Signing up anonymously...");
@@ -1058,7 +1060,7 @@ void syncSensorSnapshots() {
 
 // Sync all queued data to Firebase when coming back online
 void syncQueuedData() {
-  if (!Firebase.ready()) {
+  if (!firebaseInitialized || !Firebase.ready()) {
     Serial.println("Firebase not ready - sync aborted");
     connectionState = CONN_OFFLINE;
     return;
@@ -1111,7 +1113,7 @@ void syncQueuedData() {
 }
 
 // Update connection state based on WiFi + Firebase status
-// Called in loop() - purely reactive, no network calls
+// Called in loop() - checks connectivity state
 void updateConnectionState() {
   // Handle user-forced modes
   if (userModePreference == 2) {  // FORCE_OFFLINE
@@ -1125,20 +1127,49 @@ void updateConnectionState() {
 
   // Check if we should transition to ONLINE
   if (connectionState == CONN_OFFLINE) {
-    if (WiFi.status() == WL_CONNECTED && Firebase.ready()) {
-      // Internet is back - sync queued data
-      connectionState = CONN_TRANSITIONING;
-      Serial.println("Internet restored - syncing queued data...");
-      syncQueuedData();
-      connectionState = CONN_ONLINE;
-      offlineSince = 0;
-      firebaseConnected = true;
-      Serial.println("Now in ONLINE mode");
+    if (WiFi.status() != WL_CONNECTED) return;  // No WiFi, stay offline
+
+    // WiFi is connected - check if Firebase is ready
+    if (firebaseInitialized) {
+      if (Firebase.ready()) {
+        // Firebase reconnected - sync queued data
+        connectionState = CONN_TRANSITIONING;
+        Serial.println("Internet restored - syncing queued data...");
+        syncQueuedData();
+        connectionState = CONN_ONLINE;
+        offlineSince = 0;
+        firebaseConnected = true;
+        Serial.println("Now in ONLINE mode");
+      }
+    } else {
+      // Firebase never initialized - try now (internet may have come back)
+      // Rate-limit this check to avoid spamming HTTP requests
+      static unsigned long lastInternetCheck = 0;
+      if (millis() - lastInternetCheck > 30000) {
+        lastInternetCheck = millis();
+        Serial.println("🌐 Checking internet for Firebase init...");
+        HTTPClient http;
+        http.begin("http://www.google.com");
+        http.setTimeout(3000);
+        int code = http.GET();
+        http.end();
+        if (code > 0) {
+          Serial.println("✅ Internet available - initializing Firebase");
+          initializeFirebase();
+          if (firebaseConnected) {
+            connectionState = CONN_TRANSITIONING;
+            syncQueuedData();
+            connectionState = CONN_ONLINE;
+            offlineSince = 0;
+            Serial.println("Now in ONLINE mode");
+          }
+        }
+      }
     }
   }
   // Check if we should transition to OFFLINE
   else if (connectionState == CONN_ONLINE) {
-    if (WiFi.status() != WL_CONNECTED || !Firebase.ready()) {
+    if (WiFi.status() != WL_CONNECTED || (firebaseInitialized && !Firebase.ready())) {
       connectionState = CONN_OFFLINE;
       offlineSince = millis();
       firebaseConnected = false;
@@ -1410,13 +1441,13 @@ void setupHTTPEndpoints() {
       request->send(200, "application/json", "{\"success\":true,\"message\":\"Nothing to sync\"}");
       return;
     }
-    if (WiFi.status() != WL_CONNECTED || !Firebase.ready()) {
+    if (WiFi.status() != WL_CONNECTED || !firebaseInitialized || !Firebase.ready()) {
       request->send(503, "application/json", "{\"error\":\"No internet connection\"}");
       return;
     }
     connectionState = CONN_TRANSITIONING;
     syncQueuedData();
-    connectionState = (WiFi.status() == WL_CONNECTED && Firebase.ready()) ? CONN_ONLINE : CONN_OFFLINE;
+    connectionState = (firebaseConnected && Firebase.ready()) ? CONN_ONLINE : CONN_OFFLINE;
     request->send(200, "application/json", "{\"success\":true}");
   });
 
@@ -1497,29 +1528,47 @@ void setup() {
     Serial.println("\n✅ WiFi connected!");
     Serial.println("📍 IP address: " + WiFi.localIP().toString());
 
-    // Initialize NTP time sync
-    Serial.println("🕐 Syncing time with NTP server...");
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    // Test internet connectivity before initializing Firebase
+    Serial.println("🌐 Testing internet connectivity...");
+    HTTPClient http;
+    http.begin("http://www.google.com");
+    http.setTimeout(5000);
+    int testCode = http.GET();
+    http.end();
+    bool hasInternet = (testCode > 0);
 
-    // Wait for time to sync
-    struct tm timeinfo;
-    int retries = 0;
-    while (!getLocalTime(&timeinfo) && retries < 10) {
-      Serial.print(".");
-      delay(500);
-      retries++;
-    }
-    if (retries < 10) {
-      Serial.println("\n✅ Time synced!");
-      char timeStr[50];
-      strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
-      Serial.printf("📅 Current time: %s\n", timeStr);
+    if (hasInternet) {
+      Serial.printf("✅ Internet accessible (HTTP %d)\n", testCode);
+
+      // Initialize NTP time sync
+      Serial.println("🕐 Syncing time with NTP server...");
+      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+      // Wait for time to sync
+      struct tm timeinfo;
+      int retries = 0;
+      while (!getLocalTime(&timeinfo) && retries < 10) {
+        Serial.print(".");
+        delay(500);
+        retries++;
+      }
+      if (retries < 10) {
+        Serial.println("\n✅ Time synced!");
+        char timeStr[50];
+        strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
+        Serial.printf("📅 Current time: %s\n", timeStr);
+      } else {
+        Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+      }
+
+      // Initialize Firebase
+      initializeFirebase();
     } else {
-      Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+      Serial.printf("⚠️ No internet (code: %d) - skipping Firebase\n", testCode);
+      Serial.println("🤖 WiFi connected locally - bird detection still works");
+      connectionState = CONN_OFFLINE;
+      offlineSince = millis();
     }
-
-    // Initialize Firebase
-    initializeFirebase();
   } else {
     Serial.println("\n⚠️ WiFi connection failed - starting in OFFLINE mode");
     Serial.println("🤖 Bot will still detect birds and trigger alarms locally");

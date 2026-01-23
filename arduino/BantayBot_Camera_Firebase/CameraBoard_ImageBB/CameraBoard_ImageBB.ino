@@ -580,28 +580,34 @@ void setup() {
   // Initialize AI detection (optional - disabled by default)
   initBirdAI();
 
-  // Connect to WiFi
+  // Connect to WiFi (with timeout)
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("📶 Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
+  int wifiAttempts = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiAttempts < 20) {
+    delay(500);
     Serial.print(".");
+    wifiAttempts++;
   }
-  Serial.println("\n✅ WiFi connected!");
-  Serial.println("📍 IP address: " + WiFi.localIP().toString());
 
-  // Test internet connectivity
-  Serial.println("🌐 Testing internet connectivity...");
-  HTTPClient http;
-  http.begin("http://www.google.com");  // Simple HTTP test (not HTTPS)
-  http.setTimeout(5000);
-  int testCode = http.GET();
-  http.end();
-  if (testCode > 0) {
-    Serial.printf("✅ Internet accessible (HTTP %d)\n", testCode);
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi connected!");
+    Serial.println("📍 IP address: " + WiFi.localIP().toString());
+
+    // Test internet connectivity
+    Serial.println("🌐 Testing internet connectivity...");
+    HTTPClient http;
+    http.begin("http://www.google.com");
+    http.setTimeout(5000);
+    int testCode = http.GET();
+    http.end();
+    if (testCode > 0) {
+      Serial.printf("✅ Internet accessible (HTTP %d)\n", testCode);
+    } else {
+      Serial.printf("⚠️ No internet (code: %d) - uploads disabled, local detection still works\n", testCode);
+    }
   } else {
-    Serial.printf("⚠️  Internet test failed (code: %d) - uploads may not work\n", testCode);
-    Serial.println("💡 Check if router has internet access");
+    Serial.println("\n⚠️ WiFi connection failed - bird detection still active but cannot notify Main Board");
   }
 
   // HTTP endpoint for settings changes
@@ -794,6 +800,14 @@ void setup() {
 }
 
 void loop() {
+  // WiFi reconnection (non-blocking, every 30s)
+  static unsigned long lastWifiRetry = 0;
+  if (WiFi.status() != WL_CONNECTED && millis() - lastWifiRetry > 30000) {
+    lastWifiRetry = millis();
+    Serial.println("📶 WiFi disconnected - attempting reconnect...");
+    WiFi.reconnect();
+  }
+
   // Bird detection (uploads on detection only)
   detectBirdMotion();
 
