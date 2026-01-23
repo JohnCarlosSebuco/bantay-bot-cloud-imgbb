@@ -5,13 +5,14 @@ import { useTour } from '../contexts/TourContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { HeadControlPanel } from '../components/ui';
 import CommandService from '../services/CommandService';
+import CommandQueueService from '../services/CommandQueueService';
 import { CONFIG } from '../config/config';
 import { controlsTourSteps } from '../config/tourSteps';
 
 export default function Controls({ language }) {
   const { volume, setVolume, commitVolume } = useVolume();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
-  const { showSuccess, showError, confirm } = useNotification();
+  const { showSuccess, showError, showWarning, confirm } = useNotification();
   const [loadingStates, setLoadingStates] = useState({});
   const [lastCommand, setLastCommand] = useState(null);
 
@@ -94,6 +95,11 @@ export default function Controls({ language }) {
 
   const t = texts[language] || texts.en;
 
+  // Initialize CommandQueueService for offline command support
+  useEffect(() => {
+    CommandQueueService.initialize();
+  }, []);
+
   // Auto-start tour for first-time users on this page
   useEffect(() => {
     if (isFirstTimeUser && !isTourCompleted('controls')) {
@@ -119,6 +125,15 @@ export default function Controls({ language }) {
     return names[command] || command;
   };
 
+  // Map UI command names to Firebase action strings
+  const COMMAND_ACTION_MAP = {
+    'MOVE_ARMS': 'oscillate_arms',
+    'STOP_MOVEMENT': 'stop_movement',
+    'SOUND_ALARM': 'trigger_alarm',
+    'RESET_SYSTEM': 'reset_system',
+    'CALIBRATE_SENSORS': 'calibrate_sensors',
+  };
+
   const executeCommand = async (command, confirmMsg = null, isDangerous = false) => {
     if (confirmMsg) {
       const confirmed = await confirm(t.warning || 'Warning', confirmMsg, { isDangerous });
@@ -129,27 +144,20 @@ export default function Controls({ language }) {
     setLastCommand({ command, timestamp: new Date() });
 
     try {
-      switch (command) {
-        case 'MOVE_ARMS':
-          await CommandService.moveArms(CONFIG.DEVICE_ID);
-          break;
-        case 'STOP_MOVEMENT':
-          await CommandService.stopMovement(CONFIG.DEVICE_ID);
-          break;
-        case 'SOUND_ALARM':
-          await CommandService.soundAlarm(CONFIG.DEVICE_ID);
-          break;
-        case 'RESET_SYSTEM':
-          await CommandService.resetSystem(CONFIG.DEVICE_ID);
-          break;
-        case 'CALIBRATE_SENSORS':
-          await CommandService.calibrateSensors(CONFIG.DEVICE_ID);
-          break;
-        default:
-          throw new Error('Unknown command');
+      const action = COMMAND_ACTION_MAP[command];
+      if (!action) throw new Error('Unknown command');
+
+      const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, action);
+
+      if (result.queued) {
+        showWarning(
+          language === 'tl' ? 'Nakapila' : 'Queued',
+          language === 'tl' ? 'Ipapadala kapag online na' : 'Command will send when online'
+        );
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        showSuccess(t.success, `${getCommandDisplayName(command)} ${t.successMessage}`);
       }
-      await new Promise(resolve => setTimeout(resolve, 500));
-      showSuccess(t.success, `${getCommandDisplayName(command)} ${t.successMessage}`);
     } catch (error) {
       showError(t.failed, `${getCommandDisplayName(command)} ${t.failedMessage}`);
     } finally {
@@ -184,9 +192,16 @@ export default function Controls({ language }) {
   const handleHeadAngleSelect = async (angle) => {
     setHeadLoadingAngle(angle);
     try {
-      await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID, angle);
-      setHeadTargetAngle(angle);
-      showSuccess(t.success, t.headMoved);
+      const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'rotate_head', { angle });
+      if (result.queued) {
+        showWarning(
+          language === 'tl' ? 'Nakapila' : 'Queued',
+          language === 'tl' ? 'Ipapadala kapag online na' : 'Command will send when online'
+        );
+      } else {
+        setHeadTargetAngle(angle);
+        showSuccess(t.success, t.headMoved);
+      }
     } catch (error) {
       console.error('Head rotation failed:', error);
       showError(t.failed, t.headFailed);
@@ -198,8 +213,15 @@ export default function Controls({ language }) {
   const handleTestSpeaker = async () => {
     setTestingSpeaker(true);
     try {
-      await CommandService.soundAlarm(CONFIG.DEVICE_ID);
-      showSuccess(t.success, t.speakerSuccess);
+      const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'trigger_alarm');
+      if (result.queued) {
+        showWarning(
+          language === 'tl' ? 'Nakapila' : 'Queued',
+          language === 'tl' ? 'Ipapadala kapag online na' : 'Command will send when online'
+        );
+      } else {
+        showSuccess(t.success, t.speakerSuccess);
+      }
     } catch (error) {
       console.error('Speaker test failed:', error);
       showError(t.failed, t.speakerFailed);

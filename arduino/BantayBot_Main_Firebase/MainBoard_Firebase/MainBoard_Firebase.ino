@@ -51,6 +51,45 @@ bool firebaseConnected = false;
 unsigned long lastFirebaseUpdate = 0;
 unsigned long lastCommandCheck = 0;
 
+// ========== OFFLINE MODE STATE ==========
+enum ConnectionState { CONN_ONLINE, CONN_OFFLINE, CONN_TRANSITIONING };
+ConnectionState connectionState = CONN_ONLINE;
+unsigned long offlineSince = 0;
+
+// Non-blocking WiFi reconnection
+unsigned long lastReconnectAttempt = 0;
+const unsigned long RECONNECT_INTERVAL = 30000;  // Try reconnect every 30s
+bool wifiWasConnected = false;  // Track if we ever connected successfully
+
+// User mode preference from mobile app
+// 0 = AUTO (detect automatically), 1 = FORCE_ONLINE, 2 = FORCE_OFFLINE
+int userModePreference = 0;
+
+// ========== DETECTION QUEUE (Circular Buffer) ==========
+struct QueuedDetection {
+  unsigned long timestamp;       // millis() when detected
+  int birdSize;                  // Detected bird size in pixels
+  int confidence;                // Detection confidence 0-100
+  char detectionZone[20];        // "x,y,w,h" string
+  bool alarmTriggered;           // Was alarm triggered for this detection
+};  // ~32 bytes per entry
+
+#define MAX_DETECTION_QUEUE 10
+QueuedDetection detectionQueue[MAX_DETECTION_QUEUE];
+int detectionQueueHead = 0;
+int detectionQueueCount = 0;
+
+// ========== SENSOR HISTORY QUEUE ==========
+struct QueuedSensorSnapshot {
+  unsigned long timestamp;
+  float soil1Humidity, soil1Temperature, soil1Conductivity, soil1PH;
+  float soil2Humidity, soil2Temperature, soil2Conductivity, soil2PH;
+};  // ~36 bytes per entry
+
+#define MAX_SENSOR_QUEUE 6
+QueuedSensorSnapshot sensorQueue[MAX_SENSOR_QUEUE];
+int sensorQueueCount = 0;
+
 // ===========================
 // ImageBB Configuration (for Camera proxy)
 // ===========================
@@ -323,7 +362,11 @@ String getReadableTimestamp() {
 
 // Save sensor history snapshot - always writes (every 15 min)
 void saveSensorHistory() {
-  if (!firebaseConnected) return;
+  if (!firebaseConnected || connectionState != CONN_ONLINE) {
+    Serial.println("📴 Offline - queuing sensor snapshot");
+    queueSensorSnapshot();
+    return;
+  }
 
   String docId = getFormattedTimestamp();
   String readableTime = getReadableTimestamp();
@@ -367,7 +410,12 @@ void saveSensorHistory() {
 }
 
 void logBirdDetection(String imageUrl, int birdSize, int confidence, String detectionZone) {
-  if (!firebaseConnected) return;
+  if (!firebaseConnected || connectionState != CONN_ONLINE) {
+    Serial.println("📴 Offline - queuing detection for later sync");
+    queueDetection(birdSize, confidence, detectionZone, true);
+    birdsDetectedToday++;
+    return;
+  }
 
   Serial.println("📝 Logging bird detection to Firestore...");
 
@@ -868,14 +916,246 @@ String uploadToImageBB(String base64Image) {
 }
 
 // ===========================
+// Offline Mode Functions
+// ===========================
+
+// Non-blocking WiFi reconnection - call in loop()
+void handleWiFiReconnection() {
+  // Skip if user forced offline
+  if (userModePreference == 2) return;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    // WiFi is connected
+    if (connectionState == CONN_OFFLINE && !wifiWasConnected) {
+      // First time connecting (failed at boot)
+      wifiWasConnected = true;
+      Serial.println("WiFi connected for first time!");
+      Serial.println("IP: " + WiFi.localIP().toString());
+
+      // Initialize NTP + Firebase now
+      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+      initializeFirebase();
+    }
+    return;
+  }
+
+  // WiFi is disconnected - rate-limit reconnection attempts
+  if (millis() - lastReconnectAttempt < RECONNECT_INTERVAL) return;
+  lastReconnectAttempt = millis();
+
+  Serial.println("WiFi disconnected - attempting reconnect...");
+  WiFi.reconnect();  // Non-blocking, returns immediately
+
+  // Mark as offline if not already
+  if (connectionState != CONN_OFFLINE) {
+    connectionState = CONN_OFFLINE;
+    offlineSince = millis();
+    firebaseConnected = false;
+    Serial.println("Switched to OFFLINE mode - bot continues locally");
+  }
+}
+
+// Queue a bird detection for later sync
+void queueDetection(int birdSize, int confidence, String detectionZone, bool alarmTriggered) {
+  int targetIndex;
+
+  if (detectionQueueCount < MAX_DETECTION_QUEUE) {
+    targetIndex = (detectionQueueHead + detectionQueueCount) % MAX_DETECTION_QUEUE;
+    detectionQueueCount++;
+  } else {
+    // Queue full - overwrite oldest entry
+    targetIndex = detectionQueueHead;
+    detectionQueueHead = (detectionQueueHead + 1) % MAX_DETECTION_QUEUE;
+    Serial.println("Detection queue full - overwriting oldest");
+  }
+
+  detectionQueue[targetIndex].timestamp = millis();
+  detectionQueue[targetIndex].birdSize = birdSize;
+  detectionQueue[targetIndex].confidence = confidence;
+  detectionQueue[targetIndex].alarmTriggered = alarmTriggered;
+
+  // Copy detection zone string safely
+  strncpy(detectionQueue[targetIndex].detectionZone,
+          detectionZone.c_str(),
+          sizeof(detectionQueue[targetIndex].detectionZone) - 1);
+  detectionQueue[targetIndex].detectionZone[sizeof(detectionQueue[targetIndex].detectionZone) - 1] = '\0';
+
+  Serial.printf("Detection queued [%d/%d]\n", detectionQueueCount, MAX_DETECTION_QUEUE);
+}
+
+// Queue a sensor history snapshot for later sync
+void queueSensorSnapshot() {
+  if (sensorQueueCount >= MAX_SENSOR_QUEUE) {
+    // Shift queue - drop oldest
+    for (int i = 0; i < MAX_SENSOR_QUEUE - 1; i++) {
+      sensorQueue[i] = sensorQueue[i + 1];
+    }
+    sensorQueueCount = MAX_SENSOR_QUEUE - 1;
+  }
+
+  QueuedSensorSnapshot& snap = sensorQueue[sensorQueueCount];
+  snap.timestamp = millis();
+  snap.soil1Humidity = soil1Humidity;
+  snap.soil1Temperature = soil1Temperature;
+  snap.soil1Conductivity = soil1Conductivity;
+  snap.soil1PH = soil1PH;
+  snap.soil2Humidity = soil2Humidity;
+  snap.soil2Temperature = soil2Temperature;
+  snap.soil2Conductivity = soil2Conductivity;
+  snap.soil2PH = soil2PH;
+
+  sensorQueueCount++;
+  Serial.printf("Sensor snapshot queued [%d/%d]\n", sensorQueueCount, MAX_SENSOR_QUEUE);
+}
+
+// Sync sensor snapshots as a summary document
+void syncSensorSnapshots() {
+  if (sensorQueueCount == 0) return;
+
+  // Average all queued snapshots
+  float avgS1H = 0, avgS1T = 0, avgS1EC = 0, avgS1pH = 0;
+  float avgS2H = 0, avgS2T = 0, avgS2EC = 0, avgS2pH = 0;
+
+  for (int i = 0; i < sensorQueueCount; i++) {
+    avgS1H += sensorQueue[i].soil1Humidity;
+    avgS1T += sensorQueue[i].soil1Temperature;
+    avgS1EC += sensorQueue[i].soil1Conductivity;
+    avgS1pH += sensorQueue[i].soil1PH;
+    avgS2H += sensorQueue[i].soil2Humidity;
+    avgS2T += sensorQueue[i].soil2Temperature;
+    avgS2EC += sensorQueue[i].soil2Conductivity;
+    avgS2pH += sensorQueue[i].soil2PH;
+  }
+
+  int n = sensorQueueCount;
+  avgS1H /= n; avgS1T /= n; avgS1EC /= n; avgS1pH /= n;
+  avgS2H /= n; avgS2T /= n; avgS2EC /= n; avgS2pH /= n;
+
+  String docId = String(MAIN_DEVICE_ID) + "_offline_" + String(millis());
+  String path = "sensor_history/" + docId;
+
+  FirebaseJson json;
+  json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
+  json.set("fields/soil1Humidity/doubleValue", avgS1H);
+  json.set("fields/soil1Temperature/doubleValue", avgS1T);
+  json.set("fields/soil1Conductivity/doubleValue", avgS1EC);
+  json.set("fields/soil1PH/doubleValue", avgS1pH);
+  json.set("fields/soil2Humidity/doubleValue", avgS2H);
+  json.set("fields/soil2Temperature/doubleValue", avgS2T);
+  json.set("fields/soil2Conductivity/doubleValue", avgS2EC);
+  json.set("fields/soil2PH/doubleValue", avgS2pH);
+  json.set("fields/readingCount/integerValue", String(n));
+  json.set("fields/offlinePeriod/booleanValue", true);
+  json.set("fields/timestamp/stringValue", "Offline period summary");
+
+  if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+    Serial.printf("Sensor history synced (%d snapshots averaged)\n", n);
+    sensorQueueCount = 0;  // Clear queue
+  } else {
+    Serial.println("Sensor history sync failed - will retry");
+  }
+}
+
+// Sync all queued data to Firebase when coming back online
+void syncQueuedData() {
+  if (!Firebase.ready()) {
+    Serial.println("Firebase not ready - sync aborted");
+    connectionState = CONN_OFFLINE;
+    return;
+  }
+
+  // Check heap before syncing (memory safety)
+  if (ESP.getFreeHeap() < 20000) {
+    Serial.println("Low memory - deferring sync");
+    return;
+  }
+
+  // Sync queued detections
+  int synced = 0;
+  while (detectionQueueCount > 0) {
+    QueuedDetection& det = detectionQueue[detectionQueueHead];
+
+    String docId = String(CAMERA_DEVICE_ID) + "_offline_" + String(det.timestamp);
+    String path = "detection_history/" + docId;
+
+    FirebaseJson json;
+    json.set("fields/deviceId/stringValue", CAMERA_DEVICE_ID);
+    json.set("fields/birdSize/integerValue", String(det.birdSize));
+    json.set("fields/confidence/integerValue", String(det.confidence));
+    json.set("fields/detectionZone/stringValue", String(det.detectionZone));
+    json.set("fields/alarmTriggered/booleanValue", det.alarmTriggered);
+    json.set("fields/syncedFromOffline/booleanValue", true);
+    json.set("fields/triggered/booleanValue", true);
+
+    if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+      synced++;
+      detectionQueueHead = (detectionQueueHead + 1) % MAX_DETECTION_QUEUE;
+      detectionQueueCount--;
+      Serial.printf("  Synced detection %d\n", synced);
+    } else {
+      Serial.println("  Sync failed - will retry later");
+      break;  // Stop on first failure, retry next time
+    }
+
+    delay(100);  // Rate limiting between writes
+    yield();
+  }
+
+  // Sync queued sensor snapshots
+  if (sensorQueueCount > 0) {
+    syncSensorSnapshots();
+  }
+
+  Serial.printf("Sync complete: %d detections synced, %d remaining\n",
+                synced, detectionQueueCount);
+}
+
+// Update connection state based on WiFi + Firebase status
+// Called in loop() - purely reactive, no network calls
+void updateConnectionState() {
+  // Handle user-forced modes
+  if (userModePreference == 2) {  // FORCE_OFFLINE
+    if (connectionState != CONN_OFFLINE) {
+      connectionState = CONN_OFFLINE;
+      offlineSince = millis();
+      Serial.println("User forced OFFLINE mode");
+    }
+    return;
+  }
+
+  // Check if we should transition to ONLINE
+  if (connectionState == CONN_OFFLINE) {
+    if (WiFi.status() == WL_CONNECTED && Firebase.ready()) {
+      // Internet is back - sync queued data
+      connectionState = CONN_TRANSITIONING;
+      Serial.println("Internet restored - syncing queued data...");
+      syncQueuedData();
+      connectionState = CONN_ONLINE;
+      offlineSince = 0;
+      firebaseConnected = true;
+      Serial.println("Now in ONLINE mode");
+    }
+  }
+  // Check if we should transition to OFFLINE
+  else if (connectionState == CONN_ONLINE) {
+    if (WiFi.status() != WL_CONNECTED || !Firebase.ready()) {
+      connectionState = CONN_OFFLINE;
+      offlineSince = millis();
+      firebaseConnected = false;
+      Serial.println("Lost connectivity - switching to OFFLINE mode");
+    }
+  }
+}
+
+// ===========================
 // HTTP Endpoints
 // ===========================
 
 void setupHTTPEndpoints() {
-  // Bird detection endpoint - receives notifications from camera
+  // Bird detection endpoint - receives notifications from camera (LOCAL HTTP - always works)
   server.on("/bird_detected", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      Serial.println("📡 Received bird detection from camera!");
+      Serial.println("🐦 *** BIRD DETECTION RECEIVED FROM CAMERA ***");
 
       // Parse JSON payload
       DynamicJsonDocument doc(1024);
@@ -888,23 +1168,22 @@ void setupHTTPEndpoints() {
       }
 
       // Extract data
-      String deviceId = doc["deviceId"].as<String>();
       String imageUrl = doc["imageUrl"].as<String>();
       int birdSize = doc["birdSize"];
       int confidence = doc["confidence"];
       String detectionZone = doc["detectionZone"].as<String>();
 
       Serial.printf("🐦 Detection: Size=%d, Confidence=%d%%\n", birdSize, confidence);
-      Serial.println("🔗 Image URL: " + imageUrl);
 
-      // Log to Firestore
+      // ALWAYS trigger alarm FIRST (local hardware, no internet needed)
+      triggerAlarmSequence();
+      Serial.println("🚨 ALARM TRIGGERED LOCALLY");
+
+      // Log to Firebase (will queue if offline - never loses data)
       logBirdDetection(imageUrl, birdSize, confidence, detectionZone);
 
-      // Trigger alarm
-      triggerAlarmSequence();
-
       // Respond to camera
-      request->send(200, "application/json", "{\"status\":\"ok\",\"action\":\"alarm_triggered\"}");
+      request->send(200, "application/json", "{\"success\":true,\"alarm\":true}");
     }
   );
 
@@ -1087,7 +1366,61 @@ void setupHTTPEndpoints() {
     }
   });
 
-  Serial.println("✅ HTTP endpoints configured");
+  // ===== Offline Mode Endpoints =====
+
+  // Get offline status - mobile app polls this when on local network
+  server.on("/offline-status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    DynamicJsonDocument doc(256);
+    doc["connectionState"] = (connectionState == CONN_ONLINE ? "online" :
+                              connectionState == CONN_OFFLINE ? "offline" : "syncing");
+    doc["queuedDetections"] = detectionQueueCount;
+    doc["queuedSensorSnapshots"] = sensorQueueCount;
+    doc["offlineDuration"] = (connectionState == CONN_OFFLINE) ?
+                              (millis() - offlineSince) / 1000 : 0;
+    doc["wifiConnected"] = (WiFi.status() == WL_CONNECTED);
+    doc["firebaseConnected"] = firebaseConnected;
+    doc["userModePreference"] = userModePreference;
+    doc["freeHeap"] = ESP.getFreeHeap();
+
+    String json;
+    serializeJson(doc, json);
+    request->send(200, "application/json", json);
+  });
+
+  // Set mode preference from mobile app (0=AUTO, 1=FORCE_ONLINE, 2=FORCE_OFFLINE)
+  server.on("/set-mode", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("mode")) {
+      int mode = request->getParam("mode")->value().toInt();
+      if (mode >= 0 && mode <= 2) {
+        userModePreference = mode;
+        Serial.printf("📡 Mode set to: %s\n",
+                      mode == 0 ? "AUTO" : (mode == 1 ? "FORCE_ONLINE" : "FORCE_OFFLINE"));
+        request->send(200, "application/json", "{\"success\":true}");
+      } else {
+        request->send(400, "application/json", "{\"error\":\"Invalid mode (0-2)\"}");
+      }
+    } else {
+      request->send(400, "application/json", "{\"error\":\"Missing mode parameter\"}");
+    }
+  });
+
+  // Force sync now (user-triggered from mobile app)
+  server.on("/force-sync", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (detectionQueueCount == 0 && sensorQueueCount == 0) {
+      request->send(200, "application/json", "{\"success\":true,\"message\":\"Nothing to sync\"}");
+      return;
+    }
+    if (WiFi.status() != WL_CONNECTED || !Firebase.ready()) {
+      request->send(503, "application/json", "{\"error\":\"No internet connection\"}");
+      return;
+    }
+    connectionState = CONN_TRANSITIONING;
+    syncQueuedData();
+    connectionState = (WiFi.status() == WL_CONNECTED && Firebase.ready()) ? CONN_ONLINE : CONN_OFFLINE;
+    request->send(200, "application/json", "{\"success\":true}");
+  });
+
+  Serial.println("✅ HTTP endpoints configured (including offline mode)");
 }
 
 // ===========================
@@ -1149,39 +1482,50 @@ void setup() {
   stepper.setCurrentPosition(0);  // Set initial position to 0 (center)
   Serial.println("⚙️  Stepper motor configured: 600 steps/sec, 300 accel (slow scan mode)");
 
-  // Connect to WiFi
+  // Connect to WiFi (non-blocking with timeout)
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("📶 Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.print(".");
-  }
-  Serial.println("\n✅ WiFi connected!");
-  Serial.println("📍 IP address: " + WiFi.localIP().toString());
-
-  // Initialize NTP time sync
-  Serial.println("🕐 Syncing time with NTP server...");
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-  // Wait for time to sync
-  struct tm timeinfo;
-  int retries = 0;
-  while (!getLocalTime(&timeinfo) && retries < 10) {
-    Serial.print(".");
+  int wifiAttempts = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiAttempts < 20) {
     delay(500);
-    retries++;
-  }
-  if (retries < 10) {
-    Serial.println("\n✅ Time synced!");
-    char timeStr[50];
-    strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
-    Serial.printf("📅 Current time: %s\n", timeStr);
-  } else {
-    Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+    Serial.print(".");
+    wifiAttempts++;
   }
 
-  // Initialize Firebase
-  initializeFirebase();
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiWasConnected = true;
+    Serial.println("\n✅ WiFi connected!");
+    Serial.println("📍 IP address: " + WiFi.localIP().toString());
+
+    // Initialize NTP time sync
+    Serial.println("🕐 Syncing time with NTP server...");
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+    // Wait for time to sync
+    struct tm timeinfo;
+    int retries = 0;
+    while (!getLocalTime(&timeinfo) && retries < 10) {
+      Serial.print(".");
+      delay(500);
+      retries++;
+    }
+    if (retries < 10) {
+      Serial.println("\n✅ Time synced!");
+      char timeStr[50];
+      strftime(timeStr, sizeof(timeStr), "%m-%d-%Y %I:%M:%S %p", &timeinfo);
+      Serial.printf("📅 Current time: %s\n", timeStr);
+    } else {
+      Serial.println("\n⚠️ Time sync failed, using millis() fallback");
+    }
+
+    // Initialize Firebase
+    initializeFirebase();
+  } else {
+    Serial.println("\n⚠️ WiFi connection failed - starting in OFFLINE mode");
+    Serial.println("🤖 Bot will still detect birds and trigger alarms locally");
+    connectionState = CONN_OFFLINE;
+    offlineSince = millis();
+  }
 
   // Setup HTTP endpoints
   setupHTTPEndpoints();
@@ -1377,7 +1721,13 @@ void checkFirebaseCommands() {
 void loop() {
   unsigned long currentTime = millis();
 
-  // Read sensors periodically
+  // === Non-blocking WiFi reconnection ===
+  handleWiFiReconnection();
+
+  // === Update connection state (reactive, zero-cost) ===
+  updateConnectionState();
+
+  // Read sensors periodically (ALWAYS runs - local hardware)
   static unsigned long lastSensorRead = 0;
   if (currentTime - lastSensorRead >= SENSOR_READ_INTERVAL) {
     readRS485Sensor();
@@ -1392,17 +1742,15 @@ void loop() {
                   soilHumidity, soilTemperature, soilConductivity, soilPH);
   }
 
-  // Update arm stepper motion (only if arms are active)
-  // Arms should only be active during detection sequences
+  // Update arm stepper motion (ALWAYS runs - local hardware)
   updateArmSteppers();
 
   // Safety check: Ensure arms are disabled if they completed their sequence
-  // This prevents arms from staying active when they shouldn't be
   if (armSteppersActive && armSweepCount >= ARM_TARGET_SWEEPS) {
     stopArmStepperSequence();
   }
 
-  // Update continuous head scanning (when no detection/arms active)
+  // Update continuous head scanning (ALWAYS runs - local hardware)
   updateHeadScanning();
 
   // Run stepper motor only if not paused
@@ -1410,18 +1758,8 @@ void loop() {
     stepper.run();
   }
 
-  // Push notifications now handled by Cloud Functions
-  // if (pendingBirdNotif) {
-  //   unsigned long now = millis();
-  //   if (now - lastNotifBird > NOTIF_COOLDOWN) {
-  //     sendPushNotification("bird_detection", "");
-  //     lastNotifBird = now;
-  //   }
-  //   pendingBirdNotif = false;
-  // }
-
-  // Firebase operations
-  if (firebaseConnected) {
+  // Firebase operations - only when ONLINE
+  if (connectionState == CONN_ONLINE && firebaseConnected) {
     // Check for Firebase commands
     checkFirebaseCommands();
 
@@ -1435,6 +1773,12 @@ void loop() {
     // History snapshot - every 15 min, always saves
     if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
       saveSensorHistory();
+      lastHistoryUpdate = currentTime;
+    }
+  } else {
+    // OFFLINE: Queue sensor snapshots every 15 min
+    if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
+      queueSensorSnapshot();
       lastHistoryUpdate = currentTime;
     }
   }

@@ -13,6 +13,8 @@ import {
 import ConfigService from '../services/ConfigService';
 import ConnectionManager from '../services/ConnectionManager';
 import NetworkDiscoveryService from '../services/NetworkDiscoveryService';
+import OfflineModeService, { CONNECTION_MODES } from '../services/OfflineModeService';
+import ConnectionModeSelector from '../components/ui/ConnectionModeSelector';
 import { settingsTourSteps } from '../config/tourSteps';
 
 export default function Settings({ language, onLanguageChange }) {
@@ -44,6 +46,7 @@ export default function Settings({ language, onLanguageChange }) {
   const [errors, setErrors] = useState({});
   const [canInstallPWA, setCanInstallPWA] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [connectionMode, setConnectionMode] = useState(CONNECTION_MODES.AUTO);
 
   const texts = {
     en: {
@@ -184,6 +187,14 @@ export default function Settings({ language, onLanguageChange }) {
     loadSettings();
   }, []);
 
+  // Initialize offline mode service
+  useEffect(() => {
+    OfflineModeService.initialize().then(mode => setConnectionMode(mode));
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '172.24.26.193');
+    OfflineModeService.startPolling(mainBoardIP, 81);
+    return () => OfflineModeService.stopPolling();
+  }, []);
+
   // Check PWA install availability
   useEffect(() => {
     // Check if already installed
@@ -233,6 +244,16 @@ export default function Settings({ language, onLanguageChange }) {
     } catch (error) {
       console.error('Error loading settings:', error);
     }
+  };
+
+  const handleModeChange = async (mode) => {
+    setConnectionMode(mode);
+    const mainBoardIP = ConfigService.getValue('mainBoardIP', '172.24.26.193');
+    await OfflineModeService.setMode(mode, mainBoardIP, 81);
+    showSuccess(
+      language === 'tl' ? 'Na-update' : 'Updated',
+      language === 'tl' ? 'Na-bago ang connection mode' : 'Connection mode changed'
+    );
   };
 
   const saveSettings = async () => {
@@ -512,6 +533,21 @@ export default function Settings({ language, onLanguageChange }) {
           <div data-tour="settings-notifications">
             <SectionHeader icon={Bell} title={language === 'tl' ? 'Push Notifications' : 'Push Notifications'} color="error" first={true} />
             <NotificationPreferences language={language} />
+          </div>
+
+          {/* Connection Mode Section */}
+          <SectionHeader icon={Wifi} title={language === 'tl' ? 'Connection Mode' : 'Connection Mode'} color="info" />
+          <div className="surface-primary rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-primary shadow-sm">
+            <p className="text-xs text-secondary mb-3">
+              {language === 'tl'
+                ? 'Piliin kung paano mag-connect ang bot sa internet. Sa Auto mode, awtomatikong mag-switch.'
+                : 'Choose how the bot connects to internet. In Auto mode, it switches automatically.'}
+            </p>
+            <ConnectionModeSelector
+              currentMode={connectionMode}
+              onModeChange={handleModeChange}
+              language={language}
+            />
           </div>
 
           {/* App Preferences Section */}

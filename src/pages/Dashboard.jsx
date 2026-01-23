@@ -10,9 +10,12 @@ import {
 import { Shield, Bird, Clock, Sprout, Zap, Cog, RefreshCw, Volume2, Loader2, HelpCircle } from 'lucide-react';
 import ConnectionManager from '../services/ConnectionManager';
 import CommandService from '../services/CommandService';
+import CommandQueueService from '../services/CommandQueueService';
 import FirebaseService from '../services/FirebaseService';
 import DeviceService from '../services/DeviceService';
 import notificationService from '../services/NotificationService';
+import OfflineModeService from '../services/OfflineModeService';
+import ConnectionStatusBanner from '../components/ui/ConnectionStatusBanner';
 import { CONFIG } from '../config/config';
 import { dashboardTourSteps } from '../config/tourSteps';
 
@@ -42,7 +45,7 @@ const countTodayDetections = (detections) => {
 export default function Dashboard({ language }) {
   const { currentTheme } = useTheme();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showWarning } = useNotification();
   const [refreshing, setRefreshing] = useState(false);
   const fadeOpacity = useRef(1);
 
@@ -53,6 +56,12 @@ export default function Dashboard({ language }) {
 
   // Quick action loading states
   const [loadingAction, setLoadingAction] = useState(null);
+
+  // Offline mode state
+  const [pwaOnline, setPwaOnline] = useState(navigator.onLine);
+  const [botConnectionState, setBotConnectionState] = useState('unknown');
+  const [queuedCommands, setQueuedCommands] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Sensor data state (with dual sensor support)
   const [sensorData, setSensorData] = useState({
@@ -282,6 +291,34 @@ export default function Dashboard({ language }) {
     }
   }, [isFirstTimeUser, isTourCompleted, startTour]);
 
+  // Offline mode monitoring
+  useEffect(() => {
+    CommandQueueService.initialize();
+
+    const handleOnline = () => setPwaOnline(true);
+    const handleOffline = () => setPwaOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const unsubQueue = CommandQueueService.onQueueChange(({ count, isFlushing }) => {
+      setQueuedCommands(count);
+      setIsSyncing(isFlushing);
+    });
+
+    const unsubOffline = OfflineModeService.onStatusChange(({ botStatus }) => {
+      if (botStatus) {
+        setBotConnectionState(botStatus.connectionState || 'unknown');
+      }
+    });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubQueue();
+      unsubOffline();
+    };
+  }, []);
+
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
       hour12: true,
@@ -290,12 +327,16 @@ export default function Dashboard({ language }) {
     });
   };
 
-  // Quick Action Handlers
+  // Quick Action Handlers (with offline queuing support)
   const handleMoveArms = async () => {
     setLoadingAction('arms');
     try {
-      await CommandService.moveArms(CONFIG.DEVICE_ID);
-      showSuccess(t.success, t.armsSuccess);
+      const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'oscillate_arms');
+      if (result.queued) {
+        showWarning(language === 'tl' ? 'Nakapila' : 'Queued', language === 'tl' ? 'Ipapadala kapag online na' : 'Command will send when online');
+      } else {
+        showSuccess(t.success, t.armsSuccess);
+      }
     } catch (e) {
       console.error('Move arms failed:', e);
       showError(t.failed, t.commandFailed);
@@ -307,8 +348,12 @@ export default function Dashboard({ language }) {
   const handleMoveHead = async () => {
     setLoadingAction('head');
     try {
-      await CommandService.rotateHeadCommand(CONFIG.DEVICE_ID);
-      showSuccess(t.success, t.headSuccess);
+      const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'rotate_head');
+      if (result.queued) {
+        showWarning(language === 'tl' ? 'Nakapila' : 'Queued', language === 'tl' ? 'Ipapadala kapag online na' : 'Command will send when online');
+      } else {
+        showSuccess(t.success, t.headSuccess);
+      }
     } catch (e) {
       console.error('Move head failed:', e);
       showError(t.failed, t.commandFailed);
@@ -320,8 +365,12 @@ export default function Dashboard({ language }) {
   const handleSoundAlarm = async () => {
     setLoadingAction('sound');
     try {
-      await CommandService.soundAlarm(CONFIG.DEVICE_ID);
-      showSuccess(t.success, t.alarmSuccess);
+      const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'trigger_alarm');
+      if (result.queued) {
+        showWarning(language === 'tl' ? 'Nakapila' : 'Queued', language === 'tl' ? 'Ipapadala kapag online na' : 'Command will send when online');
+      } else {
+        showSuccess(t.success, t.alarmSuccess);
+      }
     } catch (e) {
       console.error('Sound alarm failed:', e);
       showError(t.failed, t.commandFailed);
@@ -414,6 +463,15 @@ export default function Dashboard({ language }) {
               </div>
             </div>
           </div>
+
+          {/* Connection Status Banner (offline/syncing) */}
+          <ConnectionStatusBanner
+            pwaOnline={pwaOnline}
+            botConnectionState={botConnectionState}
+            queuedCommands={queuedCommands}
+            isSyncing={isSyncing}
+            language={language}
+          />
 
           {/* Status Cards Row */}
           <div className="grid grid-cols-2 gap-2 sm:gap-3">

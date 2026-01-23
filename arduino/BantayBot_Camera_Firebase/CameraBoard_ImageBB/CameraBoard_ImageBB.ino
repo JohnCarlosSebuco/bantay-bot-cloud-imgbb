@@ -333,10 +333,7 @@ void recordUpload(bool isDetection) {
 // Main Board Communication
 // ===========================
 
-bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
-  Serial.println("📡 Notifying Main Board...");
-  Serial.printf("🔗 Target URL: http://%s:%d/bird_detected\n", MAIN_BOARD_IP, MAIN_BOARD_PORT);
-
+bool notifyMainBoardOnce(String imageUrl, int birdSize, int confidence) {
   HTTPClient http;
   String url = "http://" + String(MAIN_BOARD_IP) + ":" + String(MAIN_BOARD_PORT) + "/bird_detected";
   http.begin(url);
@@ -357,8 +354,6 @@ bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
   String jsonString;
   serializeJson(doc, jsonString);
 
-  Serial.println("📦 Payload: " + jsonString);
-
   // Send POST request
   int httpResponseCode = http.POST(jsonString);
 
@@ -366,7 +361,6 @@ bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
   if (httpResponseCode > 0) {
     String response = http.getString();
     Serial.printf("✅ Main Board responded: %d\n", httpResponseCode);
-    Serial.println("📥 Response: " + response);
     success = true;
   } else {
     Serial.printf("❌ Failed to contact Main Board: %d\n", httpResponseCode);
@@ -374,6 +368,31 @@ bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
 
   http.end();
   return success;
+}
+
+// Notify Main Board with retry logic
+bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
+  const int MAX_RETRIES = 3;
+  const int RETRY_DELAY_MS = 500;
+
+  Serial.println("📡 Notifying Main Board...");
+  Serial.printf("🔗 Target: http://%s:%d/bird_detected\n", MAIN_BOARD_IP, MAIN_BOARD_PORT);
+
+  for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    Serial.printf("📡 Attempt %d/%d...\n", attempt, MAX_RETRIES);
+
+    if (notifyMainBoardOnce(imageUrl, birdSize, confidence)) {
+      return true;
+    }
+
+    if (attempt < MAX_RETRIES) {
+      Serial.printf("⏳ Retry in %dms...\n", RETRY_DELAY_MS);
+      delay(RETRY_DELAY_MS);
+    }
+  }
+
+  Serial.println("❌ All retries failed - Main Board may be restarting");
+  return false;
 }
 
 // ===========================

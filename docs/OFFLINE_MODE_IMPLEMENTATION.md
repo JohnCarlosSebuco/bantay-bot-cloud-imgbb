@@ -41,18 +41,36 @@ This document provides a complete implementation guide for adding online/offline
 |-----------|------|---------|
 | Device status | `devices/main_001` | IP, last_seen, firmware |
 | Sensor data (latest) | `sensor_data/main_001` | Real-time sensor readings |
-| Sensor history | `sensor_history/{timestamp_id}` | 15-min snapshots |
-| Detection history | `detection_history/{timestamp_id}` | Bird detections |
-| Commands | `commands/main_001/pending/{docId}` | Pending commands (Firestore subcollection) |
+| Sensor history | `sensor_history/{deviceId}_MM-DD-YYYY_HH-MM-SS-AM` | 15-min snapshots |
+| Detection history | `detection_history/{cameraId}_MM-DD-YYYY_HH-MM-SS-AM` | Bird detections |
+| Commands | `commands/main_001/pending/{docId}` | Pending commands (device polls & deletes) |
+| Notification tokens | `notification_tokens/{docId}` | FCM tokens + user preferences |
+| Notification state | `notification_state/global` | Last-sent timestamps per type |
+
+### Push Notifications (Cloud Functions)
+Push notifications are handled by **Firebase Cloud Functions** (not the ESP32):
+- `onSensorDataUpdate` — Firestore trigger on `sensor_data/{deviceId}` update, checks thresholds
+- `onBirdDetection` — Firestore trigger on `detection_history/{docId}` create
+- ESP32 does NOT send notifications directly — it just writes to Firestore
+- Cloud Functions read user preferences from `notification_tokens` and throttle via `notification_state/global`
 
 ### Current Sensor Fields (Dual RS485 Sensors)
 ```
 soil1Humidity, soil1Temperature, soil1Conductivity, soil1PH
 soil2Humidity, soil2Temperature, soil2Conductivity, soil2PH
-soilHumidity, soilTemperature, soilConductivity, ph  (averaged, backward compat)
+soilHumidity, soilTemperature, soilConductivity, soilPH  (averaged)
 dhtTemperature, dhtHumidity
 currentTrack, volume, servoActive, headPosition, timestamp
 ```
+
+### Smart Update Thresholds (sensor_data writes)
+ESP32 only writes to `sensor_data/main_001` when values change beyond:
+- Humidity: +/-2%
+- Temperature: +/-0.5C
+- Conductivity: +/-50 uS/cm
+- pH: +/-0.1
+
+History snapshots (`sensor_history`) are saved every 15 minutes regardless.
 
 ### Current Main Board HTTP Endpoints (Port 81)
 | Endpoint | Method | Purpose |
@@ -70,7 +88,20 @@ currentTrack, volume, servoActive, headPosition, timestamp
 ```
 UI Component -> CommandService.sendCommand(deviceId, action, params)
   -> Firestore: commands/{deviceId}/pending/{docId}
-  -> ESP32 polls every 500ms, executes, deletes document
+  -> CommandService.monitorCommandLifecycle(docRef) (60s timeout)
+  -> ESP32 polls every COMMAND_CHECK_INTERVAL (500ms)
+  -> ESP32 executes first pending document
+  -> ESP32 deletes document after execution
+```
+
+### Current Timing Configuration (config.h)
+```
+FIREBASE_UPDATE_INTERVAL      30000   // 30s (unused, replaced by LATEST_UPDATE_INTERVAL)
+FIREBASE_HEARTBEAT_INTERVAL   300000  // 5 min (unused)
+COMMAND_CHECK_INTERVAL        500     // 500ms (responsive command polling)
+SENSOR_READ_INTERVAL          10000   // 10s (read sensors locally)
+LATEST_UPDATE_INTERVAL        60000   // 60s (smart update if values changed)
+HISTORY_UPDATE_INTERVAL       900000  // 15 min (always save snapshot)
 ```
 
 ### Communication Flow
@@ -119,9 +150,10 @@ UI Component -> CommandService.sendCommand(deviceId, action, params)
 | Feature | Requires Internet? | Notes |
 |---------|-------------------|-------|
 | Firebase Sync | YES | Cloud database |
-| Push Notifications | YES | FCM requires internet |
+| Push Notifications | YES | Cloud Functions trigger on Firestore writes -> FCM |
 | Remote Mobile Access | YES | Outside local network |
-| Detection History in Cloud | YES | Firestore storage |
+| Detection History in Cloud | YES | Firestore storage (also triggers bird notif) |
+| Sensor Data in Cloud | YES | Firestore storage (also triggers threshold notifs) |
 | PWA Commands via Firebase | YES | Firestore commands subcollection |
 
 ### State Machine
@@ -148,99 +180,176 @@ User can also FORCE either mode from mobile app:
 
 ---
 
+## Current ESP32 Gaps (What Needs Implementation)
+
+The current `MainBoard_Firebase.ino` has **NO offline infrastructure**:
+
+| Issue | Current Behavior | Impact |
+|-------|-----------------|--------|
+| WiFi blocks forever | `while (WiFi.status() != WL_CONNECTED)` in setup() | Device hangs if WiFi unavailable at boot |
+| No reconnection | If WiFi drops after boot, never reconnects | Device loses all cloud functionality permanently |
+| `logBirdDetection()` | Returns silently if `!firebaseConnected` | **Detection data LOST** |
+| `saveSensorHistory()` | Returns silently if `!firebaseConnected` | **History data LOST** |
+| `updateSensorDataSmart()` | Returns silently if `!firebaseConnected` | Latest sensor data not synced |
+| No queues | No data structures for buffering | Nothing preserved during outages |
+| No state machine | Uses simple `firebaseConnected` boolean | No transition handling or sync |
+
+---
+
 ## Part 1: ESP32 Main Board Implementation
 
 ### File: `arduino/BantayBot_Main_Firebase/MainBoard_Firebase/MainBoard_Firebase.ino`
 
+### Design Principles
+1. **Reactive detection**: Detect offline state from WiFi status + Firebase write failures (zero overhead)
+2. **Non-blocking reconnection**: Use `WiFi.reconnect()` with rate-limiting, never block the loop
+3. **Minimal changes**: Add fallback paths to existing functions, don't rewrite working code
+4. **Memory-safe**: Queue sizes chosen for ~1KB total additional RAM
+
+---
+
 ### 1.1 Add Connection State Variables
 
-Add these at the top with other global variables:
+Add these after the existing `firebaseConnected` variable (line ~50):
 
 ```cpp
 // ========== OFFLINE MODE STATE ==========
 enum ConnectionState { CONN_ONLINE, CONN_OFFLINE, CONN_TRANSITIONING };
 ConnectionState connectionState = CONN_ONLINE;
-unsigned long lastConnectivityCheck = 0;
-const unsigned long CONNECTIVITY_CHECK_INTERVAL = 15000;  // Check every 15 seconds
 unsigned long offlineSince = 0;
+
+// Non-blocking WiFi reconnection
+unsigned long lastReconnectAttempt = 0;
+const unsigned long RECONNECT_INTERVAL = 30000;  // Try reconnect every 30s
+bool wifiWasConnected = false;  // Track if we ever connected successfully
 
 // User mode preference from mobile app
 // 0 = AUTO (detect automatically), 1 = FORCE_ONLINE, 2 = FORCE_OFFLINE
 int userModePreference = 0;
 ```
 
-### 1.2 Add Detection and Sensor Queue Data Structures
+### 1.2 Add Queue Data Structures
 
-Memory budget: ~1,000 bytes total for queues.
+Add after the state variables. Memory budget: ~1KB total.
 
 ```cpp
-// ========== DETECTION QUEUE ==========
+// ========== DETECTION QUEUE (Circular Buffer) ==========
 struct QueuedDetection {
-  uint32_t timestamp;        // millis() when detected
-  uint16_t birdSize;         // Detected bird size in pixels
-  uint8_t confidence;        // Detection confidence 0-100
-  uint8_t zoneX, zoneY;      // Detection zone position
-  uint16_t zoneW, zoneH;     // Detection zone size
-  bool synced;               // Has been synced to Firebase
-  bool alarmTriggered;       // Was alarm triggered for this detection
-};  // ~12 bytes per entry
+  unsigned long timestamp;       // millis() when detected
+  int birdSize;                  // Detected bird size in pixels
+  int confidence;                // Detection confidence 0-100
+  char detectionZone[20];        // "x,y,w,h" string
+  bool alarmTriggered;           // Was alarm triggered for this detection
+};  // ~32 bytes per entry
 
-#define MAX_DETECTION_QUEUE 20
+#define MAX_DETECTION_QUEUE 10
 QueuedDetection detectionQueue[MAX_DETECTION_QUEUE];
-int queueHead = 0;
-int queueCount = 0;
+int detectionQueueHead = 0;
+int detectionQueueCount = 0;
 
-// ========== SENSOR QUEUE ==========
-// Uses exact field names matching current dual RS485 sensor implementation
-struct QueuedSensorData {
-  uint32_t timestamp;
-  // Sensor 1 (RS485)
-  float soil1Humidity;
-  float soil1Temperature;
-  float soil1Conductivity;
-  float soil1PH;
-  // Sensor 2 (RS485)
-  float soil2Humidity;
-  float soil2Temperature;
-  float soil2Conductivity;
-  float soil2PH;
-  // Ambient (DHT)
-  float dhtTemperature;
-  float dhtHumidity;
-};  // ~44 bytes per entry
+// ========== SENSOR HISTORY QUEUE ==========
+struct QueuedSensorSnapshot {
+  unsigned long timestamp;
+  float soil1Humidity, soil1Temperature, soil1Conductivity, soil1PH;
+  float soil2Humidity, soil2Temperature, soil2Conductivity, soil2PH;
+};  // ~36 bytes per entry
 
-#define SENSOR_QUEUE_SIZE 6
-QueuedSensorData sensorQueue[SENSOR_QUEUE_SIZE];
-int sensorQueueIndex = 0;
+#define MAX_SENSOR_QUEUE 6
+QueuedSensorSnapshot sensorQueue[MAX_SENSOR_QUEUE];
+int sensorQueueCount = 0;
 ```
 
-### 1.3 Non-Blocking Connectivity Check Function
+### 1.3 Non-Blocking WiFi Reconnection
+
+This replaces the blocking WiFi in setup() and adds reconnection in the loop.
+
+**Change in `setup()`** — Replace the blocking WiFi connection (lines 1153-1158):
 
 ```cpp
-// Check internet connectivity without blocking operations
-// This does NOT affect local Camera-MainBoard communication
-bool checkInternetConnectivity() {
-  // Step 1: Check WiFi connection to router
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected to router");
-    return false;
-  }
-
-  // Step 2: Quick DNS resolution test (checks internet, not local network)
-  IPAddress resolved;
-  int result = WiFi.hostByName("pool.ntp.org", resolved, 2000);  // 2 second timeout
-
-  if (result != 1) {
-    Serial.println("Internet unreachable (DNS failed)");
-    return false;
-  }
-
-  return true;
+// Connect to WiFi (non-blocking with timeout)
+WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+Serial.print("Connecting to WiFi");
+int wifiAttempts = 0;
+while (WiFi.status() != WL_CONNECTED && wifiAttempts < 20) {
+  delay(500);
+  Serial.print(".");
+  wifiAttempts++;
 }
 
-// Update connection state - call this in loop()
-// IMPORTANT: This only affects Firebase/cloud operations
-// Local Camera-MainBoard HTTP always works if WiFi connected
+if (WiFi.status() == WL_CONNECTED) {
+  wifiWasConnected = true;
+  Serial.println("\nWiFi connected!");
+  Serial.println("IP address: " + WiFi.localIP().toString());
+} else {
+  Serial.println("\nWiFi connection failed - starting in OFFLINE mode");
+  Serial.println("Bot will still detect birds and trigger alarms locally");
+  connectionState = CONN_OFFLINE;
+  offlineSince = millis();
+}
+```
+
+**Also change Firebase init** — wrap NTP and Firebase init to skip if no WiFi:
+
+```cpp
+if (WiFi.status() == WL_CONNECTED) {
+  // Initialize NTP time sync
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  // ... existing NTP code ...
+
+  // Initialize Firebase
+  initializeFirebase();
+} else {
+  Serial.println("Skipping NTP/Firebase init (no WiFi)");
+}
+```
+
+**New function for reconnection in loop:**
+
+```cpp
+// Non-blocking WiFi reconnection - call in loop()
+void handleWiFiReconnection() {
+  // Skip if user forced offline
+  if (userModePreference == 2) return;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    // WiFi is connected
+    if (connectionState == CONN_OFFLINE && !wifiWasConnected) {
+      // First time connecting (failed at boot)
+      wifiWasConnected = true;
+      Serial.println("WiFi connected for first time!");
+      Serial.println("IP: " + WiFi.localIP().toString());
+
+      // Initialize NTP + Firebase now
+      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+      initializeFirebase();
+    }
+    return;
+  }
+
+  // WiFi is disconnected - rate-limit reconnection attempts
+  if (millis() - lastReconnectAttempt < RECONNECT_INTERVAL) return;
+  lastReconnectAttempt = millis();
+
+  Serial.println("WiFi disconnected - attempting reconnect...");
+  WiFi.reconnect();  // Non-blocking, returns immediately
+
+  // Mark as offline if not already
+  if (connectionState != CONN_OFFLINE) {
+    connectionState = CONN_OFFLINE;
+    offlineSince = millis();
+    firebaseConnected = false;
+    Serial.println("Switched to OFFLINE mode - bot continues locally");
+  }
+}
+```
+
+### 1.4 Connection State Management
+
+This uses Firebase write success/failure as the primary connectivity indicator (zero overhead — no extra network calls).
+
+```cpp
+// Update connection state based on WiFi + Firebase status
+// Called in loop() - purely reactive, no network calls
 void updateConnectionState() {
   // Handle user-forced modes
   if (userModePreference == 2) {  // FORCE_OFFLINE
@@ -252,273 +361,239 @@ void updateConnectionState() {
     return;
   }
 
-  if (userModePreference == 1) {  // FORCE_ONLINE
-    if (connectionState != CONN_ONLINE) {
-      if (checkInternetConnectivity() && firebaseConnected) {
-        connectionState = CONN_ONLINE;
-        offlineSince = 0;
-        Serial.println("User forced ONLINE mode - connected");
-      } else {
-        Serial.println("User wants ONLINE but internet unavailable");
-      }
+  // Check if we should transition to ONLINE
+  if (connectionState == CONN_OFFLINE) {
+    if (WiFi.status() == WL_CONNECTED && Firebase.ready()) {
+      // Internet is back - sync queued data
+      connectionState = CONN_TRANSITIONING;
+      Serial.println("Internet restored - syncing queued data...");
+      syncQueuedData();
+      connectionState = CONN_ONLINE;
+      offlineSince = 0;
+      firebaseConnected = true;
+      Serial.println("Now in ONLINE mode");
     }
-    return;
   }
-
-  // AUTO mode - detect automatically
-  // Rate limit connectivity checks
-  if (millis() - lastConnectivityCheck < CONNECTIVITY_CHECK_INTERVAL) {
-    return;
-  }
-  lastConnectivityCheck = millis();
-
-  bool hasInternet = checkInternetConnectivity();
-
-  if (hasInternet && connectionState == CONN_OFFLINE) {
-    connectionState = CONN_TRANSITIONING;
-    Serial.println("Internet restored - starting sync...");
-    syncQueuedData();
-    connectionState = CONN_ONLINE;
-    offlineSince = 0;
-    Serial.println("Now in ONLINE mode");
-
-  } else if (!hasInternet && connectionState == CONN_ONLINE) {
-    connectionState = CONN_OFFLINE;
-    offlineSince = millis();
-    Serial.println("Internet lost - switching to OFFLINE mode");
-    Serial.println("Bot will continue protecting - data will be queued");
+  // Check if we should transition to OFFLINE
+  else if (connectionState == CONN_ONLINE) {
+    if (WiFi.status() != WL_CONNECTED || !Firebase.ready()) {
+      connectionState = CONN_OFFLINE;
+      offlineSince = millis();
+      firebaseConnected = false;
+      Serial.println("Lost connectivity - switching to OFFLINE mode");
+    }
   }
 }
 ```
 
-### 1.4 Queue Management Functions
+### 1.5 Queue Management Functions
 
 ```cpp
-// Add detection to queue (circular buffer with priority replacement)
+// Queue a bird detection for later sync
 void queueDetection(int birdSize, int confidence, String detectionZone, bool alarmTriggered) {
   int targetIndex;
 
-  if (queueCount < MAX_DETECTION_QUEUE) {
-    targetIndex = (queueHead + queueCount) % MAX_DETECTION_QUEUE;
-    queueCount++;
+  if (detectionQueueCount < MAX_DETECTION_QUEUE) {
+    targetIndex = (detectionQueueHead + detectionQueueCount) % MAX_DETECTION_QUEUE;
+    detectionQueueCount++;
   } else {
-    // Queue full - find lowest confidence unsynced entry to replace
-    int lowestIndex = -1;
-    int lowestConfidence = 101;
-
-    for (int i = 0; i < queueCount; i++) {
-      int idx = (queueHead + i) % MAX_DETECTION_QUEUE;
-      if (!detectionQueue[idx].synced && detectionQueue[idx].confidence < lowestConfidence) {
-        lowestConfidence = detectionQueue[idx].confidence;
-        lowestIndex = idx;
-      }
-    }
-
-    if (lowestIndex >= 0 && confidence > lowestConfidence) {
-      targetIndex = lowestIndex;
-      Serial.printf("Queue full - replacing low confidence entry (%d%% -> %d%%)\n",
-                    lowestConfidence, confidence);
-    } else {
-      Serial.println("Queue full - detection dropped (lower priority)");
-      return;
-    }
+    // Queue full - overwrite oldest entry
+    targetIndex = detectionQueueHead;
+    detectionQueueHead = (detectionQueueHead + 1) % MAX_DETECTION_QUEUE;
+    Serial.println("Detection queue full - overwriting oldest");
   }
 
   detectionQueue[targetIndex].timestamp = millis();
   detectionQueue[targetIndex].birdSize = birdSize;
   detectionQueue[targetIndex].confidence = confidence;
-  detectionQueue[targetIndex].synced = false;
   detectionQueue[targetIndex].alarmTriggered = alarmTriggered;
 
-  // Parse detection zone "x,y,w,h"
-  int zx = 0, zy = 0, zw = 320, zh = 240;
-  if (detectionZone.length() > 0) {
-    sscanf(detectionZone.c_str(), "%d,%d,%d,%d", &zx, &zy, &zw, &zh);
-  }
-  detectionQueue[targetIndex].zoneX = zx;
-  detectionQueue[targetIndex].zoneY = zy;
-  detectionQueue[targetIndex].zoneW = zw;
-  detectionQueue[targetIndex].zoneH = zh;
+  // Copy detection zone string safely
+  strncpy(detectionQueue[targetIndex].detectionZone,
+          detectionZone.c_str(),
+          sizeof(detectionQueue[targetIndex].detectionZone) - 1);
+  detectionQueue[targetIndex].detectionZone[sizeof(detectionQueue[targetIndex].detectionZone) - 1] = '\0';
 
-  Serial.printf("Detection queued [%d/%d] - confidence: %d%%\n",
-                queueCount, MAX_DETECTION_QUEUE, confidence);
+  Serial.printf("Detection queued [%d/%d]\n", detectionQueueCount, MAX_DETECTION_QUEUE);
 }
 
-// Queue current sensor readings using actual field names
-void queueSensorReading() {
-  sensorQueue[sensorQueueIndex].timestamp = millis();
-
-  // Sensor 1 (RS485)
-  sensorQueue[sensorQueueIndex].soil1Humidity = soil1Humidity;
-  sensorQueue[sensorQueueIndex].soil1Temperature = soil1Temperature;
-  sensorQueue[sensorQueueIndex].soil1Conductivity = soil1Conductivity;
-  sensorQueue[sensorQueueIndex].soil1PH = soil1PH;
-
-  // Sensor 2 (RS485)
-  sensorQueue[sensorQueueIndex].soil2Humidity = soil2Humidity;
-  sensorQueue[sensorQueueIndex].soil2Temperature = soil2Temperature;
-  sensorQueue[sensorQueueIndex].soil2Conductivity = soil2Conductivity;
-  sensorQueue[sensorQueueIndex].soil2PH = soil2PH;
-
-  // Ambient (DHT)
-  sensorQueue[sensorQueueIndex].dhtTemperature = dhtTemperature;
-  sensorQueue[sensorQueueIndex].dhtHumidity = dhtHumidity;
-
-  sensorQueueIndex = (sensorQueueIndex + 1) % SENSOR_QUEUE_SIZE;
-}
-
-// Clear synced entries from detection queue
-void clearSyncedEntries() {
-  while (queueCount > 0) {
-    int headIndex = queueHead;
-    if (detectionQueue[headIndex].synced) {
-      queueHead = (queueHead + 1) % MAX_DETECTION_QUEUE;
-      queueCount--;
-    } else {
-      break;
+// Queue a sensor history snapshot for later sync
+void queueSensorSnapshot() {
+  if (sensorQueueCount >= MAX_SENSOR_QUEUE) {
+    // Shift queue - drop oldest
+    for (int i = 0; i < MAX_SENSOR_QUEUE - 1; i++) {
+      sensorQueue[i] = sensorQueue[i + 1];
     }
+    sensorQueueCount = MAX_SENSOR_QUEUE - 1;
   }
+
+  QueuedSensorSnapshot& snap = sensorQueue[sensorQueueCount];
+  snap.timestamp = millis();
+  snap.soil1Humidity = soil1Humidity;
+  snap.soil1Temperature = soil1Temperature;
+  snap.soil1Conductivity = soil1Conductivity;
+  snap.soil1PH = soil1PH;
+  snap.soil2Humidity = soil2Humidity;
+  snap.soil2Temperature = soil2Temperature;
+  snap.soil2Conductivity = soil2Conductivity;
+  snap.soil2PH = soil2PH;
+
+  sensorQueueCount++;
+  Serial.printf("Sensor snapshot queued [%d/%d]\n", sensorQueueCount, MAX_SENSOR_QUEUE);
 }
 ```
 
-### 1.5 Sync Protocol
+### 1.6 Sync Protocol (On Reconnection)
 
 ```cpp
 // Sync all queued data to Firebase when coming back online
 void syncQueuedData() {
-  if (!firebaseConnected) {
-    Serial.println("Firebase not connected - sync aborted");
+  if (!Firebase.ready()) {
+    Serial.println("Firebase not ready - sync aborted");
     connectionState = CONN_OFFLINE;
     return;
   }
 
-  Serial.printf("Starting sync: %d detections queued\n", queueCount);
+  // Check heap before syncing (memory safety)
+  if (ESP.getFreeHeap() < 20000) {
+    Serial.println("Low memory - deferring sync");
+    return;
+  }
 
+  // Sync queued detections
   int synced = 0;
-  int failed = 0;
+  while (detectionQueueCount > 0) {
+    QueuedDetection& det = detectionQueue[detectionQueueHead];
 
-  for (int i = 0; i < queueCount && connectionState == CONN_TRANSITIONING; i++) {
-    int index = (queueHead + i) % MAX_DETECTION_QUEUE;
-
-    if (!detectionQueue[index].synced) {
-      if (syncDetectionToFirebase(index)) {
-        detectionQueue[index].synced = true;
-        synced++;
-        Serial.printf("  Synced detection %d/%d\n", synced, queueCount);
-      } else {
-        failed++;
-        Serial.println("  Failed to sync detection - will retry later");
-      }
-
-      yield();
-      delay(100);  // Rate limiting
-    }
-  }
-
-  syncSensorHistory();
-
-  Serial.printf("Sync complete: %d synced, %d failed\n", synced, failed);
-  clearSyncedEntries();
-}
-
-// Sync single detection to Firebase
-bool syncDetectionToFirebase(int queueIndex) {
-  QueuedDetection& det = detectionQueue[queueIndex];
-
-  String docId = String(CAMERA_DEVICE_ID) + "_offline_" + String(det.timestamp);
-  String documentPath = "detection_history/" + docId;
-
-  FirebaseJson json;
-  json.set("fields/deviceId/stringValue", CAMERA_DEVICE_ID);
-  json.set("fields/birdSize/integerValue", String(det.birdSize));
-  json.set("fields/confidence/integerValue", String(det.confidence));
-  json.set("fields/detectionZone/stringValue",
-           String(det.zoneX) + "," + String(det.zoneY) + "," +
-           String(det.zoneW) + "," + String(det.zoneH));
-  json.set("fields/alarmTriggered/booleanValue", det.alarmTriggered);
-  json.set("fields/syncedFromOffline/booleanValue", true);
-  json.set("fields/offlineTimestamp/integerValue", String(det.timestamp));
-
-  bool success = Firebase.Firestore.createDocument(
-    &fbdo, FIREBASE_PROJECT_ID, "", documentPath.c_str(), json.raw()
-  );
-
-  if (!success) {
-    Serial.printf("Firebase sync error: %s\n", fbdo.errorReason().c_str());
-  }
-
-  return success;
-}
-
-// Sync sensor history summary (averages during offline period)
-void syncSensorHistory() {
-  float avgS1Humidity = 0, avgS1Temp = 0, avgS1Conductivity = 0, avgS1PH = 0;
-  float avgS2Humidity = 0, avgS2Temp = 0, avgS2Conductivity = 0, avgS2PH = 0;
-  float avgDhtTemp = 0, avgDhtHumidity = 0;
-  int validReadings = 0;
-
-  for (int i = 0; i < SENSOR_QUEUE_SIZE; i++) {
-    if (sensorQueue[i].timestamp > 0) {
-      avgS1Humidity += sensorQueue[i].soil1Humidity;
-      avgS1Temp += sensorQueue[i].soil1Temperature;
-      avgS1Conductivity += sensorQueue[i].soil1Conductivity;
-      avgS1PH += sensorQueue[i].soil1PH;
-      avgS2Humidity += sensorQueue[i].soil2Humidity;
-      avgS2Temp += sensorQueue[i].soil2Temperature;
-      avgS2Conductivity += sensorQueue[i].soil2Conductivity;
-      avgS2PH += sensorQueue[i].soil2PH;
-      avgDhtTemp += sensorQueue[i].dhtTemperature;
-      avgDhtHumidity += sensorQueue[i].dhtHumidity;
-      validReadings++;
-    }
-  }
-
-  if (validReadings > 0) {
-    avgS1Humidity /= validReadings;
-    avgS1Temp /= validReadings;
-    avgS1Conductivity /= validReadings;
-    avgS1PH /= validReadings;
-    avgS2Humidity /= validReadings;
-    avgS2Temp /= validReadings;
-    avgS2Conductivity /= validReadings;
-    avgS2PH /= validReadings;
-    avgDhtTemp /= validReadings;
-    avgDhtHumidity /= validReadings;
-
-    String docId = String(MAIN_DEVICE_ID) + "_offline_summary_" + String(millis());
-    String path = "sensor_history/" + docId;
+    String docId = String(CAMERA_DEVICE_ID) + "_offline_" + String(det.timestamp);
+    String path = "detection_history/" + docId;
 
     FirebaseJson json;
-    json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
-    json.set("fields/soil1Humidity/doubleValue", avgS1Humidity);
-    json.set("fields/soil1Temperature/doubleValue", avgS1Temp);
-    json.set("fields/soil1Conductivity/doubleValue", avgS1Conductivity);
-    json.set("fields/soil1PH/doubleValue", avgS1PH);
-    json.set("fields/soil2Humidity/doubleValue", avgS2Humidity);
-    json.set("fields/soil2Temperature/doubleValue", avgS2Temp);
-    json.set("fields/soil2Conductivity/doubleValue", avgS2Conductivity);
-    json.set("fields/soil2PH/doubleValue", avgS2PH);
-    json.set("fields/dhtTemperature/doubleValue", avgDhtTemp);
-    json.set("fields/dhtHumidity/doubleValue", avgDhtHumidity);
-    json.set("fields/readingCount/integerValue", String(validReadings));
-    json.set("fields/offlinePeriod/booleanValue", true);
+    json.set("fields/deviceId/stringValue", CAMERA_DEVICE_ID);
+    json.set("fields/birdSize/integerValue", String(det.birdSize));
+    json.set("fields/confidence/integerValue", String(det.confidence));
+    json.set("fields/detectionZone/stringValue", String(det.detectionZone));
+    json.set("fields/alarmTriggered/booleanValue", det.alarmTriggered);
+    json.set("fields/syncedFromOffline/booleanValue", true);
+    json.set("fields/triggered/booleanValue", true);
 
-    Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw());
+    if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+      synced++;
+      detectionQueueHead = (detectionQueueHead + 1) % MAX_DETECTION_QUEUE;
+      detectionQueueCount--;
+      Serial.printf("  Synced detection %d\n", synced);
+    } else {
+      Serial.println("  Sync failed - will retry later");
+      break;  // Stop on first failure, retry next time
+    }
+
+    delay(100);  // Rate limiting between writes
+    yield();
   }
 
-  // Clear sensor queue
-  for (int i = 0; i < SENSOR_QUEUE_SIZE; i++) {
-    sensorQueue[i].timestamp = 0;
+  // Sync queued sensor snapshots (as averaged summary)
+  if (sensorQueueCount > 0) {
+    syncSensorSnapshots();
   }
-  sensorQueueIndex = 0;
+
+  Serial.printf("Sync complete: %d detections synced, %d remaining\n",
+                synced, detectionQueueCount);
+}
+
+// Sync sensor snapshots as a summary document
+void syncSensorSnapshots() {
+  if (sensorQueueCount == 0) return;
+
+  // Average all queued snapshots
+  float avgS1H = 0, avgS1T = 0, avgS1EC = 0, avgS1pH = 0;
+  float avgS2H = 0, avgS2T = 0, avgS2EC = 0, avgS2pH = 0;
+
+  for (int i = 0; i < sensorQueueCount; i++) {
+    avgS1H += sensorQueue[i].soil1Humidity;
+    avgS1T += sensorQueue[i].soil1Temperature;
+    avgS1EC += sensorQueue[i].soil1Conductivity;
+    avgS1pH += sensorQueue[i].soil1PH;
+    avgS2H += sensorQueue[i].soil2Humidity;
+    avgS2T += sensorQueue[i].soil2Temperature;
+    avgS2EC += sensorQueue[i].soil2Conductivity;
+    avgS2pH += sensorQueue[i].soil2PH;
+  }
+
+  int n = sensorQueueCount;
+  avgS1H /= n; avgS1T /= n; avgS1EC /= n; avgS1pH /= n;
+  avgS2H /= n; avgS2T /= n; avgS2EC /= n; avgS2pH /= n;
+
+  String docId = String(MAIN_DEVICE_ID) + "_offline_" + String(millis());
+  String path = "sensor_history/" + docId;
+
+  FirebaseJson json;
+  json.set("fields/deviceId/stringValue", MAIN_DEVICE_ID);
+  json.set("fields/soil1Humidity/doubleValue", avgS1H);
+  json.set("fields/soil1Temperature/doubleValue", avgS1T);
+  json.set("fields/soil1Conductivity/doubleValue", avgS1EC);
+  json.set("fields/soil1PH/doubleValue", avgS1pH);
+  json.set("fields/soil2Humidity/doubleValue", avgS2H);
+  json.set("fields/soil2Temperature/doubleValue", avgS2T);
+  json.set("fields/soil2Conductivity/doubleValue", avgS2EC);
+  json.set("fields/soil2PH/doubleValue", avgS2pH);
+  json.set("fields/readingCount/integerValue", String(n));
+  json.set("fields/offlinePeriod/booleanValue", true);
+  json.set("fields/timestamp/stringValue", "Offline period summary");
+
+  if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
+    Serial.printf("Sensor history synced (%d snapshots averaged)\n", n);
+    sensorQueueCount = 0;  // Clear queue
+  } else {
+    Serial.println("Sensor history sync failed - will retry");
+  }
 }
 ```
 
-### 1.6 Handle Bird Detection from Camera (Local HTTP)
+### 1.7 Modify Existing Functions (Non-Breaking Changes)
 
-This endpoint receives detections from Camera Board via LOCAL network (works without internet):
+These are **minimal edits** to existing functions to add offline fallback paths.
+
+#### 1.7.1 Modify `logBirdDetection()` — Add queue fallback
+
+Change the early return at the top of `logBirdDetection()` (line ~369):
 
 ```cpp
+void logBirdDetection(String imageUrl, int birdSize, int confidence, String detectionZone) {
+  // CHANGED: Queue instead of silently dropping
+  if (!firebaseConnected || connectionState != CONN_ONLINE) {
+    Serial.println("Offline - queuing detection for later sync");
+    queueDetection(birdSize, confidence, detectionZone, true);
+    birdsDetectedToday++;
+    return;
+  }
+
+  // ... rest of existing function unchanged ...
+}
+```
+
+#### 1.7.2 Modify `saveSensorHistory()` — Add queue fallback
+
+Change the early return at the top of `saveSensorHistory()` (line ~326):
+
+```cpp
+void saveSensorHistory() {
+  // CHANGED: Queue instead of silently dropping
+  if (!firebaseConnected || connectionState != CONN_ONLINE) {
+    Serial.println("Offline - queuing sensor snapshot");
+    queueSensorSnapshot();
+    return;
+  }
+
+  // ... rest of existing function unchanged ...
+}
+```
+
+#### 1.7.3 Modify `/bird_detected` endpoint — Ensure queuing
+
+The existing `/bird_detected` handler (line ~876) already calls `logBirdDetection()`, which will now queue when offline. But we should ensure the alarm **always** triggers:
+
+```cpp
+// In the /bird_detected handler, ensure alarm triggers BEFORE Firebase logging:
 server.on("/bird_detected", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
   [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
     Serial.println("*** BIRD DETECTION RECEIVED FROM CAMERA ***");
@@ -531,68 +606,56 @@ server.on("/bird_detected", HTTP_POST, [](AsyncWebServerRequest *request){}, NUL
       return;
     }
 
+    String imageUrl = doc["imageUrl"].as<String>();
     int birdSize = doc["birdSize"];
     int confidence = doc["confidence"];
     String detectionZone = doc["detectionZone"].as<String>();
 
     Serial.printf("Bird detected! Size: %d, Confidence: %d%%\n", birdSize, confidence);
 
-    // ALWAYS TRIGGER ALARM - this is LOCAL hardware, no internet needed
+    // ALWAYS trigger alarm FIRST (local hardware, no internet needed)
     triggerAlarmSequence();
-    bool alarmTriggered = true;
-    Serial.println("*** ALARM TRIGGERED LOCALLY ***");
 
-    // Log to Firebase if online, otherwise queue for later
-    if (connectionState == CONN_ONLINE && firebaseConnected) {
-      String imageUrl = doc["imageUrl"].as<String>();
-      logBirdDetection(imageUrl, birdSize, confidence, detectionZone);
-      Serial.println("Detection logged to Firebase (online)");
-    } else {
-      queueDetection(birdSize, confidence, detectionZone, alarmTriggered);
-      Serial.println("Detection queued for later sync (offline) - alarm already triggered!");
-    }
+    // Log to Firebase (will queue if offline - never loses data)
+    logBirdDetection(imageUrl, birdSize, confidence, detectionZone);
 
     request->send(200, "application/json", "{\"success\":true,\"alarm\":true}");
   }
 );
 ```
 
-### 1.7 New HTTP Endpoints for Offline Mode
+### 1.8 New HTTP Endpoints for Offline Mode
 
-Add these endpoints alongside existing ones:
+Add these in `setupHTTPEndpoints()` alongside existing endpoints:
 
 ```cpp
 // Get offline status - mobile app polls this when on local network
 server.on("/offline-status", HTTP_GET, [](AsyncWebServerRequest *request) {
-  String json = "{";
-  json += "\"connectionState\":\"";
-  json += (connectionState == CONN_ONLINE ? "online" :
-           connectionState == CONN_OFFLINE ? "offline" : "syncing");
-  json += "\",";
-  json += "\"queuedDetections\":" + String(queueCount) + ",";
-  json += "\"offlineDuration\":" + String(connectionState == CONN_OFFLINE ? (millis() - offlineSince) / 1000 : 0) + ",";
-  json += "\"wifiConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
-  json += "\"firebaseConnected\":" + String(firebaseConnected ? "true" : "false") + ",";
-  json += "\"userModePreference\":" + String(userModePreference) + ",";
-  json += "\"localIPAddress\":\"" + WiFi.localIP().toString() + "\"";
-  json += "}";
+  DynamicJsonDocument doc(256);
+  doc["connectionState"] = (connectionState == CONN_ONLINE ? "online" :
+                            connectionState == CONN_OFFLINE ? "offline" : "syncing");
+  doc["queuedDetections"] = detectionQueueCount;
+  doc["queuedSensorSnapshots"] = sensorQueueCount;
+  doc["offlineDuration"] = (connectionState == CONN_OFFLINE) ?
+                            (millis() - offlineSince) / 1000 : 0;
+  doc["wifiConnected"] = (WiFi.status() == WL_CONNECTED);
+  doc["firebaseConnected"] = firebaseConnected;
+  doc["userModePreference"] = userModePreference;
+  doc["freeHeap"] = ESP.getFreeHeap();
 
+  String json;
+  serializeJson(doc, json);
   request->send(200, "application/json", json);
 });
 
-// Set mode preference from mobile app
-// mode: 0=AUTO, 1=FORCE_ONLINE, 2=FORCE_OFFLINE
-server.on("/set-mode", HTTP_POST, [](AsyncWebServerRequest *request) {
-  if (request->hasParam("mode", true)) {
-    int mode = request->getParam("mode", true)->value().toInt();
-
+// Set mode preference from mobile app (0=AUTO, 1=FORCE_ONLINE, 2=FORCE_OFFLINE)
+server.on("/set-mode", HTTP_GET, [](AsyncWebServerRequest *request) {
+  if (request->hasParam("mode")) {
+    int mode = request->getParam("mode")->value().toInt();
     if (mode >= 0 && mode <= 2) {
       userModePreference = mode;
-      Serial.printf("Mode preference set to: %d (%s)\n", mode,
+      Serial.printf("Mode set to: %s\n",
                     mode == 0 ? "AUTO" : (mode == 1 ? "FORCE_ONLINE" : "FORCE_OFFLINE"));
-
-      lastConnectivityCheck = 0;  // Force check on next loop
-
       request->send(200, "application/json", "{\"success\":true}");
     } else {
       request->send(400, "application/json", "{\"error\":\"Invalid mode (0-2)\"}");
@@ -603,47 +666,84 @@ server.on("/set-mode", HTTP_POST, [](AsyncWebServerRequest *request) {
 });
 
 // Force sync now (user-triggered from mobile app)
-server.on("/force-sync", HTTP_POST, [](AsyncWebServerRequest *request) {
-  if (queueCount > 0) {
-    if (checkInternetConnectivity() && firebaseConnected) {
-      connectionState = CONN_TRANSITIONING;
-      syncQueuedData();
-      connectionState = CONN_ONLINE;
-      request->send(200, "application/json", "{\"success\":true,\"synced\":" + String(queueCount) + "}");
-    } else {
-      request->send(503, "application/json", "{\"error\":\"No internet connection\"}");
-    }
-  } else {
-    request->send(200, "application/json", "{\"success\":true,\"synced\":0,\"message\":\"Nothing to sync\"}");
+server.on("/force-sync", HTTP_GET, [](AsyncWebServerRequest *request) {
+  if (detectionQueueCount == 0 && sensorQueueCount == 0) {
+    request->send(200, "application/json", "{\"success\":true,\"message\":\"Nothing to sync\"}");
+    return;
   }
+  if (WiFi.status() != WL_CONNECTED || !Firebase.ready()) {
+    request->send(503, "application/json", "{\"error\":\"No internet connection\"}");
+    return;
+  }
+  connectionState = CONN_TRANSITIONING;
+  syncQueuedData();
+  connectionState = (WiFi.status() == WL_CONNECTED && Firebase.ready()) ? CONN_ONLINE : CONN_OFFLINE;
+  request->send(200, "application/json", "{\"success\":true}");
 });
 ```
 
-### 1.8 Update Main Loop
+> **Note:** Using HTTP_GET for `/set-mode` and `/force-sync` for simplicity since these are local-only endpoints called from the same WiFi network. No security concern as there's no internet exposure.
+
+### 1.9 Update Main Loop
+
+Add the new calls at the **beginning** of `loop()` (before existing sensor read):
 
 ```cpp
 void loop() {
-  // 1. Check and update connection state (non-blocking, rate-limited)
-  //    Only affects Firebase operations, NOT local alarm triggering
+  unsigned long currentTime = millis();
+
+  // === NEW: Non-blocking WiFi reconnection ===
+  handleWiFiReconnection();
+
+  // === NEW: Update connection state (reactive, zero-cost) ===
   updateConnectionState();
 
-  // 2. Local HTTP requests handled automatically by AsyncWebServer
-  //    Camera detection triggers work regardless of online/offline state
-
-  // 3. Sensor reading - queue when offline
-  //    In existing sensor reading section, add:
-  //    if (connectionState == CONN_OFFLINE) queueSensorReading();
-
-  // 4. Firebase command polling - only when online
-  if (connectionState == CONN_ONLINE && firebaseConnected) {
-    checkForCommands();
+  // Read sensors periodically (UNCHANGED - always runs)
+  static unsigned long lastSensorRead = 0;
+  if (currentTime - lastSensorRead >= SENSOR_READ_INTERVAL) {
+    readRS485Sensor();
+    lastSensorRead = currentTime;
+    // ... existing sensor print code ...
   }
 
-  // 5. Head scanning, motor control - ALWAYS runs regardless of mode
+  // Update arm stepper motion (UNCHANGED - always runs)
+  updateArmSteppers();
+
+  // ... existing arm safety check ...
+
+  // Update continuous head scanning (UNCHANGED - always runs)
+  updateHeadScanning();
+
+  // Run stepper motor (UNCHANGED)
+  if (!headMovementPaused) {
+    stepper.run();
+  }
+
+  // Firebase operations - CHANGED: guard with connectionState
+  if (connectionState == CONN_ONLINE && firebaseConnected) {
+    checkFirebaseCommands();
+
+    if (currentTime - lastLatestUpdate >= LATEST_UPDATE_INTERVAL) {
+      updateDeviceStatus();
+      updateSensorDataSmart();
+      lastLatestUpdate = currentTime;
+    }
+
+    if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
+      saveSensorHistory();  // Will queue if offline (via 1.7.2 change)
+      lastHistoryUpdate = currentTime;
+    }
+  } else {
+    // === NEW: Queue sensor snapshots while offline (every 15 min) ===
+    if (currentTime - lastHistoryUpdate >= HISTORY_UPDATE_INTERVAL) {
+      queueSensorSnapshot();
+      lastHistoryUpdate = currentTime;
+    }
+  }
+
+  delay(10);
 }
 ```
-
-> **NOTE:** The existing smart update threshold system (only sending to Firebase when values change significantly) continues to work normally in ONLINE mode. The offline queue supplements this by capturing periodic snapshots when Firebase is unreachable.
 
 ---
 
@@ -651,62 +751,36 @@ void loop() {
 
 ### File: `arduino/BantayBot_Camera_Firebase/CameraBoard_ImageBB/CameraBoard_ImageBB.ino`
 
-Minimal changes needed. Camera Board always sends to Main Board via LOCAL HTTP. **The Camera Board does NOT need to know about online/offline mode.**
+### Current State
+- `notifyMainBoard()` has a single attempt with 5s timeout
+- If Main Board doesn't respond, detection is lost
+- Camera does NOT need to know about online/offline mode (it only talks to Main Board locally)
 
-### 2.1 Main Board Communication (Always Works - Local Network)
+### 2.1 Add Retry Logic
+
+Replace the existing `notifyMainBoard()` function with a retry wrapper:
 
 ```cpp
-// Send detection to Main Board via LOCAL WiFi
-// Works WITHOUT internet - only needs same WiFi network
-bool notifyMainBoard(int birdSize, int confidence, String detectionZone) {
-  HTTPClient http;
-
-  String url = "http://" + String(MAIN_BOARD_IP) + ":" + String(MAIN_BOARD_PORT) + "/bird_detected";
-
-  http.begin(url);
-  http.setTimeout(5000);
-  http.addHeader("Content-Type", "application/json");
-
-  DynamicJsonDocument doc(512);
-  doc["deviceId"] = CAMERA_DEVICE_ID;
-  doc["birdSize"] = birdSize;
-  doc["confidence"] = confidence;
-  doc["detectionZone"] = detectionZone;
-
-  String jsonString;
-  serializeJson(doc, jsonString);
-
-  Serial.println("Sending detection to Main Board (LOCAL HTTP)...");
-  int httpCode = http.POST(jsonString);
-  http.end();
-
-  if (httpCode == 200) {
-    Serial.println("*** Main Board notified - ALARM WILL TRIGGER! ***");
-    return true;
-  } else {
-    Serial.printf("Failed to notify Main Board (HTTP %d)\n", httpCode);
-    return false;
-  }
+// Original function renamed (keep as-is)
+bool notifyMainBoardOnce(String imageUrl, int birdSize, int confidence) {
+  // ... existing notifyMainBoard code unchanged ...
 }
-```
 
-### 2.2 Add Retry Logic for Reliability
-
-```cpp
-bool notifyMainBoardWithRetry(int birdSize, int confidence, String detectionZone) {
+// New wrapper with retry
+bool notifyMainBoard(String imageUrl, int birdSize, int confidence) {
   const int MAX_RETRIES = 3;
-  const int RETRY_DELAY = 500;  // ms
+  const int RETRY_DELAY_MS = 500;
 
   for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     Serial.printf("Notifying Main Board (attempt %d/%d)...\n", attempt, MAX_RETRIES);
 
-    if (notifyMainBoard(birdSize, confidence, detectionZone)) {
+    if (notifyMainBoardOnce(imageUrl, birdSize, confidence)) {
       return true;
     }
 
     if (attempt < MAX_RETRIES) {
-      Serial.printf("Retry in %dms...\n", RETRY_DELAY);
-      delay(RETRY_DELAY);
+      Serial.printf("Retry in %dms...\n", RETRY_DELAY_MS);
+      delay(RETRY_DELAY_MS);
     }
   }
 
@@ -715,59 +789,18 @@ bool notifyMainBoardWithRetry(int birdSize, int confidence, String detectionZone
 }
 ```
 
-### 2.3 Detection Handler Update
-
-```cpp
-if (birdDetected) {
-  Serial.println("*** BIRD DETECTED! ***");
-
-  // Always notify Main Board (local network - no internet needed)
-  bool notified = notifyMainBoardWithRetry(changedPixels, confidence, detectionZone);
-
-  if (notified) {
-    Serial.println("Main Board notified - alarm will trigger!");
-  } else {
-    Serial.println("WARNING: Could not notify Main Board");
-    Serial.println("Check: Are both boards on same WiFi?");
-  }
-
-  lastDetectionTime = millis();
-}
-```
+This is the **only change** needed on the Camera Board.
 
 ---
 
 ## Part 3: Mobile App (PWA) Implementation
 
 ### Current PWA Services Reference
-- **CommandService** (`src/services/CommandService.js`) - Writes to Firestore `commands/{deviceId}/pending`
-- **ConnectionManager** (`src/services/ConnectionManager.js`) - Handles local (WebSocket) vs remote (Firebase) switching; `getMode()` returns `'local'`, `'remote'`, or `'none'`
-- **ConfigService** (`src/services/ConfigService.js`) - Stores `mainBoardIP`, `mainBoardPort` in localStorage; API: `ConfigService.getValue('mainBoardIP', '172.24.26.193')`
-- **indexedDBService** (`src/services/indexedDBService.js`) - Has `saveSetting(key, value)` / `getSetting(key)` for persistence
-- **DeviceService** - Subscribes to real-time Firestore sensor data
-- **VolumeContext** - Volume commands with dedup (`clearPendingVolumeCommands`)
-
-### Current CSS Tokens (from `src/styles/index.css`)
-- Text: `text-primary`, `text-secondary`, `text-tertiary`
-- Backgrounds: `surface-primary`, `bg-secondary`, `bg-tertiary`
-- Status: `bg-success/10`, `bg-error/10`, `bg-warning/10`, `bg-info/10`
-- Borders: `border-primary`, `border-success/30`, `border-error/30`
-- Brand: `text-brand`, `bg-brand/20`
-- Notifications: `showSuccess(title, msg)`, `showError(title, msg)`, `showWarning(title, msg)`, `showInfo(title, msg)` via `useNotification()` hook
-
-### Current Dashboard Staleness Check
-The Dashboard already has a 60-second freshness-based `isConnected` state:
-```javascript
-// In Dashboard.jsx useEffect:
-const stalenessInterval = setInterval(() => {
-  if (lastDataRef.current) {
-    const elapsed = Date.now() - lastDataRef.current.time;
-    if (elapsed > 60000) {
-      setIsConnected(false);
-    }
-  }
-}, ...);
-```
+- **CommandService** (`src/services/CommandService.js`) — Writes to Firestore `commands/{deviceId}/pending`, monitors lifecycle (60s timeout)
+- **ConnectionManager** (`src/services/ConnectionManager.js`) — Auto-switches local/remote; `getMode()` returns `'local'`, `'remote'`, or `'none'`; monitors every 30s
+- **ConfigService** (`src/services/ConfigService.js`) — localStorage config; defaults: `mainBoardIP: '172.24.26.193'`, `mainBoardPort: 81`
+- **indexedDBService** (`src/services/indexedDBService.js`) — 7 object stores; `saveSetting(key, value)` / `getSetting(key)`
+- **DeviceService** — Subscribes to Firestore sensor data and detection history
 
 ---
 
@@ -778,9 +811,7 @@ Wraps `CommandService.sendCommand()` with offline detection and queuing.
 ```javascript
 /**
  * Command Queue Service for BantayBot PWA
- * Wraps CommandService with offline detection and queuing.
- * Uses navigator.onLine + try/catch on Firebase writes.
- * Persists queue via indexedDBService.
+ * Wraps CommandService with offline detection and IndexedDB persistence.
  */
 
 import CommandService from './CommandService';
@@ -791,13 +822,7 @@ const MAX_ATTEMPTS = 3;
 const FLUSH_DELAY_MS = 200;
 
 // Actions where only the latest value matters (deduplication)
-const DEDUP_ACTIONS = [
-  'set_volume',
-  'set_brightness',
-  'set_contrast',
-  'set_sensitivity',
-  'rotate_head'
-];
+const DEDUP_ACTIONS = ['set_volume', 'rotate_head'];
 
 class CommandQueueService {
   constructor() {
@@ -810,154 +835,104 @@ class CommandQueueService {
   async initialize() {
     if (this.initialized) return;
 
-    // Load persisted queue
     try {
       const savedQueue = await indexedDBService.getSetting(QUEUE_STORAGE_KEY);
       if (Array.isArray(savedQueue)) {
         this.queue = savedQueue;
-        console.log(`[CommandQueueService] Loaded ${this.queue.length} queued commands`);
+        console.log(`[CommandQueue] Loaded ${this.queue.length} queued commands`);
       }
     } catch (error) {
-      console.warn('[CommandQueueService] Failed to load queue:', error);
+      console.warn('[CommandQueue] Failed to load queue:', error);
     }
 
-    // Listen for browser coming back online
     window.addEventListener('online', () => {
-      console.log('[CommandQueueService] Browser online - flushing queue');
+      console.log('[CommandQueue] Browser online - flushing queue');
       this.flushQueue();
     });
 
     this.initialized = true;
 
-    // If online and queue has items, flush immediately
     if (navigator.onLine && this.queue.length > 0) {
       this.flushQueue();
     }
   }
 
   /**
-   * Send a command - either directly to Firebase or queue it if offline.
-   * @param {string} deviceId - Device ID (e.g., 'main_001')
-   * @param {string} action - Command action (e.g., 'oscillate_arms')
-   * @param {object} params - Command parameters
-   * @returns {{ success: boolean, queued?: boolean, error?: string }}
+   * Send a command - directly or queue if offline.
+   * @returns {{ success: boolean, queued?: boolean }}
    */
   async sendCommand(deviceId, action, params = {}) {
-    // If browser is offline, queue immediately
     if (!navigator.onLine) {
       return this.enqueue(deviceId, action, params);
     }
 
-    // Try sending directly via CommandService
     try {
       const result = await CommandService.sendCommand(deviceId, action, params);
-      if (result.success) {
-        return { success: true };
-      }
-      // Firebase write failed - queue it
+      if (result.success) return { success: true };
       return this.enqueue(deviceId, action, params);
     } catch (error) {
-      console.warn('[CommandQueueService] Direct send failed, queuing:', error.message);
+      console.warn('[CommandQueue] Direct send failed, queuing:', error.message);
       return this.enqueue(deviceId, action, params);
     }
   }
 
-  /**
-   * Add command to offline queue with deduplication.
-   */
   enqueue(deviceId, action, params) {
-    // Dedup: for certain actions, replace existing entry
     if (DEDUP_ACTIONS.includes(action)) {
       this.queue = this.queue.filter(
         cmd => !(cmd.deviceId === deviceId && cmd.action === action)
       );
     }
 
-    this.queue.push({
-      deviceId,
-      action,
-      params,
-      attempts: 0,
-      queuedAt: Date.now()
-    });
-
+    this.queue.push({ deviceId, action, params, attempts: 0, queuedAt: Date.now() });
     this.persistQueue();
     this.notifyListeners();
-
-    console.log(`[CommandQueueService] Queued: ${action} (queue size: ${this.queue.length})`);
     return { success: false, queued: true };
   }
 
-  /**
-   * Flush queued commands to Firebase (sequential, with retry).
-   */
   async flushQueue() {
-    if (this.isFlushing || this.queue.length === 0 || !navigator.onLine) {
-      return;
-    }
+    if (this.isFlushing || this.queue.length === 0 || !navigator.onLine) return;
 
     this.isFlushing = true;
-    console.log(`[CommandQueueService] Flushing ${this.queue.length} commands...`);
-
+    this.notifyListeners();
     const remaining = [];
 
     for (const cmd of this.queue) {
       try {
         const result = await CommandService.sendCommand(cmd.deviceId, cmd.action, cmd.params);
-        if (result.success) {
-          console.log(`[CommandQueueService] Flushed: ${cmd.action}`);
-        } else {
-          throw new Error(result.error || 'Send failed');
-        }
+        if (!result.success) throw new Error('Send failed');
+        console.log(`[CommandQueue] Flushed: ${cmd.action}`);
       } catch (error) {
         cmd.attempts++;
         if (cmd.attempts < MAX_ATTEMPTS) {
           remaining.push(cmd);
-          console.warn(`[CommandQueueService] Retry later: ${cmd.action} (attempt ${cmd.attempts})`);
         } else {
-          console.error(`[CommandQueueService] Dropped after ${MAX_ATTEMPTS} attempts: ${cmd.action}`);
+          console.error(`[CommandQueue] Dropped after ${MAX_ATTEMPTS} attempts: ${cmd.action}`);
         }
       }
-
-      // Delay between commands to avoid overwhelming Firebase
       await new Promise(resolve => setTimeout(resolve, FLUSH_DELAY_MS));
     }
 
     this.queue = remaining;
     this.persistQueue();
-    this.notifyListeners();
     this.isFlushing = false;
-
-    console.log(`[CommandQueueService] Flush complete. Remaining: ${this.queue.length}`);
+    this.notifyListeners();
   }
 
-  /**
-   * Get current queue count.
-   */
-  getQueueCount() {
-    return this.queue.length;
-  }
+  getQueueCount() { return this.queue.length; }
 
-  /**
-   * Subscribe to queue changes.
-   * @param {function} callback - Called with { count, isFlushing }
-   * @returns {function} Unsubscribe function
-   */
   onQueueChange(callback) {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
 
-  /** @private */
   async persistQueue() {
     try {
       await indexedDBService.saveSetting(QUEUE_STORAGE_KEY, this.queue);
     } catch (error) {
-      console.warn('[CommandQueueService] Failed to persist queue:', error);
+      console.warn('[CommandQueue] Persist failed:', error);
     }
   }
 
-  /** @private */
   notifyListeners() {
     const data = { count: this.queue.length, isFlushing: this.isFlushing };
     this.listeners.forEach(cb => cb(data));
@@ -971,104 +946,53 @@ export default new CommandQueueService();
 
 ### 3.2 OfflineModeService (NEW: `src/services/OfflineModeService.js`)
 
-Manages the connection mode preference and polls the ESP32 for offline status when on local network.
+Manages connection mode preference and polls ESP32 for offline status when on local network.
 
 ```javascript
 /**
  * Offline Mode Service for BantayBot PWA
- * Manages connection modes: AUTO, ONLINE, OFFLINE
- * Polls ESP32 /offline-status when on local network
+ * Manages connection modes and polls ESP32 /offline-status
  */
 
 import indexedDBService from './indexedDBService';
 import ConnectionManager from './ConnectionManager';
 
-const MODE_PREFERENCE_KEY = 'connection_mode_preference';
+const MODE_KEY = 'connection_mode_preference';
 
-export const CONNECTION_MODES = {
-  AUTO: 0,
-  ONLINE: 1,
-  OFFLINE: 2
-};
+export const CONNECTION_MODES = { AUTO: 0, ONLINE: 1, OFFLINE: 2 };
 
 class OfflineModeService {
   constructor() {
-    this.modePreference = CONNECTION_MODES.AUTO;
-    this.botStatus = {
-      connectionState: 'unknown',
-      queuedDetections: 0,
-      offlineDuration: 0,
-      wifiConnected: false,
-      firebaseConnected: false,
-      userModePreference: 0,
-      localIPAddress: ''
-    };
-    this.pwaOnline = navigator.onLine;
+    this.mode = CONNECTION_MODES.AUTO;
+    this.botStatus = null;
     this.listeners = new Set();
     this.pollInterval = null;
-    this.initialized = false;
   }
 
   async initialize() {
-    if (this.initialized) return this.modePreference;
-
     try {
-      const savedPref = await indexedDBService.getSetting(MODE_PREFERENCE_KEY);
-      if (savedPref !== null && savedPref !== undefined) {
-        this.modePreference = savedPref;
-      }
-    } catch (error) {
-      console.warn('[OfflineModeService] Failed to load mode preference:', error);
-    }
+      const saved = await indexedDBService.getSetting(MODE_KEY);
+      if (saved !== null && saved !== undefined) this.mode = saved;
+    } catch (e) { /* ignore */ }
 
-    // Track browser online/offline
-    window.addEventListener('online', () => {
-      this.pwaOnline = true;
-      this.notifyListeners();
-    });
-    window.addEventListener('offline', () => {
-      this.pwaOnline = false;
-      this.notifyListeners();
-    });
-
-    this.initialized = true;
-    return this.modePreference;
+    window.addEventListener('online', () => this.notifyListeners());
+    window.addEventListener('offline', () => this.notifyListeners());
+    return this.mode;
   }
 
-  /**
-   * Set connection mode and send to ESP32 (if on local network).
-   * @param {number} mode - CONNECTION_MODES value (0, 1, or 2)
-   * @param {string} mainBoardIP - ESP32 IP address
-   * @param {number} port - ESP32 port (default 81)
-   */
   async setMode(mode, mainBoardIP, port = 81) {
-    if (mode < 0 || mode > 2) {
-      console.error('[OfflineModeService] Invalid mode:', mode);
-      return false;
-    }
+    if (mode < 0 || mode > 2) return false;
+    this.mode = mode;
+    await indexedDBService.saveSetting(MODE_KEY, mode);
 
-    this.modePreference = mode;
-    await indexedDBService.saveSetting(MODE_PREFERENCE_KEY, mode);
-
-    // Only send to ESP32 when on local network
+    // Send to ESP32 if on local network
     if (ConnectionManager.getMode() === 'local') {
       try {
-        const formData = new FormData();
-        formData.append('mode', String(mode));
-
-        const response = await fetch(`http://${mainBoardIP}:${port}/set-mode`, {
-          method: 'POST',
-          body: formData,
+        await fetch(`http://${mainBoardIP}:${port}/set-mode?mode=${mode}`, {
           signal: AbortSignal.timeout(5000)
         });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        console.log('[OfflineModeService] Mode sent to ESP32:', mode);
-      } catch (error) {
-        console.warn('[OfflineModeService] Failed to send mode to ESP32:', error.message);
+      } catch (e) {
+        console.warn('[OfflineMode] Failed to send mode to ESP32:', e.message);
       }
     }
 
@@ -1076,82 +1000,40 @@ class OfflineModeService {
     return true;
   }
 
-  getMode() {
-    return this.modePreference;
-  }
+  getMode() { return this.mode; }
 
-  isPWAOnline() {
-    return this.pwaOnline;
-  }
-
-  getBotStatus() {
-    return this.botStatus;
-  }
-
-  /**
-   * Fetch bot offline status from ESP32 local endpoint.
-   * Only call when ConnectionManager.getMode() === 'local'.
-   */
   async fetchBotStatus(mainBoardIP, port = 81) {
     try {
       const response = await fetch(
         `http://${mainBoardIP}:${port}/offline-status`,
         { signal: AbortSignal.timeout(5000) }
       );
-
       if (response.ok) {
         this.botStatus = await response.json();
         this.notifyListeners();
-        return this.botStatus;
       }
-    } catch (error) {
-      this.botStatus = {
-        ...this.botStatus,
-        connectionState: 'unreachable',
-        wifiConnected: false
-      };
+    } catch (e) {
+      this.botStatus = { connectionState: 'unreachable' };
       this.notifyListeners();
     }
     return this.botStatus;
   }
 
-  /**
-   * Trigger manual sync on the ESP32.
-   */
   async forceSync(mainBoardIP, port = 81) {
-    try {
-      const response = await fetch(`http://${mainBoardIP}:${port}/force-sync`, {
-        method: 'POST',
-        signal: AbortSignal.timeout(30000)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await this.fetchBotStatus(mainBoardIP, port);
-        return result;
-      }
-      throw new Error(`HTTP ${response.status}`);
-    } catch (error) {
-      console.error('[OfflineModeService] Force sync failed:', error);
-      throw error;
-    }
+    const response = await fetch(`http://${mainBoardIP}:${port}/force-sync`, {
+      signal: AbortSignal.timeout(30000)
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    await this.fetchBotStatus(mainBoardIP, port);
+    return result;
   }
 
-  /**
-   * Start polling bot status. Only useful when on local network.
-   * @param {string} mainBoardIP
-   * @param {number} port
-   * @param {number} intervalMs - Poll interval (default 15000ms)
-   */
   startPolling(mainBoardIP, port = 81, intervalMs = 15000) {
     this.stopPolling();
+    if (ConnectionManager.getMode() !== 'local') return;
 
-    // Only poll when on local network
-    if (ConnectionManager.getMode() !== 'local') {
-      console.log('[OfflineModeService] Not on local network, skipping poll');
-      return;
-    }
-
+    this.fetchBotStatus(mainBoardIP, port);
     this.pollInterval = setInterval(() => {
       if (ConnectionManager.getMode() === 'local') {
         this.fetchBotStatus(mainBoardIP, port);
@@ -1159,9 +1041,6 @@ class OfflineModeService {
         this.stopPolling();
       }
     }, intervalMs);
-
-    // Fetch immediately
-    this.fetchBotStatus(mainBoardIP, port);
   }
 
   stopPolling() {
@@ -1171,24 +1050,17 @@ class OfflineModeService {
     }
   }
 
-  /**
-   * Subscribe to status changes.
-   * @param {function} callback - Called with { mode, botStatus, pwaOnline }
-   * @returns {function} Unsubscribe function
-   */
   onStatusChange(callback) {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
 
-  /** @private */
   notifyListeners() {
-    const data = {
-      mode: this.modePreference,
+    this.listeners.forEach(cb => cb({
+      mode: this.mode,
       botStatus: this.botStatus,
-      pwaOnline: this.pwaOnline
-    };
-    this.listeners.forEach(cb => cb(data));
+      pwaOnline: navigator.onLine
+    }));
   }
 }
 
@@ -1199,20 +1071,10 @@ export default new OfflineModeService();
 
 ### 3.3 ConnectionStatusBanner (NEW: `src/components/ui/ConnectionStatusBanner.jsx`)
 
-Uses correct CSS tokens from the project.
-
 ```jsx
 import React from 'react';
-import { Cloud, CloudOff, RefreshCw, WifiOff } from 'lucide-react';
+import { CloudOff, RefreshCw, WifiOff } from 'lucide-react';
 
-/**
- * Connection status banner states:
- * - online: hidden (no banner shown)
- * - syncing: warning banner with spinner
- * - pwa_offline: error banner (browser offline)
- * - bot_offline: warning banner (ESP32 has no internet)
- * - unreachable: tertiary banner (can't reach ESP32 locally)
- */
 export default function ConnectionStatusBanner({
   pwaOnline = true,
   botConnectionState = 'unknown',
@@ -1221,28 +1083,20 @@ export default function ConnectionStatusBanner({
   onRetry,
   language = 'en'
 }) {
-  const texts = {
-    en: {
-      pwaOffline: 'You are offline',
-      botOffline: 'Bot offline - still protecting crops',
-      syncing: 'Syncing queued data...',
-      unreachable: 'Cannot reach bot locally',
-      queued: 'commands queued',
-      retry: 'Retry'
-    },
-    tl: {
-      pwaOffline: 'Ikaw ay offline',
-      botOffline: 'Bot offline - nagbabantay pa rin',
-      syncing: 'Nagsi-sync ng data...',
-      unreachable: 'Hindi maabot ang bot',
-      queued: 'command na nakapila',
-      retry: 'I-retry'
-    }
+  const t = language === 'tl' ? {
+    pwaOffline: 'Ikaw ay offline',
+    botOffline: 'Bot offline - nagbabantay pa rin',
+    syncing: 'Nagsi-sync ng data...',
+    unreachable: 'Hindi maabot ang bot',
+    queued: 'nakapila'
+  } : {
+    pwaOffline: 'You are offline',
+    botOffline: 'Bot offline - still protecting crops',
+    syncing: 'Syncing queued data...',
+    unreachable: 'Cannot reach bot locally',
+    queued: 'queued'
   };
 
-  const t = texts[language] || texts.en;
-
-  // Syncing state
   if (isSyncing) {
     return (
       <div className="bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 flex items-center gap-2">
@@ -1255,63 +1109,45 @@ export default function ConnectionStatusBanner({
     );
   }
 
-  // PWA offline (browser has no network)
   if (!pwaOnline) {
     return (
-      <div className="bg-error/10 border border-error/30 rounded-lg px-3 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CloudOff size={16} className="text-error" />
-            <span className="text-xs text-secondary font-medium">{t.pwaOffline}</span>
-          </div>
-          {queuedCommands > 0 && (
-            <span className="text-xs text-tertiary">{queuedCommands} {t.queued}</span>
-          )}
+      <div className="bg-error/10 border border-error/30 rounded-lg px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CloudOff size={16} className="text-error" />
+          <span className="text-xs text-secondary font-medium">{t.pwaOffline}</span>
         </div>
+        {queuedCommands > 0 && (
+          <span className="text-xs text-tertiary">{queuedCommands} {t.queued}</span>
+        )}
       </div>
     );
   }
 
-  // Bot offline (ESP32 has no internet but is locally reachable)
   if (botConnectionState === 'offline') {
     return (
-      <div className="bg-warning/10 border border-warning/30 rounded-lg px-3 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CloudOff size={16} className="text-warning" />
-            <span className="text-xs text-secondary font-medium">{t.botOffline}</span>
-          </div>
-          {onRetry && (
-            <button onClick={onRetry} className="text-xs text-brand underline">
-              {t.retry}
-            </button>
-          )}
+      <div className="bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CloudOff size={16} className="text-warning" />
+          <span className="text-xs text-secondary font-medium">{t.botOffline}</span>
         </div>
+        {onRetry && <button onClick={onRetry} className="text-xs text-brand underline">{language === 'tl' ? 'I-retry' : 'Retry'}</button>}
       </div>
     );
   }
 
-  // Unreachable (can't reach ESP32 on local network)
   if (botConnectionState === 'unreachable') {
     return (
-      <div className="bg-tertiary border border-primary rounded-lg px-3 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <WifiOff size={16} className="text-tertiary" />
-            <span className="text-xs text-secondary font-medium">{t.unreachable}</span>
-          </div>
-          {onRetry && (
-            <button onClick={onRetry} className="text-xs text-brand underline">
-              {t.retry}
-            </button>
-          )}
+      <div className="bg-tertiary border border-primary rounded-lg px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <WifiOff size={16} className="text-tertiary" />
+          <span className="text-xs text-secondary font-medium">{t.unreachable}</span>
         </div>
+        {onRetry && <button onClick={onRetry} className="text-xs text-brand underline">{language === 'tl' ? 'I-retry' : 'Retry'}</button>}
       </div>
     );
   }
 
-  // Online or unknown - don't show banner
-  return null;
+  return null;  // Online - no banner
 }
 ```
 
@@ -1324,95 +1160,33 @@ import React from 'react';
 import { Wifi, WifiOff, Zap } from 'lucide-react';
 import { CONNECTION_MODES } from '../../services/OfflineModeService';
 
-export default function ConnectionModeSelector({
-  currentMode,
-  onModeChange,
-  disabled = false,
-  language = 'en'
-}) {
-  const texts = {
-    en: {
-      title: 'Connection Mode',
-      auto: 'Auto',
-      autoDesc: 'Detect automatically',
-      online: 'Online',
-      onlineDesc: 'Always use internet',
-      offline: 'Offline',
-      offlineDesc: 'Local only'
-    },
-    tl: {
-      title: 'Connection Mode',
-      auto: 'Auto',
-      autoDesc: 'Awtomatiko',
-      online: 'Online',
-      onlineDesc: 'Palaging internet',
-      offline: 'Offline',
-      offlineDesc: 'Lokal lang'
-    }
-  };
+const MODES = [
+  { value: CONNECTION_MODES.AUTO, label: 'Auto', icon: Zap, color: 'info' },
+  { value: CONNECTION_MODES.ONLINE, label: 'Online', icon: Wifi, color: 'success' },
+  { value: CONNECTION_MODES.OFFLINE, label: 'Offline', icon: WifiOff, color: 'warning' }
+];
 
-  const t = texts[language] || texts.en;
-
-  const modes = [
-    {
-      value: CONNECTION_MODES.AUTO,
-      label: t.auto,
-      description: t.autoDesc,
-      icon: Zap,
-      activeClasses: 'border-info bg-info/10',
-      iconColor: 'text-info'
-    },
-    {
-      value: CONNECTION_MODES.ONLINE,
-      label: t.online,
-      description: t.onlineDesc,
-      icon: Wifi,
-      activeClasses: 'border-success bg-success/10',
-      iconColor: 'text-success'
-    },
-    {
-      value: CONNECTION_MODES.OFFLINE,
-      label: t.offline,
-      description: t.offlineDesc,
-      icon: WifiOff,
-      activeClasses: 'border-warning bg-warning/10',
-      iconColor: 'text-warning'
-    }
-  ];
-
+export default function ConnectionModeSelector({ currentMode, onModeChange, disabled = false }) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium text-primary">{t.title}</h3>
-      <div className="grid grid-cols-3 gap-2">
-        {modes.map((mode) => {
-          const isSelected = currentMode === mode.value;
-          const Icon = mode.icon;
-
-          return (
-            <button
-              key={mode.value}
-              onClick={() => !disabled && onModeChange(mode.value)}
-              disabled={disabled}
-              className={`
-                p-3 rounded-lg border-2 transition-all
-                ${isSelected ? mode.activeClasses : 'surface-primary border-primary hover:bg-secondary'}
-                ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-              `}
-            >
-              <Icon
-                size={20}
-                className={`mx-auto mb-1 ${isSelected ? mode.iconColor : 'text-tertiary'}`}
-              />
-              <div className={`text-xs font-medium ${isSelected ? 'text-primary' : 'text-secondary'}`}>
-                {mode.label}
-              </div>
-              <div className="text-[10px] text-tertiary mt-0.5">
-                {mode.description}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+    <div className="grid grid-cols-3 gap-2">
+      {MODES.map(({ value, label, icon: Icon, color }) => {
+        const isSelected = currentMode === value;
+        return (
+          <button
+            key={value}
+            onClick={() => !disabled && onModeChange(value)}
+            disabled={disabled}
+            className={`p-3 rounded-lg border-2 transition-all
+              ${isSelected ? `border-${color} bg-${color}/10` : 'surface-primary border-primary hover:bg-secondary'}
+              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <Icon size={20} className={`mx-auto mb-1 ${isSelected ? `text-${color}` : 'text-tertiary'}`} />
+            <div className={`text-xs font-medium text-center ${isSelected ? 'text-primary' : 'text-secondary'}`}>
+              {label}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1420,459 +1194,153 @@ export default function ConnectionModeSelector({
 
 ---
 
-### 3.5 Dashboard Integration (`src/pages/Dashboard.jsx`)
+### 3.5 Page Integrations
 
-Add offline command queuing to Dashboard quick actions.
+#### Dashboard.jsx — Add command queuing
 
 ```jsx
-// Add imports at top of Dashboard.jsx
+// Add import
 import CommandQueueService from '../services/CommandQueueService';
 
-// Add state inside Dashboard component
+// In component, add state
 const [queuedCommands, setQueuedCommands] = useState(0);
-const [isSyncing, setIsSyncing] = useState(false);
 
-// Add to the existing initServices() useEffect, after other initialization:
+// In initialization useEffect
 CommandQueueService.initialize();
-const unsubscribeQueue = CommandQueueService.onQueueChange(({ count, isFlushing }) => {
-  setQueuedCommands(count);
-  setIsSyncing(isFlushing);
-});
+const unsubQueue = CommandQueueService.onQueueChange(({ count }) => setQueuedCommands(count));
+// Add to cleanup: unsubQueue();
 
-// Add to useEffect cleanup:
-// unsubscribeQueue();
-
-// In quick action handlers, replace CommandService with CommandQueueService:
-// Before: await CommandService.sendCommand(CONFIG.DEVICE_ID, 'trigger_alarm');
-// After:
+// Replace CommandService calls with CommandQueueService:
 const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'trigger_alarm');
 if (result.queued) {
-  showWarning(
-    language === 'en' ? 'Queued' : 'Nakapila',
-    language === 'en' ? 'Command queued - will send when online' : 'Command nakapila - ipapadala kapag online'
-  );
+  showWarning('Queued', 'Command will send when online');
 }
-
-// Show ConnectionStatusBanner below header when offline or commands are queued:
-// Import at top:
-import ConnectionStatusBanner from '../components/ui/ConnectionStatusBanner';
-
-// In JSX, below the header section:
-{(!navigator.onLine || queuedCommands > 0) && (
-  <div className="mb-3">
-    <ConnectionStatusBanner
-      pwaOnline={navigator.onLine}
-      queuedCommands={queuedCommands}
-      isSyncing={isSyncing}
-      language={language}
-    />
-  </div>
-)}
 ```
 
----
-
-### 3.6 Controls Integration (`src/pages/Controls.jsx`)
-
-Replace direct `CommandService` calls in `executeCommand()` with `CommandQueueService`.
+#### Controls.jsx — Replace executeCommand
 
 ```jsx
-// Add import at top of Controls.jsx
+// Add import
 import CommandQueueService from '../services/CommandQueueService';
-import ConnectionStatusBanner from '../components/ui/ConnectionStatusBanner';
 
-// Add state
-const [queuedCommands, setQueuedCommands] = useState(0);
-
-// Add useEffect for queue subscription
-useEffect(() => {
-  CommandQueueService.initialize();
-  const unsub = CommandQueueService.onQueueChange(({ count }) => {
-    setQueuedCommands(count);
-  });
-  return () => unsub();
-}, []);
-
-// Modify executeCommand to use CommandQueueService:
-const executeCommand = async (command, confirmMsg = null, isDangerous = false) => {
-  if (confirmMsg) {
-    const confirmed = await confirm(t.warning || 'Warning', confirmMsg, { isDangerous });
-    if (!confirmed) return;
-  }
-
-  setLoading(command, true);
-  setLastCommand({ command, timestamp: new Date() });
-
-  try {
-    let result;
-    switch (command) {
-      case 'MOVE_ARMS':
-        result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'oscillate_arms');
-        break;
-      case 'STOP_MOVEMENT':
-        result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'stop_movement');
-        break;
-      case 'SOUND_ALARM':
-        result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'trigger_alarm');
-        break;
-      case 'RESET_SYSTEM':
-        result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'reset_system');
-        break;
-      case 'CALIBRATE_SENSORS':
-        result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, 'calibrate_sensors');
-        break;
-      default:
-        throw new Error('Unknown command');
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    if (result.queued) {
-      showWarning(
-        language === 'en' ? 'Queued' : 'Nakapila',
-        language === 'en' ? 'Command queued - will send when online' : 'Ipapadala kapag online'
-      );
-    } else {
-      showSuccess(t.success, `${getCommandDisplayName(command)} ${t.successMessage}`);
-    }
-  } catch (error) {
-    showError(t.failed, `${getCommandDisplayName(command)} ${t.failedMessage}`);
-  } finally {
-    setLoading(command, false);
-  }
-};
-
-// In JSX, at the top of the page content, show banner when offline:
-{(!navigator.onLine || queuedCommands > 0) && (
-  <div className="mb-3">
-    <ConnectionStatusBanner
-      pwaOnline={navigator.onLine}
-      queuedCommands={queuedCommands}
-      language={language}
-    />
-  </div>
-)}
+// In executeCommand, replace CommandService calls:
+const result = await CommandQueueService.sendCommand(CONFIG.DEVICE_ID, actionName);
+if (result.queued) {
+  showWarning('Queued', 'Command queued - will send when online');
+} else {
+  showSuccess(t.success, `${commandName} ${t.successMessage}`);
+}
 ```
 
----
-
-### 3.7 Settings Integration (`src/pages/Settings.jsx`)
-
-Add the Connection Mode selector and offline status to the Settings page, in a new "Connection Mode" section after Push Notifications.
+#### Settings.jsx — Add Connection Mode section
 
 ```jsx
-// Add imports at top of Settings.jsx
+// Add imports
 import OfflineModeService, { CONNECTION_MODES } from '../services/OfflineModeService';
-import CommandQueueService from '../services/CommandQueueService';
-import ConnectionStatusBanner from '../components/ui/ConnectionStatusBanner';
 import ConnectionModeSelector from '../components/ui/ConnectionModeSelector';
 
-// Add state inside Settings component
+// Add state
 const [connectionMode, setConnectionMode] = useState(CONNECTION_MODES.AUTO);
-const [botStatus, setBotStatus] = useState(null);
-const [syncing, setSyncing] = useState(false);
-const [queuedCommands, setQueuedCommands] = useState(0);
 
-// Add useEffect for initialization
-useEffect(() => {
-  OfflineModeService.initialize().then(mode => {
-    setConnectionMode(mode);
-  });
+// In useEffect
+OfflineModeService.initialize().then(mode => setConnectionMode(mode));
+const mainBoardIP = ConfigService.getValue('mainBoardIP', '172.24.26.193');
+OfflineModeService.startPolling(mainBoardIP, 81);
+// Cleanup: OfflineModeService.stopPolling();
 
-  CommandQueueService.initialize();
-
-  const unsubStatus = OfflineModeService.onStatusChange(({ mode, botStatus }) => {
-    setConnectionMode(mode);
-    setBotStatus(botStatus);
-  });
-
-  const unsubQueue = CommandQueueService.onQueueChange(({ count }) => {
-    setQueuedCommands(count);
-  });
-
-  // Start polling bot status if on local network
-  const mainBoardIP = ConfigService.getValue('mainBoardIP', '172.24.26.193');
-  const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
-  OfflineModeService.startPolling(mainBoardIP, mainBoardPort, 15000);
-
-  return () => {
-    unsubStatus();
-    unsubQueue();
-    OfflineModeService.stopPolling();
-  };
-}, []);
-
-// Add handlers
+// Handler
 const handleModeChange = async (mode) => {
-  const mainBoardIP = ConfigService.getValue('mainBoardIP', '172.24.26.193');
-  const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
   setConnectionMode(mode);
-  const success = await OfflineModeService.setMode(mode, mainBoardIP, mainBoardPort);
-  if (success) {
-    showSuccess(
-      language === 'en' ? 'Mode Updated' : 'Na-update ang Mode',
-      language === 'en' ? 'Connection mode changed' : 'Nabago ang connection mode'
-    );
-  }
+  await OfflineModeService.setMode(mode, mainBoardIP, 81);
+  showSuccess('Mode Updated', 'Connection mode changed');
 };
 
-const handleSyncNow = async () => {
-  setSyncing(true);
-  try {
-    await CommandQueueService.flushQueue();
-    showSuccess(
-      language === 'en' ? 'Synced' : 'Na-sync',
-      language === 'en' ? 'Queued commands sent' : 'Naipadala ang mga command'
-    );
-  } catch (error) {
-    showError(
-      language === 'en' ? 'Sync Failed' : 'Hindi na-sync',
-      error.message
-    );
-  } finally {
-    setSyncing(false);
-  }
-};
-
-const handleRetryBotStatus = () => {
-  const mainBoardIP = ConfigService.getValue('mainBoardIP', '172.24.26.193');
-  const mainBoardPort = ConfigService.getValue('mainBoardPort', 81);
-  OfflineModeService.fetchBotStatus(mainBoardIP, mainBoardPort);
-};
-
-// In JSX, add a new section after Push Notifications, before App Preferences:
-
-{/* Connection Mode Section */}
-<div className="surface-primary rounded-xl p-4 sm:p-5 border-2 border-primary">
-  <div className="flex items-center gap-2 mb-3">
-    <Wifi size={20} className="text-brand" />
-    <h2 className="text-base font-bold text-primary">
-      {language === 'en' ? 'Connection Mode' : 'Connection Mode'}
-    </h2>
-  </div>
-
-  {/* Status Banner */}
-  {(botStatus || !navigator.onLine || queuedCommands > 0) && (
-    <div className="mb-3">
-      <ConnectionStatusBanner
-        pwaOnline={navigator.onLine}
-        botConnectionState={botStatus?.connectionState}
-        queuedCommands={queuedCommands}
-        isSyncing={syncing}
-        onRetry={handleRetryBotStatus}
-        language={language}
-      />
-    </div>
-  )}
-
-  {/* Mode Selector */}
-  <ConnectionModeSelector
-    currentMode={connectionMode}
-    onModeChange={handleModeChange}
-    language={language}
-  />
-
-  {/* Sync Now Button */}
-  {queuedCommands > 0 && (
-    <button
-      onClick={handleSyncNow}
-      disabled={syncing || !navigator.onLine}
-      className="mt-3 w-full py-2 rounded-lg bg-brand text-white text-sm font-medium
-                 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-    >
-      {syncing ? (
-        <span className="flex items-center justify-center gap-2">
-          <RefreshCw size={14} className="animate-spin" />
-          {language === 'en' ? 'Syncing...' : 'Nagsi-sync...'}
-        </span>
-      ) : (
-        language === 'en'
-          ? `Sync Now (${queuedCommands} queued)`
-          : `I-sync Ngayon (${queuedCommands} nakapila)`
-      )}
-    </button>
-  )}
-</div>
+// In JSX (new section after Push Notifications):
+<ConnectionModeSelector currentMode={connectionMode} onModeChange={handleModeChange} />
 ```
 
 ---
 
-### 3.8 UI Exports (`src/components/ui/index.js`)
-
-Add new component exports:
-
-```javascript
-// Add to existing exports in src/components/ui/index.js
-export { default as ConnectionStatusBanner } from './ConnectionStatusBanner';
-export { default as ConnectionModeSelector } from './ConnectionModeSelector';
-```
-
----
-
-### 3.9 Initialization Flow
-
-```
-App mount
-  -> Dashboard mount
-    -> initServices() useEffect
-      -> CommandQueueService.initialize()
-        -> Loads queue from IndexedDB
-        -> Attaches 'online' event listener for auto-flush
-        -> If online & queue > 0, flushes immediately
-
-  -> Settings mount (when navigated to)
-    -> OfflineModeService.initialize()
-      -> Loads mode preference from IndexedDB
-      -> Attaches online/offline event listeners
-    -> OfflineModeService.startPolling() (only if ConnectionManager.getMode() === 'local')
-      -> Polls ESP32 /offline-status every 15s
-    -> OfflineModeService.stopPolling() on unmount
-```
-
----
-
-## Integration Flow Diagram
-
-```
-User command -> CommandQueueService.sendCommand(deviceId, action, params)
-  |-- navigator.onLine = true?
-  |     -> CommandService.sendCommand() -> Firestore commands/{id}/pending
-  |     |-- Success -> return { success: true }
-  |     +-- Fail (Firebase error) -> Enqueue to IndexedDB -> return { queued: true }
-  +-- navigator.onLine = false?
-        -> Enqueue to IndexedDB -> return { queued: true }
-
-Browser 'online' event -> CommandQueueService.flushQueue()
-  -> For each queued command (sequential):
-    -> CommandService.sendCommand()
-    -> Success: remove from queue
-    -> Fail: increment attempts (max 3, then drop)
-    -> 200ms delay between commands
-
-OfflineModeService (Settings page, local network only):
-  -> Polls ESP32 /offline-status every 15s
-  -> Updates botStatus state
-  -> ConnectionStatusBanner reflects status
-```
-
----
-
-## Part 4: Memory Budget Summary
+## Part 4: Memory Budget
 
 ### Main Board (ESP32 DevKit v1)
-| Component | Memory Usage |
-|-----------|--------------|
-| Detection Queue (20 entries x 12 bytes) | ~240 bytes |
-| Sensor Queue (6 entries x 44 bytes) | ~264 bytes |
-| State Variables | ~20 bytes |
-| JSON Response Buffers | ~300 bytes |
-| **Total New Usage** | **~824 bytes (<1KB)** |
+| Component | Size |
+|-----------|------|
+| Detection Queue (10 x 32 bytes) | 320 bytes |
+| Sensor Queue (6 x 36 bytes) | 216 bytes |
+| State variables | ~20 bytes |
+| **Total New Usage** | **~556 bytes** |
 
-**Remaining:** ~159KB free (safe margin)
+Remaining: ~159KB free (safe margin).
 
 ### Camera Board (ESP32-CAM)
-| Component | Memory Usage |
-|-----------|--------------|
-| Retry logic variables | ~12 bytes |
-| **Total New Usage** | **~12 bytes** |
-
-**Remaining:** ~180KB free (unchanged)
+| Component | Size |
+|-----------|------|
+| Retry logic variables | ~4 bytes |
+| **Total New Usage** | **~4 bytes** |
 
 ---
 
 ## Part 5: Testing Checklist
 
-### Offline Command Queuing (PWA)
-- [ ] Airplane mode -> send commands from Controls page -> verify queued in IndexedDB
-- [ ] Go back online -> commands flush to Firebase automatically
-- [ ] Command dedup: queue multiple `set_volume` -> only latest flushed
-- [ ] Queue persistence: queue -> close app -> reopen -> queue intact -> online -> flushes
-- [ ] Controls page: offline command -> toast says "Queued"
-- [ ] Dashboard quick actions: offline -> shows "Queued" warning toast
+### ESP32 Offline Mode
+- [ ] Boot without WiFi -> starts in OFFLINE mode, alarm works locally
+- [ ] Unplug internet -> bot switches to OFFLINE, continues detecting
+- [ ] Bird detection offline -> queued (check Serial output)
+- [ ] Sensor history offline -> queued (check Serial output)
+- [ ] Reconnect internet -> auto-syncs queued data to Firebase
+- [ ] Detection queue fills to 10 -> oldest overwritten
+- [ ] `/offline-status` returns correct JSON when polled
+- [ ] `/set-mode?mode=2` switches to FORCE_OFFLINE
+- [ ] `/force-sync` syncs queued data on demand
 
-### Banner Display (PWA)
-- [ ] Disconnect WiFi -> banner shows with queued count on Dashboard and Controls
-- [ ] Reconnect -> banner disappears after flush
-- [ ] Settings page shows bot status when on local network
+### Camera Board Retry
+- [ ] Main Board temporarily offline -> Camera retries 3x
+- [ ] Main Board comes back -> Camera successfully notifies
 
-### Mode Selector (Settings)
-- [ ] Mode selector shows AUTO / ONLINE / OFFLINE options with correct styling
-- [ ] Select OFFLINE -> ESP32 receives mode=2 via `/set-mode` (local only)
-- [ ] Select ONLINE -> ESP32 receives mode=1
-- [ ] Select AUTO -> ESP32 receives mode=0
-- [ ] Mode persists across app restarts (IndexedDB)
+### PWA Command Queuing
+- [ ] Airplane mode -> send commands -> queued in IndexedDB
+- [ ] Go online -> commands flush automatically
+- [ ] Dedup: multiple `set_volume` -> only latest flushed
+- [ ] Queue persists across app close/reopen
+- [ ] Controls page: offline command -> "Queued" toast
 
-### Stale Data (Dashboard)
-- [ ] 60s+ no data change -> Dashboard `isConnected=false` (existing behavior preserved)
-
-### Local Communication Tests (Camera -> Main Board)
-- [ ] Camera detects bird -> Main Board receives notification (same WiFi, NO internet)
-- [ ] Camera detects bird -> Alarm triggers IMMEDIATELY
-- [ ] Disconnect internet from router -> Camera still triggers Main Board
-- [ ] Camera retry logic works when Main Board temporarily unavailable
-
-### Offline Mode Tests (ESP32, No Internet)
-- [ ] Unplug internet (keep WiFi router on) -> Bot continues detecting
-- [ ] Unplug internet -> Alarm triggers on detection
-- [ ] Detection queue fills to 20 -> Overflow replaces lowest confidence
-- [ ] Sensor data queued during offline period
-
-### Online Transition Tests (ESP32)
-- [ ] Reconnect internet -> Sync starts automatically (AUTO mode)
-- [ ] Queued detections appear in Firebase after sync
-- [ ] Sensor history summary uploaded after sync
-
-### Build Verification
-- [ ] `npx vite build` passes with no errors
+### PWA Mode Selector (Settings)
+- [ ] AUTO / ONLINE / OFFLINE buttons work
+- [ ] Mode persists across app restarts
+- [ ] Mode sent to ESP32 when on local network
 
 ---
 
 ## Part 6: Implementation Order
 
-1. **Main Board: State Machine** - Add connection states and update logic
-2. **Main Board: Queue Structures** - Add detection and sensor queues with correct field names
-3. **Main Board: HTTP Endpoints** - Add `/offline-status`, `/set-mode`, `/force-sync`
-4. **Main Board: Integrate with Detection** - Queue when offline, sync when online
-5. **Camera Board: Retry Logic** - Add retry for Main Board notification
-6. **PWA: CommandQueueService** - Create service with offline queuing and dedup
-7. **PWA: OfflineModeService** - Create service with mode management and polling
-8. **PWA: UI Components** - Create `ConnectionStatusBanner` and `ConnectionModeSelector`
-9. **PWA: Controls Integration** - Replace `CommandService` calls with `CommandQueueService`
-10. **PWA: Dashboard Integration** - Add queue state and banner
-11. **PWA: Settings Integration** - Add mode selector section
-12. **PWA: UI Exports** - Update `src/components/ui/index.js`
-13. **Testing** - Run through all test cases
-
----
-
-## Critical Files Summary
-
-| File | Changes |
-|------|---------|
-| `arduino/.../MainBoard_Firebase.ino` | State machine, queue, sync, HTTP endpoints |
-| `arduino/.../CameraBoard_*.ino` | Retry logic for Main Board notification |
-| `src/services/CommandQueueService.js` | NEW - Offline command queuing |
-| `src/services/OfflineModeService.js` | NEW - Mode management, ESP32 polling |
-| `src/components/ui/ConnectionStatusBanner.jsx` | NEW - Status banner |
-| `src/components/ui/ConnectionModeSelector.jsx` | NEW - Mode selector UI |
-| `src/components/ui/index.js` | Export new components |
-| `src/pages/Dashboard.jsx` | CommandQueueService integration, banner |
-| `src/pages/Controls.jsx` | CommandQueueService in executeCommand, banner |
-| `src/pages/Settings.jsx` | Mode selector section, sync button |
+1. **Main Board: State + Queues** — Add enums, structs, queue arrays (sections 1.1-1.2)
+2. **Main Board: WiFi Reconnection** — Non-blocking setup + loop reconnection (section 1.3)
+3. **Main Board: Connection State** — Reactive state management (section 1.4)
+4. **Main Board: Queue Functions** — queueDetection, queueSensorSnapshot (section 1.5)
+5. **Main Board: Sync Protocol** — syncQueuedData, syncSensorSnapshots (section 1.6)
+6. **Main Board: Modify Existing** — Add fallbacks to logBirdDetection, saveSensorHistory, /bird_detected (section 1.7)
+7. **Main Board: HTTP Endpoints** — /offline-status, /set-mode, /force-sync (section 1.8)
+8. **Main Board: Loop Update** — Add calls to new functions (section 1.9)
+9. **Camera Board: Retry** — notifyMainBoardWithRetry wrapper (section 2.1)
+10. **PWA: CommandQueueService** — New service (section 3.1)
+11. **PWA: OfflineModeService** — New service (section 3.2)
+12. **PWA: UI Components** — Banner + Mode Selector (sections 3.3-3.4)
+13. **PWA: Page Integrations** — Dashboard, Controls, Settings (section 3.5)
 
 ---
 
 ## Key Design Decisions
 
-1. **Local-First Communication:** Camera ALWAYS sends to Main Board via local HTTP - works without internet
-2. **Alarm Always Works:** Bird detection -> alarm trigger is 100% local, no internet dependency
-3. **Automatic Detection:** AUTO mode detects internet availability every 15 seconds via DNS check
-4. **User Control:** Users can force AUTO, ONLINE, or OFFLINE mode from Settings
-5. **PWA Command Queuing:** `navigator.onLine` + Firebase write try/catch for reliable offline detection
-6. **Command Deduplication:** Only the latest value kept for slider-type commands (`set_volume`, `rotate_head`, etc.)
-7. **Queue Priority (ESP32):** Higher confidence detections replace lower ones when queue full
-8. **Queue Persistence (PWA):** Commands survive app close/reopen via IndexedDB
-9. **Graceful Sync:** ESP32 syncs automatically on reconnect; PWA flushes on browser `online` event
-10. **Minimal Memory:** Under 1KB additional memory on Main Board
-11. **Conditional Polling:** Only polls ESP32 `/offline-status` when `ConnectionManager.getMode() === 'local'`
-12. **Existing Patterns Preserved:** Dashboard staleness check (60s), smart update thresholds, VolumeContext dedup all continue working
+1. **Reactive offline detection** — Uses WiFi.status() + Firebase.ready() instead of active DNS/HTTP probes (zero network overhead)
+2. **Non-blocking reconnection** — WiFi.reconnect() in loop with 30s rate-limit (never blocks detection/alarm)
+3. **Non-breaking changes** — Existing functions get fallback paths, not rewrites. All current behavior preserved when online
+4. **Alarm always first** — /bird_detected triggers alarm BEFORE attempting Firebase logging
+5. **Graceful boot failure** — If WiFi unavailable at boot, device starts in OFFLINE mode and still operates locally
+6. **Memory-safe sync** — Checks heap > 20KB before syncing, stops on first failure
+7. **Circular buffer** — Detection queue overwrites oldest on overflow (guaranteed bounded memory)
+8. **PWA command dedup** — Only latest value kept for slider-type commands (set_volume, rotate_head)
+9. **Queue persistence** — PWA queue survives app close via IndexedDB
+10. **Conditional polling** — Only polls ESP32 /offline-status when ConnectionManager reports 'local' mode
+11. **Cloud Functions unaffected** — When ESP32 syncs queued data, Cloud Functions auto-fire notifications for threshold violations and bird detections
+12. **Simple mode endpoint** — Uses HTTP GET with query params for /set-mode (simpler than POST body parsing on ESP32)
