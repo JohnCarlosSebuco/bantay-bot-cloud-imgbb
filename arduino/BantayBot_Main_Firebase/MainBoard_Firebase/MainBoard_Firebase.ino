@@ -927,18 +927,7 @@ void handleWiFiReconnection() {
   if (userModePreference == 2) return;
 
   if (WiFi.status() == WL_CONNECTED) {
-    // WiFi is connected
-    if (connectionState == CONN_OFFLINE && !wifiWasConnected) {
-      // First time connecting (failed at boot)
-      wifiWasConnected = true;
-      Serial.println("WiFi connected for first time!");
-      Serial.println("IP: " + WiFi.localIP().toString());
-
-      // Initialize NTP + Firebase now
-      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-      initializeFirebase();
-    }
-    return;
+    return;  // WiFi is fine, nothing to do
   }
 
   // WiFi is disconnected - rate-limit reconnection attempts
@@ -1128,43 +1117,22 @@ void updateConnectionState() {
   // Check if we should transition to ONLINE
   if (connectionState == CONN_OFFLINE) {
     if (WiFi.status() != WL_CONNECTED) return;  // No WiFi, stay offline
+    if (!firebaseInitialized) return;  // Firebase never started, stay offline until reboot
 
-    // WiFi is connected - check if Firebase is ready
-    if (firebaseInitialized) {
-      if (Firebase.ready()) {
-        // Firebase reconnected - sync queued data
-        connectionState = CONN_TRANSITIONING;
-        Serial.println("Internet restored - syncing queued data...");
-        syncQueuedData();
-        connectionState = CONN_ONLINE;
-        offlineSince = 0;
-        firebaseConnected = true;
-        Serial.println("Now in ONLINE mode");
-      }
-    } else {
-      // Firebase never initialized - try now (internet may have come back)
-      // Rate-limit this check to avoid spamming HTTP requests
-      static unsigned long lastInternetCheck = 0;
-      if (millis() - lastInternetCheck > 30000) {
-        lastInternetCheck = millis();
-        Serial.println("🌐 Checking internet for Firebase init...");
-        HTTPClient http;
-        http.begin("http://www.google.com");
-        http.setTimeout(3000);
-        int code = http.GET();
-        http.end();
-        if (code > 0) {
-          Serial.println("✅ Internet available - initializing Firebase");
-          initializeFirebase();
-          if (firebaseConnected) {
-            connectionState = CONN_TRANSITIONING;
-            syncQueuedData();
-            connectionState = CONN_ONLINE;
-            offlineSince = 0;
-            Serial.println("Now in ONLINE mode");
-          }
-        }
-      }
+    // Rate-limit Firebase.ready() checks (may trigger internal token refresh)
+    static unsigned long lastReadyCheck = 0;
+    if (millis() - lastReadyCheck < 10000) return;  // Check every 10s max
+    lastReadyCheck = millis();
+
+    if (Firebase.ready()) {
+      // Firebase reconnected - sync queued data
+      connectionState = CONN_TRANSITIONING;
+      Serial.println("Internet restored - syncing queued data...");
+      syncQueuedData();
+      connectionState = CONN_ONLINE;
+      offlineSince = 0;
+      firebaseConnected = true;
+      Serial.println("Now in ONLINE mode");
     }
   }
   // Check if we should transition to OFFLINE
