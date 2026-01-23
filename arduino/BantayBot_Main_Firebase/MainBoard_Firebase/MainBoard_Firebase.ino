@@ -157,6 +157,9 @@ unsigned long lastNotifConductivity = 0;
 unsigned long lastNotifBird = 0;
 const unsigned long NOTIF_COOLDOWN = 1800000; // 30 minutes
 
+// Pending notification queue (to avoid blocking async_tcp)
+bool pendingBirdNotif = false;
+
 // ===========================
 // Firebase Functions
 // ===========================
@@ -401,12 +404,8 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
   if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
     Serial.println("✅ Detection logged to Firestore!");
     birdsDetectedToday++;
-    // Send push notification (with throttle)
-    unsigned long now = millis();
-    if (now - lastNotifBird > NOTIF_COOLDOWN) {
-      sendPushNotification("bird_detection", "");
-      lastNotifBird = now;
-    }
+    // Queue push notification (processed in loop to avoid WDT)
+    pendingBirdNotif = true;
   } else {
     Serial.println("❌ Failed to log detection: " + fbdo.errorReason());
   }
@@ -1417,6 +1416,16 @@ void loop() {
   // Run stepper motor only if not paused
   if (!headMovementPaused) {
     stepper.run();
+  }
+
+  // Process pending push notifications (outside async_tcp context)
+  if (pendingBirdNotif) {
+    unsigned long now = millis();
+    if (now - lastNotifBird > NOTIF_COOLDOWN) {
+      sendPushNotification("bird_detection", "");
+      lastNotifBird = now;
+    }
+    pendingBirdNotif = false;
   }
 
   // Firebase operations
