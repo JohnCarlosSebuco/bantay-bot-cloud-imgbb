@@ -235,8 +235,11 @@ export default function Dashboard({ language }) {
         });
         const prevFingerprint = lastDataRef.current?.fingerprint;
 
-        if (prevFingerprint !== dataFingerprint) {
-          // Data changed - device is alive
+        if (prevFingerprint === undefined) {
+          // First snapshot - just store it, don't mark as connected yet
+          lastDataRef.current = { fingerprint: dataFingerprint, time: Date.now(), isFirst: true };
+        } else if (prevFingerprint !== dataFingerprint) {
+          // Data changed after first load - device is actively sending
           lastDataRef.current = { fingerprint: dataFingerprint, time: Date.now() };
           setLastUpdate(new Date());
           setIsConnected(true);
