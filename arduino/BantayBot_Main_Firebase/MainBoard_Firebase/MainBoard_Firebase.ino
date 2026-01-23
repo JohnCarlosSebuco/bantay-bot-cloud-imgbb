@@ -641,9 +641,9 @@ void updateArmSteppers() {
     return;
   }
 
-  // Set direction for both arms (same DIR signal = opposite physical motion due to mirrored mounting)
-  digitalWrite(ARM1_DIR_PIN, (armStepDirection == 1) ? HIGH : LOW);
-  digitalWrite(ARM2_DIR_PIN, (armStepDirection == 1) ? HIGH : LOW);
+  // Set direction for both arms (inverted = outward sweep)
+  digitalWrite(ARM1_DIR_PIN, (armStepDirection == 1) ? LOW : HIGH);
+  digitalWrite(ARM2_DIR_PIN, (armStepDirection == 1) ? LOW : HIGH);
 
   // RAPID SWEEP: Execute all steps in tight loop for fast continuous motion
   while ((armStepDirection == 1 && armCurrentStep1 < ARM_HALF_SWEEP_STEPS) ||
