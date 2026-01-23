@@ -49,6 +49,7 @@ export default function Dashboard({ language }) {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const lastDataRef = useRef(null); // Track last received sensor data for staleness check
 
   // Quick action loading states
   const [loadingAction, setLoadingAction] = useState(null);
@@ -225,8 +226,21 @@ export default function Dashboard({ language }) {
           oscillating: data.servoActive || false,
           hasRS485Sensor: true,
         }));
-        setLastUpdate(new Date());
-        setIsConnected(true);
+
+        // Check if data actually changed (device is sending new readings)
+        const dataFingerprint = JSON.stringify({
+          s1h: data.soil1Humidity, s1t: data.soil1Temperature,
+          s2h: data.soil2Humidity, s2t: data.soil2Temperature,
+          last_seen: data.last_seen,
+        });
+        const prevFingerprint = lastDataRef.current?.fingerprint;
+
+        if (prevFingerprint !== dataFingerprint) {
+          // Data changed - device is alive
+          lastDataRef.current = { fingerprint: dataFingerprint, time: Date.now() };
+          setLastUpdate(new Date());
+          setIsConnected(true);
+        }
 
         // Check sensor data for notification triggers (use averaged values)
         notificationService.checkAndNotify(updatedData, language);
@@ -244,10 +258,21 @@ export default function Dashboard({ language }) {
       }));
     }, 500);
 
+    // Staleness check: if no data change in 60s, mark offline
+    const stalenessInterval = setInterval(() => {
+      if (lastDataRef.current) {
+        const elapsed = Date.now() - lastDataRef.current.time;
+        if (elapsed > 60000) {
+          setIsConnected(false);
+        }
+      }
+    }, 15000);
+
     return () => {
       ConnectionManager.disconnect();
       if (unsubscribeSensor) unsubscribeSensor();
       if (unsubscribeDetection) unsubscribeDetection();
+      clearInterval(stalenessInterval);
     };
   }, [language]);
 
