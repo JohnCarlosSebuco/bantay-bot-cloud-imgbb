@@ -9,7 +9,7 @@ import { CONFIG } from '../config/config';
 import { controlsTourSteps } from '../config/tourSteps';
 
 export default function Controls({ language }) {
-  const { volume, setVolume } = useVolume();
+  const { volume, setVolume, commitVolume } = useVolume();
   const { startTour, isFirstTimeUser, isTourCompleted } = useTour();
   const { showSuccess, showError, confirm } = useNotification();
   const [loadingStates, setLoadingStates] = useState({});
@@ -52,7 +52,8 @@ export default function Controls({ language }) {
       testSpeaker: 'Test Speaker',
       testSpeakerDesc: 'Play test sound',
       speakerSuccess: 'Speaker test playing!',
-      speakerFailed: 'Speaker test failed. Try again.'
+      speakerFailed: 'Speaker test failed. Try again.',
+      volumeSet: 'Volume set to'
     },
     tl: {
       title: 'Mga Kontrol',
@@ -86,7 +87,8 @@ export default function Controls({ language }) {
       testSpeaker: 'Subukan Speaker',
       testSpeakerDesc: 'Patunugin ang speaker',
       speakerSuccess: 'Tumutunog ang speaker!',
-      speakerFailed: 'Hindi gumana ang speaker. Subukan muli.'
+      speakerFailed: 'Hindi gumana ang speaker. Subukan muli.',
+      volumeSet: 'Lakas ng tunog:'
     }
   };
 
@@ -161,6 +163,15 @@ export default function Controls({ language }) {
 
   const handleVolumeChange = (newVolume) => {
     setVolume(newVolume);
+  };
+
+  const handleVolumeCommit = async () => {
+    const result = await commitVolume();
+    if (result.success) {
+      showSuccess(t.success, `${t.volumeSet} ${volume}%`);
+    } else {
+      showError(t.failed, t.failedMessage);
+    }
   };
 
   const getVolumeIcon = () => {
@@ -339,6 +350,8 @@ export default function Controls({ language }) {
                   max="100"
                   value={volume}
                   onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                  onPointerUp={handleVolumeCommit}
+                  onKeyUp={(e) => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) handleVolumeCommit(); }}
                   className="flex-1 h-2 bg-tertiary rounded-lg appearance-none cursor-pointer"
                   style={{
                     background: `linear-gradient(to right, var(--primary-500) 0%, var(--primary-500) ${volume}%, var(--bg-tertiary) ${volume}%, var(--bg-tertiary) 100%)`

@@ -4,7 +4,10 @@ import {
   addDoc,
   serverTimestamp,
   onSnapshot,
-  deleteDoc
+  deleteDoc,
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { FIREBASE_COLLECTIONS, COMMAND_TYPES } from '../config/hardware.config';
 
@@ -212,6 +215,25 @@ class CommandService {
 
   async calibrateSensors(deviceId) {
     return this.sendCommand(deviceId, 'calibrate_sensors');
+  }
+
+  /**
+   * Delete all pending set_volume commands for a device to prevent queue buildup
+   */
+  async clearPendingVolumeCommands(deviceId) {
+    try {
+      const commandsRef = collection(db, FIREBASE_COLLECTIONS.COMMANDS, deviceId, 'pending');
+      const q = query(commandsRef, where('action', '==', 'set_volume'));
+      const snapshot = await getDocs(q);
+
+      const deletes = snapshot.docs.map(d => deleteDoc(d.ref));
+      if (deletes.length > 0) {
+        await Promise.all(deletes);
+        console.log(`[CommandService] Cleared ${deletes.length} stale volume command(s)`);
+      }
+    } catch (error) {
+      console.error('[CommandService] Failed to clear pending volume commands:', error);
+    }
   }
 
 }
