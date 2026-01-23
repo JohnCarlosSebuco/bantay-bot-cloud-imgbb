@@ -149,6 +149,13 @@ const unsigned long SCAN_DWELL_TIME = 3000;  // 3 seconds dwell at each position
 int birdsDetectedToday = 0;
 unsigned long lastDetectionTime = 0;
 
+// Push Notification Throttle (30 min between same type)
+unsigned long lastNotifMoisture = 0;
+unsigned long lastNotifTemp = 0;
+unsigned long lastNotifPH = 0;
+unsigned long lastNotifConductivity = 0;
+const unsigned long NOTIF_COOLDOWN = 1800000; // 30 minutes
+
 // ===========================
 // Firebase Functions
 // ===========================
@@ -393,9 +400,38 @@ void logBirdDetection(String imageUrl, int birdSize, int confidence, String dete
   if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "", path.c_str(), json.raw())) {
     Serial.println("✅ Detection logged to Firestore!");
     birdsDetectedToday++;
+    // Send push notification
+    sendPushNotification("bird_detection", "");
   } else {
     Serial.println("❌ Failed to log detection: " + fbdo.errorReason());
   }
+}
+
+// ===========================
+// Push Notification via Pipedream
+// ===========================
+
+void sendPushNotification(String type, String value) {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin(PIPEDREAM_WEBHOOK);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(5000);
+
+  String payload = "{\"type\":\"" + type + "\",\"value\":\"" + value + "\"}";
+
+  int httpCode = http.POST(payload);
+
+  if (httpCode >= 200 && httpCode < 300) {
+    Serial.println("📲 Push notification sent: " + type);
+  } else if (httpCode > 0) {
+    Serial.println("⚠️ Push notification HTTP error " + String(httpCode) + ": " + type);
+  } else {
+    Serial.println("❌ Push notification failed: " + http.errorToString(httpCode));
+  }
+
+  http.end();
 }
 
 // ===========================
@@ -483,6 +519,54 @@ void readAllSensors() {
   soilTemperature = (soil1Temperature + soil2Temperature) / 2.0;
   soilConductivity = (soil1Conductivity + soil2Conductivity) / 2.0;
   soilPH = (soil1PH + soil2PH) / 2.0;
+
+  // Check sensor thresholds for push notifications
+  checkSensorAlerts();
+}
+
+void checkSensorAlerts() {
+  unsigned long now = millis();
+
+  // Soil Moisture
+  if (soilHumidity > 0 && (now - lastNotifMoisture > NOTIF_COOLDOWN)) {
+    if (soilHumidity < 20) {
+      sendPushNotification("soil_moisture_critical", String(soilHumidity, 1));
+      lastNotifMoisture = now;
+    } else if (soilHumidity < 40) {
+      sendPushNotification("soil_moisture_warning", String(soilHumidity, 1));
+      lastNotifMoisture = now;
+    }
+  }
+
+  // Soil Temperature
+  if (soilTemperature > 0 && (now - lastNotifTemp > NOTIF_COOLDOWN)) {
+    if (soilTemperature > 35) {
+      sendPushNotification("soil_temperature_high", String(soilTemperature, 1));
+      lastNotifTemp = now;
+    } else if (soilTemperature < 10) {
+      sendPushNotification("soil_temperature_low", String(soilTemperature, 1));
+      lastNotifTemp = now;
+    }
+  }
+
+  // Soil pH
+  if (soilPH > 0 && (now - lastNotifPH > NOTIF_COOLDOWN)) {
+    if (soilPH < 4.0) {
+      sendPushNotification("soil_ph_acidic", String(soilPH, 1));
+      lastNotifPH = now;
+    } else if (soilPH > 8.5) {
+      sendPushNotification("soil_ph_alkaline", String(soilPH, 1));
+      lastNotifPH = now;
+    }
+  }
+
+  // Soil Conductivity
+  if (soilConductivity >= 0 && (now - lastNotifConductivity > NOTIF_COOLDOWN)) {
+    if (soilConductivity < 100) {
+      sendPushNotification("nutrient_low", String(soilConductivity, 0));
+      lastNotifConductivity = now;
+    }
+  }
 }
 
 // Legacy function for backward compatibility

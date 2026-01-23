@@ -19,6 +19,9 @@
 #define API_KEY "AIzaSyDbNM81-xOLGjQ5iiSOiXGBaV19tdJUFdg"
 #define FIREBASE_AUTH_DOMAIN "cloudbantaybot.firebaseapp.com"
 
+// Push Notification Webhook (Pipedream)
+#define PIPEDREAM_WEBHOOK "https://eoujudws1ixl4dx.m.pipedream.net"
+
 // Device IDs (must match React Native app)
 #define MAIN_DEVICE_ID "main_001"
 #define CAMERA_DEVICE_ID "camera_001"
